@@ -142,7 +142,7 @@ app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
 });
 
 // ========== BACKUP IMPORT ==========
-app.post('/api/importar-backup', auth, async (req, res) => {
+app.post('/api/importar-backup', async (req, res) => {
   try {
     const dados = req.body;
     const chaves = ['produtos','clientes','fornecedores','categorias','vendas','descontos','config','trocas_pendentes'];
