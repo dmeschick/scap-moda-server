@@ -171,6 +171,14 @@ app.post('/api/importar-backup', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+app.post('/api/reset-funcionarios', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM funcionarios');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
 });
