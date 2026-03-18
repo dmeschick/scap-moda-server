@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
+console.log('DATABASE_URL:', process.env.DATABASE_URL?.slice(0, 30));
 
 const app = express();
 app.use(cors());
