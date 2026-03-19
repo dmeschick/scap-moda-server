@@ -440,10 +440,6 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 
-  } catch (err) { res.status(500).json({ erro: err.message }); }
-});
-
-
 
 
 
