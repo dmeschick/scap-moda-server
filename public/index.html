@@ -902,6 +902,8 @@ async function fazerLogin() {
     const data = await api('POST', '/api/login', { funcId, senha });
     TOKEN = data.token;
     usuarioLogado = data.funcionario;
+    sessionStorage.setItem('scap_token', data.token);
+    sessionStorage.setItem('scap_user', JSON.stringify(data.funcionario));
     document.getElementById('tela-login').classList.add('hidden');
     document.getElementById('user-avatar').textContent = iniciais(usuarioLogado.nome);
     document.getElementById('user-nome').textContent = usuarioLogado.nome;
@@ -920,6 +922,8 @@ async function fazerLogin() {
 function fazerLogout() {
   if (!confirm('Sair do sistema?')) return;
   TOKEN = null; usuarioLogado = null; categorias = [];
+  sessionStorage.removeItem('scap_token');
+  sessionStorage.removeItem('scap_user');
   document.getElementById('tela-login').classList.remove('hidden');
   document.getElementById('login-senha').value = '';
   iniciarLogin();
@@ -2635,7 +2639,33 @@ setInterval(()=>{
 
 // ===== INIT =====
 ajustarMobile();
-iniciarLogin();
+
+// Tenta restaurar sessão salva
+(async () => {
+  const savedToken = sessionStorage.getItem('scap_token');
+  const savedUser = sessionStorage.getItem('scap_user');
+  if (savedToken && savedUser) {
+    try {
+      // Verifica se o token ainda é válido
+      TOKEN = savedToken;
+      usuarioLogado = JSON.parse(savedUser);
+      await api('GET', '/api/funcionarios'); // teste rápido
+      // Token válido — entra direto
+      document.getElementById('tela-login').classList.add('hidden');
+      document.getElementById('user-avatar').textContent = iniciais(usuarioLogado.nome);
+      document.getElementById('user-nome').textContent = usuarioLogado.nome;
+      await Promise.all([carregarCategoriasGlobal(), carregarDescontosGlobal()]);
+      carregarDashboard();
+      return;
+    } catch(e) {
+      // Token expirou — limpa e mostra login
+      TOKEN = null; usuarioLogado = null;
+      sessionStorage.removeItem('scap_token');
+      sessionStorage.removeItem('scap_user');
+    }
+  }
+  iniciarLogin();
+})();
 </script>
 </body>
 </html>
