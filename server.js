@@ -17,6 +17,7 @@ const pool = new Pool({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
@@ -155,6 +156,20 @@ async function initDB() {
       valor JSONB,
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS enderecos_cliente (
+      id VARCHAR(50) PRIMARY KEY,
+      cliente_id VARCHAR(50) REFERENCES clientes(id) ON DELETE CASCADE,
+      tipo VARCHAR(50) DEFAULT 'Residencial',
+      cep VARCHAR(10),
+      logradouro VARCHAR(200),
+      numero VARCHAR(20),
+      complemento VARCHAR(100),
+      bairro VARCHAR(100),
+      cidade VARCHAR(100),
+      estado VARCHAR(2),
+      principal BOOLEAN DEFAULT false
+    );
+    CREATE INDEX IF NOT EXISTS idx_end_cliente ON enderecos_cliente(cliente_id);
     CREATE TABLE IF NOT EXISTS ponto (
       id SERIAL PRIMARY KEY,
       funcionario_id VARCHAR(50) NOT NULL,
@@ -320,23 +335,44 @@ app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
 app.get('/api/clientes', auth, async (req, res) => {
   try {
     const { q } = req.query;
-    let sql = 'SELECT * FROM clientes';
+    let where = ['1=1'];
     let params = [];
-    if (q) { sql += ` WHERE LOWER(nome) LIKE $1 OR cpf LIKE $1 OR tel LIKE $1`; params.push('%'+q.toLowerCase()+'%'); }
-    sql += ' ORDER BY nome';
+    if (q) { where.push(`(LOWER(c.nome) LIKE $1 OR c.cpf LIKE $1 OR c.tel LIKE $1)`); params.push('%'+q.toLowerCase()+'%'); }
+    const sql = `
+      SELECT c.*, 
+        COALESCE(json_agg(e.* ORDER BY e.principal DESC) FILTER (WHERE e.id IS NOT NULL), '[]') as enderecos
+      FROM clientes c
+      LEFT JOIN enderecos_cliente e ON e.cliente_id=c.id
+      WHERE ${where.join(' AND ')}
+      GROUP BY c.id ORDER BY c.nome`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/clientes', auth, async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const c = req.body;
-    await pool.query(`INSERT INTO clientes (id,nome,tipo,cpf,cnpj,nasc,tel,email,ig,tam,obs,total_compras,ult_compra,status)
+    await client.query(`INSERT INTO clientes (id,nome,tipo,cpf,cnpj,nasc,tel,email,ig,tam,obs,total_compras,ult_compra,status)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       ON CONFLICT (id) DO UPDATE SET nome=$2,tipo=$3,cpf=$4,cnpj=$5,nasc=$6,tel=$7,email=$8,ig=$9,tam=$10,obs=$11,total_compras=$12,ult_compra=$13,status=$14`,
       [c.id,c.nome,c.tipo||'PF',c.cpf,c.cnpj,c.nasc||null,c.tel,c.email,c.ig,c.tam,c.obs,c.totalCompras||c.total_compras||0,c.ultCompra||c.ult_compra||null,c.status||'ativo']);
+    // Salva endereços
+    if (c.enderecos !== undefined) {
+      await client.query('DELETE FROM enderecos_cliente WHERE cliente_id=$1', [c.id]);
+      for (const e of (c.enderecos||[])) {
+        await client.query(`INSERT INTO enderecos_cliente (id,cliente_id,tipo,cep,logradouro,numero,complemento,bairro,cidade,estado,principal)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [e.id||uid(),c.id,e.tipo||'Residencial',e.cep,e.logradouro,e.numero,e.complemento,e.bairro,e.cidade,e.estado,e.principal||false]);
+      }
+    }
+    await client.query('COMMIT');
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: err.message }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ erro: err.message });
+  } finally { client.release(); }
 });
 app.delete('/api/clientes/:id', auth, async (req, res) => {
   try {

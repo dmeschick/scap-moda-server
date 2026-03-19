@@ -346,7 +346,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Telefone</th><th>CPF/CNPJ</th><th>Total compras</th><th>Última compra</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Telefone</th><th>CPF/CNPJ</th><th>Cidade</th><th>Total compras</th><th>Ações</th></tr></thead>
             <tbody id="tabela-clientes"></tbody>
           </table>
         </div>
@@ -548,25 +548,37 @@ tr:hover td{background:var(--bg)}
 
 <!-- Modal Cliente -->
 <div class="modal-backdrop" id="modal-cliente">
-  <div class="modal">
+  <div class="modal" style="max-width:700px">
     <div class="modal-header"><h3 id="modal-cli-titulo">Nova Cliente</h3><button class="modal-close" onclick="fecharModal('modal-cliente')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="cli-id">
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button id="btn-pf" class="btn btn-primary btn-sm" onclick="setTipoCli('PF')">Pessoa Física</button>
-        <button id="btn-pj" class="btn btn-sm" onclick="setTipoCli('PJ')">Pessoa Jurídica</button>
+      <div class="tabs" style="margin-bottom:16px">
+        <button class="tab active" onclick="tabCli(this,'tab-cli-dados')">Dados</button>
+        <button class="tab" onclick="tabCli(this,'tab-cli-end')">📍 Endereços</button>
       </div>
-      <input type="hidden" id="cli-tipo" value="PF">
-      <div class="form-grid">
-        <div class="form-group full"><label id="cli-nome-label">Nome completo *</label><input id="cli-nome"></div>
-        <div class="form-group" id="cli-cpf-group"><label>CPF</label><input id="cli-cpf" oninput="mascaraCPF(this)"></div>
-        <div class="form-group" id="cli-cnpj-group" style="display:none"><label>CNPJ</label><input id="cli-cnpj" oninput="mascaraCNPJ(this)"></div>
-        <div class="form-group" id="cli-nasc-group"><label>Nascimento</label><input type="date" id="cli-nasc"></div>
-        <div class="form-group"><label>Telefone</label><input id="cli-tel" oninput="mascaraTel(this)" placeholder="(21) 99999-9999"></div>
-        <div class="form-group"><label>E-mail</label><input type="email" id="cli-email"></div>
-        <div class="form-group"><label>Instagram</label><input id="cli-ig" placeholder="@usuario"></div>
-        <div class="form-group"><label>Tamanho preferido</label><input id="cli-tam" placeholder="M, 40..."></div>
-        <div class="form-group full"><label>Observações</label><textarea id="cli-obs"></textarea></div>
+      <!-- Dados -->
+      <div id="tab-cli-dados">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button id="btn-pf" class="btn btn-primary btn-sm" onclick="setTipoCli('PF')">Pessoa Física</button>
+          <button id="btn-pj" class="btn btn-sm" onclick="setTipoCli('PJ')">Pessoa Jurídica</button>
+        </div>
+        <input type="hidden" id="cli-tipo" value="PF">
+        <div class="form-grid">
+          <div class="form-group full"><label id="cli-nome-label">Nome completo *</label><input id="cli-nome"></div>
+          <div class="form-group" id="cli-cpf-group"><label>CPF</label><input id="cli-cpf" oninput="mascaraCPF(this)"></div>
+          <div class="form-group" id="cli-cnpj-group" style="display:none"><label>CNPJ</label><input id="cli-cnpj" oninput="mascaraCNPJ(this)"></div>
+          <div class="form-group" id="cli-nasc-group"><label>Nascimento</label><input type="date" id="cli-nasc"></div>
+          <div class="form-group"><label>Telefone</label><input id="cli-tel" oninput="mascaraTel(this)" placeholder="(21) 99999-9999"></div>
+          <div class="form-group"><label>E-mail</label><input type="email" id="cli-email"></div>
+          <div class="form-group"><label>Instagram</label><input id="cli-ig" placeholder="@usuario"></div>
+          <div class="form-group"><label>Tamanho preferido</label><input id="cli-tam" placeholder="M, 40..."></div>
+          <div class="form-group full"><label>Observações</label><textarea id="cli-obs"></textarea></div>
+        </div>
+      </div>
+      <!-- Endereços -->
+      <div id="tab-cli-end" style="display:none">
+        <div id="lista-enderecos" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+        <button class="btn btn-primary btn-sm" onclick="adicionarEndereco()">+ Adicionar endereço</button>
       </div>
     </div>
     <div class="modal-footer">
@@ -1093,31 +1105,148 @@ function mascaraCEST(el) {
 }
 
 // ===== CLIENTES =====
+let enderecosTemp = [];
+
+function tabCli(btn, tabId) {
+  document.querySelectorAll('#modal-cliente .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-cli-dados','tab-cli-end'].forEach(id => {
+    document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+  });
+  if (tabId === 'tab-cli-end') renderEnderecos();
+}
+
+function renderEnderecos() {
+  const lista = document.getElementById('lista-enderecos');
+  if (!enderecosTemp.length) {
+    lista.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">Nenhum endereço cadastrado</div>';
+    return;
+  }
+  lista.innerHTML = enderecosTemp.map((e, i) => `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px" id="end-card-${i}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <select onchange="enderecosTemp[${i}].tipo=this.value" style="padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)">
+          ${['Residencial','Comercial','Entrega','Cobrança','Outro'].map(t => `<option${e.tipo===t?' selected':''}>${t}</option>`).join('')}
+        </select>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" ${e.principal?'checked':''} onchange="setPrincipal(${i})"> Principal
+          </label>
+          <button class="btn btn-sm btn-danger" onclick="removerEndereco(${i})">Remover</button>
+        </div>
+      </div>
+      <div class="form-grid" style="gap:8px">
+        <div class="form-group">
+          <label>CEP</label>
+          <div style="display:flex;gap:6px">
+            <input value="${e.cep||''}" oninput="enderecosTemp[${i}].cep=this.value" onblur="buscarCEP(${i})" placeholder="00000-000" maxlength="9" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)" oninput="mascaraCEP(this);enderecosTemp[${i}].cep=this.value">
+            <button class="btn btn-sm" onclick="buscarCEP(${i})">🔍</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Número</label>
+          <input value="${e.numero||''}" oninput="enderecosTemp[${i}].numero=this.value" placeholder="123" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+        </div>
+        <div class="form-group full">
+          <label>Logradouro</label>
+          <input id="end-logradouro-${i}" value="${e.logradouro||''}" oninput="enderecosTemp[${i}].logradouro=this.value" placeholder="Rua, Av..." style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+        </div>
+        <div class="form-group">
+          <label>Complemento</label>
+          <input value="${e.complemento||''}" oninput="enderecosTemp[${i}].complemento=this.value" placeholder="Apto, Bloco..." style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+        </div>
+        <div class="form-group">
+          <label>Bairro</label>
+          <input id="end-bairro-${i}" value="${e.bairro||''}" oninput="enderecosTemp[${i}].bairro=this.value" placeholder="Bairro" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+        </div>
+        <div class="form-group">
+          <label>Cidade</label>
+          <input id="end-cidade-${i}" value="${e.cidade||''}" oninput="enderecosTemp[${i}].cidade=this.value" placeholder="Cidade" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <input id="end-estado-${i}" value="${e.estado||''}" oninput="enderecosTemp[${i}].estado=this.value" placeholder="RJ" maxlength="2" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);text-transform:uppercase">
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function adicionarEndereco() {
+  enderecosTemp.push({ id: uid(), tipo: 'Residencial', cep:'', logradouro:'', numero:'', complemento:'', bairro:'', cidade:'', estado:'', principal: enderecosTemp.length === 0 });
+  renderEnderecos();
+}
+
+function removerEndereco(i) {
+  enderecosTemp.splice(i, 1);
+  renderEnderecos();
+}
+
+function setPrincipal(i) {
+  enderecosTemp.forEach((e, idx) => e.principal = idx === i);
+  renderEnderecos();
+}
+
+function mascaraCEP(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5);
+  el.value = v;
+}
+
+async function buscarCEP(i) {
+  const cep = (enderecosTemp[i].cep||'').replace(/\D/g,'');
+  if (cep.length !== 8) return;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) { toast('CEP não encontrado', 'warn'); return; }
+    enderecosTemp[i].logradouro = d.logradouro || '';
+    enderecosTemp[i].bairro = d.bairro || '';
+    enderecosTemp[i].cidade = d.localidade || '';
+    enderecosTemp[i].estado = d.uf || '';
+    renderEnderecos();
+    // Foca no campo número
+    setTimeout(() => {
+      const inputs = document.querySelectorAll(`#end-card-${i} input`);
+      if (inputs[1]) inputs[1].focus();
+    }, 100);
+    toast('CEP encontrado! ✅');
+  } catch(e) { toast('Erro ao buscar CEP', 'error'); }
+}
+
 async function carregarClientes() {
   const q = document.getElementById('busca-cli')?.value || '';
   try {
     const clis = await api('GET', `/api/clientes?q=${encodeURIComponent(q)}`);
     const tb = document.getElementById('tabela-clientes');
     if (!clis.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
-    tb.innerHTML = clis.map(c => `<tr>
-      <td><div style="display:flex;align-items:center;gap:8px">
-        <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-        <div><strong>${c.nome}</strong>${c.ig ? `<div style="font-size:11px;color:var(--text2)">${c.ig}</div>` : ''}</div>
-      </div></td>
-      <td>${c.tel||'—'}</td>
-      <td style="font-size:12px">${c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—')}</td>
-      <td><strong>${fmtMoeda(c.total_compras)}</strong></td>
-      <td>${c.ult_compra ? fmtData(c.ult_compra) : '—'}</td>
-      <td><div class="action-btns">
-        <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
-      </div></td>
-    </tr>`).join('');
+    tb.innerHTML = clis.map(c => {
+      const endPrincipal = (c.enderecos||[]).find(e=>e.principal) || (c.enderecos||[])[0];
+      const endStr = endPrincipal ? `${endPrincipal.cidade||''}${endPrincipal.estado?' - '+endPrincipal.estado:''}` : '—';
+      return `<tr>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
+          <div><strong>${c.nome}</strong>${c.ig?`<div style="font-size:11px;color:var(--text2)">${c.ig}</div>`:''}</div>
+        </div></td>
+        <td>${c.tel||'—'}</td>
+        <td style="font-size:12px">${c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—')}</td>
+        <td style="font-size:12px;color:var(--text2)">${endStr}</td>
+        <td><strong>${fmtMoeda(c.total_compras)}</strong></td>
+        <td><div class="action-btns">
+          <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
+        </div></td>
+      </tr>`;
+    }).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function abrirModalCliente(id) {
   document.getElementById('modal-cli-titulo').textContent = id ? 'Editar Cliente' : 'Nova Cliente';
+  // Reset tabs
+  document.querySelectorAll('#modal-cliente .tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  document.getElementById('tab-cli-dados').style.display = 'block';
+  document.getElementById('tab-cli-end').style.display = 'none';
+  enderecosTemp = [];
   setTipoCli('PF');
   if (id) {
     try {
@@ -1135,6 +1264,7 @@ async function abrirModalCliente(id) {
       document.getElementById('cli-ig').value = c.ig||'';
       document.getElementById('cli-tam').value = c.tam||'';
       document.getElementById('cli-obs').value = c.obs||'';
+      enderecosTemp = (c.enderecos||[]).map(e => ({...e}));
     } catch(e) { return; }
   } else {
     document.getElementById('cli-id').value = '';
@@ -1160,7 +1290,8 @@ async function salvarCliente() {
     ig: document.getElementById('cli-ig').value,
     tam: document.getElementById('cli-tam').value,
     obs: document.getElementById('cli-obs').value,
-    status: 'ativo'
+    status: 'ativo',
+    enderecos: enderecosTemp
   };
   try {
     await api('POST', '/api/clientes', cli);
