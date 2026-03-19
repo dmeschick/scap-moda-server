@@ -1335,6 +1335,7 @@ async function abrirModalFuncionario(id) {
       document.getElementById('func-turno').value = f.turno||'Manhã (8h–14h)';
       document.getElementById('func-obs').value = f.obs||'';
       document.getElementById('func-foto').value = f.foto||'';
+      document.getElementById('func-foto').dataset.removida = '';
       const prev = document.getElementById('func-foto-preview');
       prev.innerHTML = f.foto ? `<img src="${f.foto}" style="width:100%;height:100%;object-fit:cover">` : '👤';
       // Botão desativar/ativar
@@ -1372,6 +1373,8 @@ function previewFotoFunc(input) {
 function removerFotoFunc() {
   document.getElementById('func-foto').value = '';
   document.getElementById('func-foto-preview').innerHTML = '👤';
+  // Marca como removida explicitamente com string vazia
+  document.getElementById('func-foto').dataset.removida = 'true';
 }
 
 async function salvarFuncionario() {
@@ -1388,7 +1391,7 @@ async function salvarFuncionario() {
     admissao: document.getElementById('func-admissao').value || null,
     turno: document.getElementById('func-turno').value,
     obs: document.getElementById('func-obs').value,
-    foto: document.getElementById('func-foto').value,
+    foto: document.getElementById('func-foto').dataset.removida === 'true' ? '' : (document.getElementById('func-foto').value || undefined),
     status: 'ativo'
   };
   try {

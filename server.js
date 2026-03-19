@@ -207,10 +207,13 @@ app.delete('/api/funcionarios/:id', auth, async (req, res) => {
 app.post('/api/funcionarios', auth, async (req, res) => {
   try {
     const f = req.body;
+    // foto='' significa remover, foto=null significa manter a atual
+    const fotoVal = f.foto === '' ? null : f.foto;
+    const fotoUpdate = f.foto === undefined ? 'funcionarios.foto' : '$12';
     await pool.query(`INSERT INTO funcionarios (id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-      ON CONFLICT (id) DO UPDATE SET nome=$2,cpf=$3,cargo=$4,tel=$5,salario=$6,comissao=$7,admissao=$8,turno=$9,obs=$10,status=$11,foto=COALESCE($12,funcionarios.foto)`,
-      [f.id,f.nome,f.cpf,f.cargo,f.tel,f.salario||0,f.comissao||0,f.admissao||null,f.turno,f.obs,f.status||'ativo',f.foto||null]);
+      ON CONFLICT (id) DO UPDATE SET nome=$2,cpf=$3,cargo=$4,tel=$5,salario=$6,comissao=$7,admissao=$8,turno=$9,obs=$10,status=$11,foto=${fotoUpdate}`,
+      [f.id,f.nome,f.cpf,f.cargo,f.tel,f.salario||0,f.comissao||0,f.admissao||null,f.turno,f.obs,f.status||'ativo',fotoVal]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
