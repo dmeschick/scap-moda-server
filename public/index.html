@@ -1103,11 +1103,12 @@ async function salvarProduto() {
   const venda = parseFloat(document.getElementById('prod-venda').value)||0;
   if (!nome) { toast('Informe o nome do produto', 'warn'); return; }
   if (!cat) { toast('Selecione a categoria', 'warn'); return; }
+  const isNovo = !document.getElementById('prod-id').value;
   const id = document.getElementById('prod-id').value || uid();
-  // Gera código se novo
+  // Sufixos corretos por categoria
   let cod = document.getElementById('prod-cod').value;
   if (!cod) {
-    const sufixos = {Vestidos:'V',Blusas:'B',Calças:'C',Shorts:'H',Conjuntos:'U',Macacão:'M',Saias:'S',Acessórios:'A',Lingerie:'L'};
+    const sufixos = {'Blusas':'B','Vestidos':'V','Calças':'C','Shorts':'H','Saias':'S','Macacões':'M','Conjuntos':'U','Acessórios':'A','Lingerie':'L'};
     const suf = sufixos[cat] || 'X';
     const prods = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=ativo`).catch(() => []);
     const num = String(prods.length + 1).padStart(6,'0');
@@ -1121,7 +1122,7 @@ async function salvarProduto() {
     custo, venda,
     est: parseInt(document.getElementById('prod-est').value)||0,
     estmin: parseInt(document.getElementById('prod-estmin').value)||5,
-    desc: document.getElementById('prod-desc').value,
+    descricao: document.getElementById('prod-desc').value,
     forn: document.getElementById('prod-forn').value,
     ncm: document.getElementById('prod-ncm').value,
     cest: document.getElementById('prod-cest').value,
@@ -1135,9 +1136,19 @@ async function salvarProduto() {
   };
   try {
     await api('POST', '/api/produtos', prod);
-    fecharModal('modal-produto');
-    toast('Produto salvo!');
+    toast('Produto salvo! ✅');
     carregarProdutos();
+    if (isNovo) {
+      // Abre novo cadastro com mesma categoria, cursor no nome
+      const catAtual = cat;
+      abrirModalProduto();
+      setTimeout(() => {
+        document.getElementById('prod-cat').value = catAtual;
+        document.getElementById('prod-nome').focus();
+      }, 100);
+    } else {
+      fecharModal('modal-produto');
+    }
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
@@ -2615,7 +2626,19 @@ function imprimirRomaneio() {
   j.document.close();
 }
 
-// ===== MÁSCARAS =====
+// ===== ATALHOS DE TECLADO =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'F6') {
+    e.preventDefault();
+    const modalProd = document.getElementById('modal-produto');
+    if (modalProd.classList.contains('open')) salvarProduto();
+  }
+  if (e.key === 'Escape') {
+    // Fecha o modal mais recente aberto
+    const abertos = [...document.querySelectorAll('.modal-backdrop.open')];
+    if (abertos.length) fecharModal(abertos[abertos.length-1].id);
+  }
+});
 function mascaraCPF(el){let v=el.value.replace(/\D/g,'').slice(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');el.value=v}
 function mascaraCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);v=v.replace(/(\d{2})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2');el.value=v}
 function mascaraTel(el){let v=el.value.replace(/\D/g,'').slice(0,11);v=v.length>10?v.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3'):v.replace(/(\d{2})(\d{4})(\d{4})/,'($1) $2-$3');el.value=v}
