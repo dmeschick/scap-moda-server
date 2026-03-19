@@ -987,7 +987,8 @@ async function carregarDashboard() {
             return `<div style="display:flex;align-items:center;gap:8px;background:${isHoje?'var(--amber-light)':'var(--bg)'};border-radius:var(--radius);padding:8px 12px;${isHoje?'border:1px solid var(--amber)':'border:1px solid var(--border)'}">
               <div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
               <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]}</div>
-              <div style="font-size:11px;color:var(--text2)">dia ${dia}${isHoje?' 🎉':''}</div></div>
+              <div style="font-size:11px;color:var(--text2)">dia ${dia}${isHoje?' 🎉':''}</div>
+              ${c.tel?`<div style="font-size:11px;color:var(--text2)">${c.tel}</div>`:''}</div>
             </div>`;
           }).join('') + '</div>';
       } else {
