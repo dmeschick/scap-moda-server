@@ -3299,6 +3299,7 @@ function adicionarPgtoSimples(tipo, inputId){
 }
 
 function finalizarVenda(){
+  try{
   if(!carrinho.length){msg(modoTroca?'Nenhum produto novo':'Carrinho vazio',modoTroca?'Adicione os produtos que o cliente vai levar.':'Adicione produtos antes de finalizar.','⚠️');return}
   if(modoTroca&&!devolvidos.length){msg('Nenhum produto devolvido','Adicione os produtos que o cliente está devolvendo.','⚠️');return}
   const tot=getTotalCarrinho();
@@ -3368,6 +3369,25 @@ function finalizarVenda(){
   filtrarPDV();
   renderTrocasPendentes();
   abrirRomaneio(venda);
+  // Após fechar o romaneio, garante que o PDV está limpo
+  const modalRomaneio=document.getElementById('modal-romaneio');
+  if(modalRomaneio){
+    const btnFechar=modalRomaneio.querySelector('.modal-close, .btn');
+    const origClose=window.fecharModal;
+    window.fecharModal=function(id){
+      origClose(id);
+      if(id==='modal-romaneio'){
+        ocultarInfoProduto();
+        mostrarInfoCliente('');
+        if(isMobile()) window.scrollTo({top:0,behavior:'smooth'});
+        window.fecharModal=origClose;
+      }
+    };
+  }
+  }catch(err){
+    msg('Erro ao finalizar venda','Erro: '+err.message,'⚠️');
+    console.error('finalizarVenda error:',err);
+  }
 }
 
 // ========== VENDAS ==========
