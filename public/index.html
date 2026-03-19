@@ -2244,6 +2244,7 @@ function renderListaCats() {
     ? categorias.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
         <strong>${c.nome}</strong>
         <div class="action-btns">
+          <button class="btn btn-sm" onclick="abrirModalCategoria('${c.id}')">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirCategoria('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
         </div>
       </div>`).join('')
@@ -2263,7 +2264,7 @@ function abrirModalCategoria(id) {
   const cat = id ? categorias.find(c => c.id === id) : null;
   document.getElementById('cat-id').value = id || '';
   document.getElementById('cat-nome').value = cat?.nome || '';
-  document.getElementById('cat-desc').value = cat?.desc || '';
+  document.getElementById('cat-desc').value = cat?.descricao || '';
   abrirModal('modal-categoria');
 }
 
