@@ -721,6 +721,35 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
+<!-- Modal Confirmação Ponto -->
+<div class="modal-backdrop" id="modal-ponto-confirm">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div class="modal-header" style="justify-content:center;border:none;padding-bottom:0">
+      <h3 id="ponto-confirm-titulo">Confirmar Ponto</h3>
+      <button class="modal-close" style="position:absolute;right:16px;top:16px" onclick="fecharModal('modal-ponto-confirm')">×</button>
+    </div>
+    <div class="modal-body" style="padding-top:12px">
+      <!-- Foto e nome -->
+      <div id="ponto-confirm-foto" style="width:80px;height:80px;border-radius:50%;margin:0 auto 10px;overflow:hidden;border:3px solid var(--pink);display:flex;align-items:center;justify-content:center;font-size:36px;background:var(--bg)">👤</div>
+      <div id="ponto-confirm-nome" style="font-size:16px;font-weight:700;margin-bottom:4px"></div>
+      <div id="ponto-confirm-tipo" style="font-size:13px;color:var(--text2);margin-bottom:16px"></div>
+      <div id="ponto-confirm-hora" style="font-size:22px;font-weight:700;color:var(--pink-dark);margin-bottom:16px"></div>
+      <!-- Senha -->
+      <div class="form-group" style="text-align:left">
+        <label>Senha</label>
+        <input type="password" id="ponto-confirm-senha" placeholder="Digite sua senha" 
+          onkeydown="if(event.key==='Enter')confirmarPonto()"
+          style="text-align:center;font-size:18px;letter-spacing:4px">
+      </div>
+      <div id="ponto-confirm-erro" style="color:var(--red);font-size:12px;margin-top:6px;display:none"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:center;gap:12px">
+      <button class="btn" onclick="fecharModal('modal-ponto-confirm')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarPonto()">✓ Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div id="toast"></div>
 
@@ -764,7 +793,13 @@ function toast(msg, tipo='success', duracao=3000) {
 
 // ===== MODAL =====
 function abrirModal(id) { document.getElementById(id).classList.add('open'); }
-function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+function fecharModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'modal-ponto-confirm') {
+    if (window._pontoRelogio) clearInterval(window._pontoRelogio);
+    _pontoConfirmacao = null;
+  }
+}
 
 // ===== SIDEBAR =====
 function toggleSidebar() {
@@ -1456,17 +1491,86 @@ async function mostrarRegistroPonto() {
   } catch(e) {}
 }
 
-async function registrarPonto(tipo, label) {
+let _pontoConfirmacao = null;
+
+function registrarPonto(tipo, label) {
   const funcId = document.getElementById('ponto-func-sel').value;
   const opt = document.querySelector(`#ponto-func-sel option[value="${funcId}"]`);
   const nome = opt?.dataset.nome || '';
   if (!funcId) { toast('Selecione o funcionário', 'warn'); return; }
+
+  // Busca foto do funcionário
+  api('GET', '/api/funcionarios').then(funcs => {
+    const func = funcs.find(f => f.id === funcId);
+    const foto = func?.foto || '';
+
+    // Preenche modal
+    const fotoEl = document.getElementById('ponto-confirm-foto');
+    fotoEl.innerHTML = foto
+      ? `<img src="${foto}" style="width:100%;height:100%;object-fit:cover">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--pink-light);border-radius:50%;color:var(--pink-dark);font-weight:700">${iniciais(nome)}</div>`;
+
+    document.getElementById('ponto-confirm-nome').textContent = nome;
+    document.getElementById('ponto-confirm-tipo').textContent = label;
+    document.getElementById('ponto-confirm-hora').textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    document.getElementById('ponto-confirm-senha').value = '';
+    document.getElementById('ponto-confirm-erro').style.display = 'none';
+
+    // Atualiza hora em tempo real
+    if (window._pontoRelogio) clearInterval(window._pontoRelogio);
+    window._pontoRelogio = setInterval(() => {
+      const el = document.getElementById('ponto-confirm-hora');
+      if (el) el.textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    }, 1000);
+
+    // Salva contexto
+    _pontoConfirmacao = { funcId, nome, tipo };
+
+    abrirModal('modal-ponto-confirm');
+    setTimeout(() => document.getElementById('ponto-confirm-senha').focus(), 100);
+  }).catch(() => {
+    _pontoConfirmacao = { funcId, nome, tipo };
+    abrirModal('modal-ponto-confirm');
+  });
+}
+
+async function confirmarPonto() {
+  if (!_pontoConfirmacao) return;
+  const senha = document.getElementById('ponto-confirm-senha').value;
+  const erroEl = document.getElementById('ponto-confirm-erro');
+  erroEl.style.display = 'none';
+
+  if (!senha) { erroEl.textContent = 'Digite sua senha.'; erroEl.style.display = 'block'; return; }
+
+  // Valida senha fazendo login
   try {
-    const r = await api('POST', '/api/ponto', { funcionarioId: funcId, funcionarioNome: nome, tipo });
-    const hora = new Date(r.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    toast(`${label} registrado às ${hora}!`);
+    const r = await fetch(API + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ funcId: _pontoConfirmacao.funcId, senha })
+    });
+    if (!r.ok) {
+      erroEl.textContent = 'Senha incorreta.';
+      erroEl.style.display = 'block';
+      document.getElementById('ponto-confirm-senha').value = '';
+      return;
+    }
+    // Senha correta — registra ponto
+    const resultado = await api('POST', '/api/ponto', {
+      funcionarioId: _pontoConfirmacao.funcId,
+      funcionarioNome: _pontoConfirmacao.nome,
+      tipo: _pontoConfirmacao.tipo
+    });
+    clearInterval(window._pontoRelogio);
+    fecharModal('modal-ponto-confirm');
+    const hora = new Date(resultado.horario).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    toast(`Ponto registrado às ${hora}! ✅`);
+    _pontoConfirmacao = null;
     mostrarRegistroPonto();
-  } catch(e) { toast(e.message, 'error'); }
+  } catch(e) {
+    erroEl.textContent = e.message;
+    erroEl.style.display = 'block';
+  }
 }
 
 async function carregarPonto() {
