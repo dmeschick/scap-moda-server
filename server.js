@@ -155,6 +155,18 @@ async function initDB() {
       valor JSONB,
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS ponto (
+      id SERIAL PRIMARY KEY,
+      funcionario_id VARCHAR(50) NOT NULL,
+      funcionario_nome VARCHAR(200),
+      data DATE NOT NULL,
+      tipo VARCHAR(30) NOT NULL,
+      horario TIMESTAMP DEFAULT NOW(),
+      obs TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ponto_func ON ponto(funcionario_id);
+    CREATE INDEX IF NOT EXISTS idx_ponto_data ON ponto(data);
+    ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS foto TEXT;
   `);
   console.log('Banco inicializado!');
 }
@@ -178,7 +190,11 @@ app.post('/api/login', async (req, res) => {
 // FUNCIONÁRIOS
 app.get('/api/funcionarios', async (req, res) => {
   try {
-    const r = await pool.query("SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status FROM funcionarios WHERE status='ativo' ORDER BY nome");
+    const { todos } = req.query;
+    const sql = todos
+      ? 'SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios ORDER BY nome'
+      : "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE status='ativo' ORDER BY nome";
+    const r = await pool.query(sql);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -191,10 +207,10 @@ app.delete('/api/funcionarios/:id', auth, async (req, res) => {
 app.post('/api/funcionarios', auth, async (req, res) => {
   try {
     const f = req.body;
-    await pool.query(`INSERT INTO funcionarios (id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      ON CONFLICT (id) DO UPDATE SET nome=$2,cpf=$3,cargo=$4,tel=$5,salario=$6,comissao=$7,admissao=$8,turno=$9,obs=$10,status=$11`,
-      [f.id,f.nome,f.cpf,f.cargo,f.tel,f.salario||0,f.comissao||0,f.admissao||null,f.turno,f.obs,f.status||'ativo']);
+    await pool.query(`INSERT INTO funcionarios (id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      ON CONFLICT (id) DO UPDATE SET nome=$2,cpf=$3,cargo=$4,tel=$5,salario=$6,comissao=$7,admissao=$8,turno=$9,obs=$10,status=$11,foto=COALESCE($12,foto)`,
+      [f.id,f.nome,f.cpf,f.cargo,f.tel,f.salario||0,f.comissao||0,f.admissao||null,f.turno,f.obs,f.status||'ativo',f.foto||null]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -438,6 +454,68 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// PONTO
+app.get('/api/ponto', auth, async (req, res) => {
+  try {
+    const { funcId, de, ate } = req.query;
+    let where = ['1=1'];
+    let params = [];
+    let i = 1;
+    if (funcId) { where.push(`funcionario_id=$${i++}`); params.push(funcId); }
+    if (de) { where.push(`data>=$${i++}`); params.push(de); }
+    if (ate) { where.push(`data<=$${i++}`); params.push(ate); }
+    const r = await pool.query(`SELECT * FROM ponto WHERE ${where.join(' AND ')} ORDER BY horario DESC`, params);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/ponto', auth, async (req, res) => {
+  try {
+    const { funcionarioId, funcionarioNome, tipo, obs } = req.body;
+    const now = new Date();
+    const data = now.toISOString().split('T')[0];
+    // Verifica se já existe registro do mesmo tipo hoje
+    const existe = await pool.query(
+      'SELECT id FROM ponto WHERE funcionario_id=$1 AND data=$2 AND tipo=$3',
+      [funcionarioId, data, tipo]
+    );
+    if (existe.rows.length) return res.status(400).json({ erro: `Registro de "${tipo}" já feito hoje` });
+    await pool.query(
+      'INSERT INTO ponto (funcionario_id,funcionario_nome,data,tipo,horario,obs) VALUES ($1,$2,$3,$4,$5,$6)',
+      [funcionarioId, funcionarioNome, data, tipo, now, obs||'']
+    );
+    res.json({ ok: true, horario: now });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/ponto/hoje', auth, async (req, res) => {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    const r = await pool.query(
+      'SELECT * FROM ponto WHERE funcionario_id=$1 AND data=$2 ORDER BY horario',
+      [req.query.funcId, hoje]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// SENHA FUNCIONÁRIO
+app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
+  try {
+    const hash = await bcrypt.hash(req.body.senha, 10);
+    await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// FOTO FUNCIONÁRIO
+app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
+  try {
+    await pool.query('UPDATE funcionarios SET foto=$1 WHERE id=$2', [req.body.foto, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
 
 
 

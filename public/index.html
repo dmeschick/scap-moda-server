@@ -368,15 +368,46 @@ tr:hover td{background:var(--bg)}
 
       <!-- FUNCIONÁRIOS -->
       <div class="page" id="page-funcionarios">
-        <div class="search-bar">
-          <input type="text" id="busca-func" placeholder="Buscar funcionário..." oninput="carregarFuncionarios()">
-          <button class="btn btn-primary" onclick="abrirModalFuncionario()">+ Novo Funcionário</button>
+        <div class="tabs" style="margin-bottom:16px">
+          <button class="tab active" onclick="tabFunc(this,'tab-func-lista')">👥 Funcionários</button>
+          <button class="tab" onclick="tabFunc(this,'tab-func-ponto')">⏱ Ponto</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th>Comissão</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody id="tabela-funcionarios"></tbody>
-          </table>
+        <!-- Lista -->
+        <div id="tab-func-lista">
+          <div class="search-bar">
+            <input type="text" id="busca-func" placeholder="Buscar funcionário..." oninput="carregarFuncionarios()">
+            <button class="btn btn-primary" onclick="abrirModalFuncionario()">+ Novo Funcionário</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th>Comissão</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody id="tabela-funcionarios"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Ponto -->
+        <div id="tab-func-ponto" style="display:none">
+          <div class="search-bar">
+            <select id="ponto-func-sel" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">— Selecionar funcionário —</option></select>
+            <input type="date" id="ponto-de">
+            <input type="date" id="ponto-ate">
+            <button class="btn btn-primary" onclick="carregarPonto()">Ver ponto</button>
+          </div>
+          <!-- Botões de registro rápido -->
+          <div id="ponto-registro" style="display:none" class="card" style="margin-bottom:16px">
+            <div class="card-title">Registrar ponto agora</div>
+            <div id="ponto-botoes" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            <div id="ponto-hoje-lista" style="margin-top:12px"></div>
+          </div>
+          <!-- Histórico -->
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Funcionário</th><th>Tipo</th><th>Horário</th><th>Obs</th></tr></thead>
+              <tbody id="tabela-ponto"></tbody>
+            </table>
+          </div>
+          <!-- Resumo horas -->
+          <div id="ponto-resumo" style="margin-top:16px"></div>
         </div>
       </div>
 
@@ -573,28 +604,56 @@ tr:hover td{background:var(--bg)}
 
 <!-- Modal Funcionário -->
 <div class="modal-backdrop" id="modal-funcionario">
-  <div class="modal">
+  <div class="modal" style="max-width:680px">
     <div class="modal-header"><h3 id="modal-func-titulo">Novo Funcionário</h3><button class="modal-close" onclick="fecharModal('modal-funcionario')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="func-id">
-      <div class="form-grid">
-        <div class="form-group full"><label>Nome completo *</label><input id="func-nome"></div>
-        <div class="form-group"><label>CPF</label><input id="func-cpf" oninput="mascaraCPF(this)"></div>
-        <div class="form-group"><label>Cargo *</label>
-          <select id="func-cargo"><option>Vendedora</option><option>Caixa</option><option>Estoquista</option><option>Gerente</option><option>Auxiliar</option><option>Administrador</option><option>Proprietária</option><option>Costureira</option></select>
+      <div class="tabs" style="margin-bottom:16px">
+        <button class="tab active" onclick="tabFuncModal(this,'tab-fm-dados')">Dados</button>
+        <button class="tab" onclick="tabFuncModal(this,'tab-fm-foto')">📷 Foto</button>
+        <button class="tab" id="tab-btn-senha" onclick="tabFuncModal(this,'tab-fm-senha')">🔑 Senha</button>
+      </div>
+      <!-- Dados -->
+      <div id="tab-fm-dados">
+        <div class="form-grid">
+          <div class="form-group full"><label>Nome completo *</label><input id="func-nome"></div>
+          <div class="form-group"><label>CPF</label><input id="func-cpf" oninput="mascaraCPF(this)"></div>
+          <div class="form-group"><label>Cargo *</label>
+            <select id="func-cargo"><option>Vendedora</option><option>Caixa</option><option>Estoquista</option><option>Gerente</option><option>Auxiliar</option><option>Administrador</option><option>Proprietária</option><option>Costureira</option></select>
+          </div>
+          <div class="form-group"><label>Telefone</label><input id="func-tel" oninput="mascaraTel(this)"></div>
+          <div class="form-group"><label>Salário (R$)</label><input type="number" id="func-salario" min="0" step="0.01"></div>
+          <div class="form-group"><label>Comissão (%)</label><input type="number" id="func-comissao" min="0" step="0.5"></div>
+          <div class="form-group"><label>Admissão</label><input type="date" id="func-admissao"></div>
+          <div class="form-group"><label>Turno</label>
+            <select id="func-turno"><option>Manhã (8h–14h)</option><option>Tarde (14h–20h)</option><option>Integral (8h–18h)</option></select>
+          </div>
+          <div class="form-group full"><label>Observações</label><textarea id="func-obs"></textarea></div>
         </div>
-        <div class="form-group"><label>Telefone</label><input id="func-tel" oninput="mascaraTel(this)"></div>
-        <div class="form-group"><label>Salário (R$)</label><input type="number" id="func-salario" min="0" step="0.01"></div>
-        <div class="form-group"><label>Comissão (%)</label><input type="number" id="func-comissao" min="0" step="0.5"></div>
-        <div class="form-group"><label>Admissão</label><input type="date" id="func-admissao"></div>
-        <div class="form-group"><label>Turno</label>
-          <select id="func-turno"><option>Manhã (8h–14h)</option><option>Tarde (14h–20h)</option><option>Integral (8h–18h)</option></select>
+      </div>
+      <!-- Foto -->
+      <div id="tab-fm-foto" style="display:none;text-align:center">
+        <div id="func-foto-preview" style="width:120px;height:120px;border-radius:50%;border:3px solid var(--border);margin:0 auto 16px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:40px;background:var(--bg)">👤</div>
+        <input type="file" id="func-foto-input" accept="image/*" onchange="previewFotoFunc(this)" style="font-size:13px">
+        <div style="font-size:11px;color:var(--text2);margin-top:8px">Formatos: JPG, PNG. Recomendado: quadrada.</div>
+        <input type="hidden" id="func-foto">
+        <button class="btn btn-danger btn-sm" style="margin-top:10px" onclick="removerFotoFunc()">Remover foto</button>
+      </div>
+      <!-- Senha -->
+      <div id="tab-fm-senha" style="display:none">
+        <div style="background:var(--amber-light);border:1px solid var(--amber);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12px;color:var(--amber)">
+          ⚠️ A senha padrão é os 4 primeiros dígitos do CPF. Só altere se necessário.
         </div>
-        <div class="form-group full"><label>Observações</label><textarea id="func-obs"></textarea></div>
+        <div class="form-grid">
+          <div class="form-group full"><label>Nova senha</label><input type="password" id="func-nova-senha" placeholder="Digite a nova senha"></div>
+          <div class="form-group full"><label>Confirmar senha</label><input type="password" id="func-conf-senha" placeholder="Repita a senha"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:8px" onclick="salvarSenhaFunc()">Salvar nova senha</button>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-funcionario')">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="btn-toggle-func" style="margin-right:auto"></button>
       <button class="btn btn-primary" onclick="salvarFuncionario()">Salvar</button>
     </div>
   </div>
@@ -1176,6 +1235,23 @@ async function excluirFornecedor(id, nome) {
 }
 
 // ===== FUNCIONÁRIOS =====
+function tabFunc(btn, tabId) {
+  document.querySelectorAll('#page-funcionarios .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-func-lista','tab-func-ponto'].forEach(id => {
+    document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+  });
+  if (tabId === 'tab-func-ponto') iniciarPonto();
+}
+
+function tabFuncModal(btn, tabId) {
+  document.querySelectorAll('#modal-funcionario .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-fm-dados','tab-fm-foto','tab-fm-senha'].forEach(id => {
+    document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+  });
+}
+
 async function carregarFuncionarios() {
   const q = document.getElementById('busca-func')?.value || '';
   try {
@@ -1185,7 +1261,7 @@ async function carregarFuncionarios() {
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👩</div><p>Nenhum funcionário</p></div></td></tr>'; return; }
     tb.innerHTML = filtrado.map(f => `<tr style="${f.status==='inativo'?'opacity:.5':''}">
       <td><div style="display:flex;align-items:center;gap:8px">
-        <div class="avatar" style="background:#E6F1FB;color:var(--blue)">${iniciais(f.nome)}</div>
+        ${f.foto ? `<img src="${f.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div class="avatar" style="background:#E6F1FB;color:var(--blue)">${iniciais(f.nome)}</div>`}
         <strong>${f.nome}</strong>
       </div></td>
       <td><span class="badge badge-blue">${f.cargo}</span></td>
@@ -1194,7 +1270,6 @@ async function carregarFuncionarios() {
       <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">Editar</button>
-        <button class="btn btn-sm ${f.status==='ativo'?'':'btn-primary'}" onclick="toggleFuncionario('${f.id}','${f.status}')">${f.status==='ativo'?'Desativar':'Ativar'}</button>
       </div></td>
     </tr>`).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
@@ -1202,10 +1277,17 @@ async function carregarFuncionarios() {
 
 async function abrirModalFuncionario(id) {
   document.getElementById('modal-func-titulo').textContent = id ? 'Editar Funcionário' : 'Novo Funcionário';
+  // Reset tabs
+  document.querySelectorAll('#modal-funcionario .tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  ['tab-fm-dados','tab-fm-foto','tab-fm-senha'].forEach((tid,i) => {
+    document.getElementById(tid).style.display = i===0 ? 'block' : 'none';
+  });
+  const btnToggle = document.getElementById('btn-toggle-func');
+  const btnSenhaTab = document.getElementById('tab-btn-senha');
   if (id) {
     try {
-      const funcs = await api('GET', '/api/funcionarios');
-      const f = funcs.find(x => x.id === id);
+      const funcs = await api('GET', '/api/funcionarios?todos=1');
+      const f = funcs.find(x => x.id === id) || (await api('GET', '/api/funcionarios')).find(x => x.id === id);
       if (!f) return;
       document.getElementById('func-id').value = f.id;
       document.getElementById('func-nome').value = f.nome||'';
@@ -1217,6 +1299,15 @@ async function abrirModalFuncionario(id) {
       document.getElementById('func-admissao').value = f.admissao||'';
       document.getElementById('func-turno').value = f.turno||'Manhã (8h–14h)';
       document.getElementById('func-obs').value = f.obs||'';
+      document.getElementById('func-foto').value = f.foto||'';
+      const prev = document.getElementById('func-foto-preview');
+      prev.innerHTML = f.foto ? `<img src="${f.foto}" style="width:100%;height:100%;object-fit:cover">` : '👤';
+      // Botão desativar/ativar
+      btnToggle.style.display = '';
+      btnToggle.textContent = f.status === 'ativo' ? '🔴 Desativar' : '🟢 Ativar';
+      btnToggle.className = 'btn btn-sm ' + (f.status==='ativo' ? '' : 'btn-primary');
+      btnToggle.onclick = () => toggleFuncionario(f.id, f.status);
+      btnSenhaTab.style.display = '';
     } catch(e) { return; }
   } else {
     document.getElementById('func-id').value = '';
@@ -1224,8 +1315,28 @@ async function abrirModalFuncionario(id) {
       const el = document.getElementById('func-' + k);
       if (el) el.value = '';
     });
+    document.getElementById('func-foto').value = '';
+    document.getElementById('func-foto-preview').innerHTML = '👤';
+    btnToggle.style.display = 'none';
+    btnSenhaTab.style.display = 'none';
   }
   abrirModal('modal-funcionario');
+}
+
+function previewFotoFunc(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('func-foto').value = e.target.result;
+    document.getElementById('func-foto-preview').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removerFotoFunc() {
+  document.getElementById('func-foto').value = '';
+  document.getElementById('func-foto-preview').innerHTML = '👤';
 }
 
 async function salvarFuncionario() {
@@ -1242,28 +1353,193 @@ async function salvarFuncionario() {
     admissao: document.getElementById('func-admissao').value || null,
     turno: document.getElementById('func-turno').value,
     obs: document.getElementById('func-obs').value,
+    foto: document.getElementById('func-foto').value,
     status: 'ativo'
   };
   try {
     await api('POST', '/api/funcionarios', func);
+    // Salva foto separado se tiver
+    if (func.foto) {
+      await api('PUT', `/api/funcionarios/${func.id}/foto`, { foto: func.foto }).catch(()=>{});
+    }
     fecharModal('modal-funcionario');
     toast('Funcionário salvo!');
     carregarFuncionarios();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
+async function salvarSenhaFunc() {
+  const nova = document.getElementById('func-nova-senha').value;
+  const conf = document.getElementById('func-conf-senha').value;
+  const id = document.getElementById('func-id').value;
+  if (!nova) { toast('Digite a nova senha', 'warn'); return; }
+  if (nova !== conf) { toast('As senhas não conferem', 'warn'); return; }
+  if (nova.length < 4) { toast('Senha deve ter pelo menos 4 caracteres', 'warn'); return; }
+  try {
+    await api('PUT', `/api/funcionarios/${id}/senha`, { senha: nova });
+    toast('Senha alterada!');
+    document.getElementById('func-nova-senha').value = '';
+    document.getElementById('func-conf-senha').value = '';
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
 async function toggleFuncionario(id, statusAtual) {
   const novoStatus = statusAtual === 'ativo' ? 'inativo' : 'ativo';
-  if (novoStatus === 'inativo' && !confirm('Desativar este funcionário?')) return;
+  if (novoStatus === 'inativo' && !confirm('Desativar este funcionário? Ele não poderá mais fazer login.')) return;
   try {
     const funcs = await api('GET', '/api/funcionarios');
     const f = funcs.find(x => x.id === id);
     if (!f) return;
     f.status = novoStatus;
     await api('POST', '/api/funcionarios', f);
+    fecharModal('modal-funcionario');
     toast(novoStatus === 'ativo' ? 'Funcionário ativado!' : 'Funcionário desativado!');
     carregarFuncionarios();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// ===== PONTO =====
+const TIPOS_PONTO = [
+  { tipo: 'entrada', label: '🟢 Entrada', cor: 'var(--green)' },
+  { tipo: 'lanche_manha_saida', label: '☕ Lanche manhã (saída)', cor: 'var(--amber)' },
+  { tipo: 'lanche_manha_volta', label: '☕ Lanche manhã (volta)', cor: 'var(--amber)' },
+  { tipo: 'almoco_saida', label: '🍽 Almoço (saída)', cor: 'var(--blue)' },
+  { tipo: 'almoco_volta', label: '🍽 Almoço (volta)', cor: 'var(--blue)' },
+  { tipo: 'lanche_tarde_saida', label: '🍪 Lanche tarde (saída)', cor: 'var(--pink)' },
+  { tipo: 'lanche_tarde_volta', label: '🍪 Lanche tarde (volta)', cor: 'var(--pink)' },
+  { tipo: 'saida', label: '🔴 Saída', cor: 'var(--red)' },
+];
+
+async function iniciarPonto() {
+  // Popula select de funcionários
+  try {
+    const funcs = await api('GET', '/api/funcionarios');
+    const sel = document.getElementById('ponto-func-sel');
+    sel.innerHTML = '<option value="">— Selecionar funcionário —</option>' +
+      funcs.map(f => `<option value="${f.id}" data-nome="${f.nome}">${f.nome}</option>`).join('');
+    // Se logado, pré-seleciona
+    if (usuarioLogado) {
+      sel.value = usuarioLogado.id;
+      mostrarRegistroPonto();
+    }
+  } catch(e) {}
+  // Datas padrão (mês atual)
+  const hoje = new Date().toISOString().split('T')[0];
+  const primeiroDia = hoje.slice(0,8) + '01';
+  document.getElementById('ponto-de').value = primeiroDia;
+  document.getElementById('ponto-ate').value = hoje;
+}
+
+async function mostrarRegistroPonto() {
+  const funcId = document.getElementById('ponto-func-sel').value;
+  if (!funcId) return;
+  const reg = document.getElementById('ponto-registro');
+  reg.style.display = 'block';
+  // Busca registros de hoje
+  try {
+    const hoje = await api('GET', `/api/ponto/hoje?funcId=${funcId}`);
+    const tiposFeitos = hoje.map(r => r.tipo);
+    // Mostra botões dos próximos tipos disponíveis
+    const botoes = document.getElementById('ponto-botoes');
+    botoes.innerHTML = TIPOS_PONTO
+      .filter(t => !tiposFeitos.includes(t.tipo))
+      .map(t => `<button class="btn" style="border-color:${t.cor};color:${t.cor}" onclick="registrarPonto('${t.tipo}','${t.label}')">${t.label}</button>`)
+      .join('');
+    if (!botoes.innerHTML) botoes.innerHTML = '<span style="color:var(--text2);font-size:13px">Todos os registros do dia foram feitos! ✅</span>';
+    // Mostra registros de hoje
+    const lista = document.getElementById('ponto-hoje-lista');
+    lista.innerHTML = hoje.length ? `<div style="font-size:12px;color:var(--text2);margin-top:8px;font-weight:600">REGISTROS DE HOJE:</div>` +
+      hoje.map(r => `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
+        <span>${TIPOS_PONTO.find(t=>t.tipo===r.tipo)?.label||r.tipo}</span>
+        <strong>${new Date(r.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong>
+      </div>`).join('') : '';
+  } catch(e) {}
+}
+
+async function registrarPonto(tipo, label) {
+  const funcId = document.getElementById('ponto-func-sel').value;
+  const opt = document.querySelector(`#ponto-func-sel option[value="${funcId}"]`);
+  const nome = opt?.dataset.nome || '';
+  if (!funcId) { toast('Selecione o funcionário', 'warn'); return; }
+  try {
+    const r = await api('POST', '/api/ponto', { funcionarioId: funcId, funcionarioNome: nome, tipo });
+    const hora = new Date(r.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    toast(`${label} registrado às ${hora}!`);
+    mostrarRegistroPonto();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function carregarPonto() {
+  const funcId = document.getElementById('ponto-func-sel').value;
+  const de = document.getElementById('ponto-de').value;
+  const ate = document.getElementById('ponto-ate').value;
+  try {
+    let url = '/api/ponto?';
+    if (funcId) url += `funcId=${funcId}&`;
+    if (de) url += `de=${de}&`;
+    if (ate) url += `ate=${ate}&`;
+    const registros = await api('GET', url);
+    const tb = document.getElementById('tabela-ponto');
+    if (!registros.length) {
+      tb.innerHTML = '<tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="icon">⏱</div><p>Nenhum registro</p></div></td></tr>';
+      document.getElementById('ponto-resumo').innerHTML = '';
+      return;
+    }
+    tb.innerHTML = registros.map(r => `<tr>
+      <td>${fmtData(r.data)}</td>
+      <td>${r.funcionario_nome}</td>
+      <td>${TIPOS_PONTO.find(t=>t.tipo===r.tipo)?.label||r.tipo}</td>
+      <td><strong>${new Date(r.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong></td>
+      <td style="font-size:12px;color:var(--text2)">${r.obs||'—'}</td>
+    </tr>`).join('');
+    // Calcula horas trabalhadas por dia
+    calcularHorasPonto(registros);
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function calcularHorasPonto(registros) {
+  // Agrupa por funcionário e data
+  const grupos = {};
+  registros.forEach(r => {
+    const key = r.funcionario_nome + '|' + r.data;
+    if (!grupos[key]) grupos[key] = { nome: r.funcionario_nome, data: r.data, registros: [] };
+    grupos[key].registros.push(r);
+  });
+  let html = '<div class="card"><div class="card-title">Resumo de horas</div>';
+  Object.values(grupos).forEach(g => {
+    const entrada = g.registros.find(r => r.tipo === 'entrada');
+    const saida = g.registros.find(r => r.tipo === 'saida');
+    const lanchesManha = g.registros.filter(r => r.tipo.includes('lanche_manha'));
+    const almocos = g.registros.filter(r => r.tipo.includes('almoco'));
+    const lanchesTarde = g.registros.filter(r => r.tipo.includes('lanche_tarde'));
+    let totalMinutos = 0;
+    let pausas = 0;
+    if (entrada && saida) {
+      totalMinutos = (new Date(saida.horario) - new Date(entrada.horario)) / 60000;
+      // Desconta pausas
+      [lanchesManha, almocos, lanchesTarde].forEach(par => {
+        if (par.length === 2) {
+          const saidaPausa = par.find(r => r.tipo.endsWith('_saida'));
+          const voltaPausa = par.find(r => r.tipo.endsWith('_volta'));
+          if (saidaPausa && voltaPausa) {
+            pausas += (new Date(voltaPausa.horario) - new Date(saidaPausa.horario)) / 60000;
+          }
+        }
+      });
+      totalMinutos -= pausas;
+    }
+    const horas = totalMinutos > 0 ? `${Math.floor(totalMinutos/60)}h${String(Math.round(totalMinutos%60)).padStart(2,'0')}min` : '—';
+    html += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <div><strong>${g.nome}</strong> — ${fmtData(g.data)}</div>
+      <div>
+        ${entrada?`Entrada: ${new Date(entrada.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} `:''}
+        ${saida?`Saída: ${new Date(saida.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} `:''}
+        <strong style="color:var(--pink-dark)">Total: ${horas}</strong>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('ponto-resumo').innerHTML = html;
 }
 
 // ===== VENDAS =====
