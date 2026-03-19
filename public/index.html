@@ -257,6 +257,7 @@ tr:hover td{background:var(--bg)}
       <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
         <div class="cards-grid" id="dash-cards"></div>
+        <div id="aniversariantes-banner" style="display:none;margin-bottom:16px"></div>
         <div class="card">
           <div class="card-title">Últimas vendas</div>
           <div class="table-wrap"><table>
@@ -351,7 +352,7 @@ tr:hover td{background:var(--bg)}
           </select>
           <button class="btn btn-primary" onclick="abrirModalCliente()">+ Nova Cliente</button>
         </div>
-        <div id="aniversariantes-banner" style="display:none"></div>
+        <div id="aniversariantes-banner-cli" style="display:none"></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nome</th><th>Telefone</th><th>CPF/CNPJ</th><th>Cidade</th><th>Total compras</th><th>Ações</th></tr></thead>
@@ -971,11 +972,12 @@ async function carregarDashboard() {
       const mes = new Date().getMonth() + 1;
       const aniv = clis.filter(c => c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mes)
         .sort((a,b) => new Date(a.nasc+'T12:00:00').getDate() - new Date(b.nasc+'T12:00:00').getDate());
+      const anivBanner = document.getElementById('aniversariantes-banner');
       if (aniv.length) {
-        const anivEl = document.createElement('div');
-        anivEl.className = 'card';
-        anivEl.style.marginTop = '16px';
-        anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
+        anivBanner.style.display = 'block';
+        anivBanner.className = 'card';
+        anivBanner.style.marginBottom = '16px';
+        anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">` +
           aniv.map(c => {
             const dia = new Date(c.nasc+'T12:00:00').getDate();
@@ -987,7 +989,9 @@ async function carregarDashboard() {
               <div style="font-size:11px;color:var(--text2)">dia ${dia}${isHoje?' 🎉':''}</div></div>
             </div>`;
           }).join('') + '</div>';
-        document.getElementById('page-dashboard').appendChild(anivEl);
+      } else {
+        anivBanner.style.display = 'none';
+        anivBanner.innerHTML = '';
       }
     } catch(e) {}
   } catch(e) { toast('Erro ao carregar dashboard: ' + e.message, 'error'); }
