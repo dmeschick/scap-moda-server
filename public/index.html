@@ -797,6 +797,7 @@ let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const nascDate = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00') : null;
 const iniciais = n => (n||'').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);
 const isMobile = () => window.innerWidth <= 768;
 
@@ -970,8 +971,8 @@ async function carregarDashboard() {
     try {
       const clis = await api('GET', '/api/clientes');
       const mes = new Date().getMonth() + 1;
-      const aniv = clis.filter(c => c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mes)
-        .sort((a,b) => new Date(a.nasc+'T12:00:00').getDate() - new Date(b.nasc+'T12:00:00').getDate());
+      const aniv = clis.filter(c => c.nasc && nascDate(c.nasc).getMonth()+1 === mes)
+        .sort((a,b) => nascDate(a.nasc).getDate() - nascDate(b.nasc).getDate());
       const anivBanner = document.getElementById('aniversariantes-banner');
       if (aniv.length) {
         anivBanner.style.display = 'block';
@@ -980,7 +981,7 @@ async function carregarDashboard() {
         anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">` +
           aniv.map(c => {
-            const dia = new Date(c.nasc+'T12:00:00').getDate();
+            const dia = nascDate(c.nasc).getDate();
             const hoje = new Date().getDate();
             const isHoje = dia === hoje;
             return `<div style="display:flex;align-items:center;gap:8px;background:${isHoje?'var(--amber-light)':'var(--bg)'};border-radius:var(--radius);padding:8px 12px;${isHoje?'border:1px solid var(--amber)':'border:1px solid var(--border)'}">
@@ -1330,13 +1331,13 @@ async function carregarClientes() {
     if (q) clis = clis.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.cpf||'').includes(q) || (c.tel||'').includes(q));
     if (cidade) clis = clis.filter(c => (c.enderecos||[]).some(e => e.cidade === cidade));
     const mesAtual = new Date().getMonth() + 1;
-    if (aniv === 'mes') clis = clis.filter(c => c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual);
+    if (aniv === 'mes') clis = clis.filter(c => c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual);
     const tb = document.getElementById('tabela-clientes');
     if (!clis.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
     tb.innerHTML = clis.map(c => {
       const endPrincipal = (c.enderecos||[]).find(e=>e.principal) || (c.enderecos||[])[0];
       const endStr = endPrincipal ? `${endPrincipal.cidade||''}${endPrincipal.estado?' - '+endPrincipal.estado:''}` : '—';
-      const isAniv = c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual;
+      const isAniv = c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual;
       return `<tr style="cursor:pointer${isAniv?';background:#FFFDE7':''}" onclick="verCliente('${c.id}')">
         <td><div style="display:flex;align-items:center;gap:8px">
           <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
@@ -1360,7 +1361,7 @@ function verCliente(id) {
   if (!c) return;
   const enderecos = c.enderecos || [];
   const mesAtual = new Date().getMonth() + 1;
-  const isAniv = c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual;
+  const isAniv = c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual;
   const endHtml = enderecos.length
     ? enderecos.map(e => `
         <div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:8px">
