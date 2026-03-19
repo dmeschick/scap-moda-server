@@ -168,13 +168,10 @@ app.post('/api/importar-backup', async (req, res) => {
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
-});
-
-const PORT = process.env.PORT || 3000;
-app.post('/api/reset-funcionarios', async (req, res) => {
+app.get('/api/debug-funcionarios', async (req, res) => {
   try {
-    await pool.query('DELETE FROM funcionarios');
-    res.json({ ok: true });
+    const r = await pool.query('SELECT id, nome, cargo, status FROM funcionarios');
+    res.json(r.rows);
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
