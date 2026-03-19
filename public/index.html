@@ -1434,7 +1434,7 @@ async function abrirModalCliente(id) {
       document.getElementById('cli-nome').value = c.nome||'';
       document.getElementById('cli-cpf').value = c.cpf||'';
       document.getElementById('cli-cnpj').value = c.cnpj||'';
-      document.getElementById('cli-nasc').value = c.nasc||'';
+      document.getElementById('cli-nasc').value = c.nasc ? c.nasc.toString().slice(0,10) : '';
       document.getElementById('cli-tel').value = c.tel||'';
       document.getElementById('cli-email').value = c.email||'';
       document.getElementById('cli-ig').value = c.ig||'';
