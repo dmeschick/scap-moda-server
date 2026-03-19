@@ -1299,6 +1299,25 @@ function fecharSidebar(){
   document.querySelector('.sidebar').classList.remove('open');
 }
 
+// Sincroniza quando o usuário volta para a aba
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&_apiToken){
+    _syncFromAPI().then(()=>{
+      // Atualiza a página atual
+      const paginaAtiva=document.querySelector('.page.active');
+      if(paginaAtiva){
+        const id=paginaAtiva.id.replace('page-','');
+        if(id==='dashboard')renderDashboard();
+        if(id==='produtos')renderTabelaProdutos();
+        if(id==='clientes')renderTabelaClientes();
+        if(id==='vendas')renderTabelaVendas();
+        if(id==='estoque')renderTabelaEstoque();
+        if(id==='relatorios')renderRelatorios();
+      }
+    });
+  }
+});
+
 // Mostra/esconde hamburguer conforme tamanho da tela
 function ajustarMobile(){
   const isMobile=window.innerWidth<=768;
@@ -1430,6 +1449,15 @@ async function fazerLogin(){
   // Limpa campos
   document.getElementById('login-senha').value='';
   
+  // Sincroniza dados da nuvem após login
+  await _syncFromAPI();
+
+  // Sincronização automática a cada 30 segundos
+  if(window._syncInterval) clearInterval(window._syncInterval);
+  window._syncInterval=setInterval(()=>{
+    if(_apiToken) _syncFromAPI();
+  }, 30000);
+
   // Reinicia o dashboard com dados atualizados
   renderDashboard();
 }
