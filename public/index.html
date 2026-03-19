@@ -795,7 +795,7 @@ let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{
 // ===== UTILS =====
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-const fmtData = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const iniciais = n => (n||'').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);
 const isMobile = () => window.innerWidth <= 768;
 
@@ -1427,6 +1427,7 @@ async function abrirModalCliente(id) {
   if (id) {
     try {
       const clis = await api('GET', '/api/clientes');
+      _clientesCache = clis;
       const c = clis.find(x => x.id === id);
       if (!c) return;
       document.getElementById('cli-id').value = c.id;
