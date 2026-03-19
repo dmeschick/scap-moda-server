@@ -1942,6 +1942,8 @@ function excluirProduto(id){
   S.set('produtos',(S.get('produtos')||[]).filter(p=>p.id!==id));
   renderTabelaProdutos();
 }
+function isMobile(){return window.innerWidth<=768}
+
 function renderTabelaProdutos(){
   popularSelectCats('filtro-cat-produtos',true,document.getElementById('filtro-cat-produtos')?.value||'');
   // Popular filtro de coleções dinamicamente
@@ -1964,6 +1966,47 @@ function renderTabelaProdutos(){
   const tb=document.getElementById('tabela-produtos');
   if(!tb)return;
   if(!prods.length){tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div></td></tr>`;return}
+  if(isMobile()){
+    // Renderiza como cards no mobile
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-produtos');
+    if(!cardsDiv){
+      cardsDiv=document.createElement('div');
+      cardsDiv.id='cards-produtos';
+      cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';
+      container.appendChild(cardsDiv);
+    }
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=prods.map(p=>{
+      const est=estoqueStatus(p);
+      const margem=p.venda>0?Math.round(((p.venda-p.custo)/p.venda)*100):0;
+      return`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px">${p.nome}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">${p.cod}${p.cor?' · '+p.cor:''}${p.tam?' · '+p.tam:''}</div>
+          </div>
+          <span class="badge badge-pink" style="margin-left:8px;flex-shrink:0">${p.cat}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:12px;font-size:12px;flex-wrap:wrap">
+            <span>${statusBadge(est)} <strong>${p.est}</strong></span>
+            <span style="color:var(--text2)">Venda: <strong>${fmtMoeda(p.venda)}</strong></span>
+            <span class="badge ${margem>=40?'badge-green':margem>=20?'badge-amber':'badge-red'}">${margem}%</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}')">Excluir</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+  // Desktop - tabela normal
+  const cardsDiv=document.getElementById('cards-produtos');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=prods.map(p=>{
     const margem=p.venda>0?Math.round(((p.venda-p.custo)/p.venda)*100):0;
     const est=estoqueStatus(p);
@@ -2224,6 +2267,33 @@ function renderTabelaClientes(){
   const tb=document.getElementById('tabela-clientes');
   if(!tb)return;
   if(!clis.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="icon">👥</div><p>Nenhuma cliente encontrada</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-clientes');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-clientes';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=clis.map(c=>`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px" onclick="verCliente('${c.id}')">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="avatar" style="width:36px;height:36px;background:var(--pink-light);color:var(--pink-dark);flex-shrink:0">${iniciais(c.nome)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">${c.nome}</div>
+          <div style="font-size:11px;color:var(--text2)">${c.tel||''}${c.ig?' · '+c.ig:''}</div>
+        </div>
+        ${statusBadge(c.status)}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;color:var(--text2)">Total: <strong style="color:var(--pink-dark)">${fmtMoeda(c.totalCompras)}</strong>${c.ultCompra?' · '+fmtData(c.ultCompra):''}</div>
+        <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+          <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}')">Excluir</button>
+        </div>
+      </div>
+    </div>`).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-clientes');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=clis.map(c=>`<tr style="cursor:pointer" onclick="verCliente('${c.id}')">
     <td><div style="display:flex;align-items:center;gap:10px">
       <div class="avatar" style="width:32px;height:32px;background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
@@ -2277,6 +2347,30 @@ function renderTabelaFornecedores(){
   const tb=document.getElementById('tabela-fornecedores');
   if(!tb)return;
   if(!forns.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="icon">🚚</div><p>Nenhum fornecedor cadastrado</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-forn');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-forn';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=forns.map(f=>`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div><div style="font-weight:600;font-size:14px">${f.nome}</div>
+        <div style="font-size:11px;color:var(--text2)">${f.cnpj||''}${f.cats?' · '+f.cats:''}</div></div>
+        ${statusBadge(f.status)}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;color:var(--text2)">${f.contato||''}${f.tel?' · '+f.tel:''}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="abrirModalFornecedor('${f.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}')">Excluir</button>
+        </div>
+      </div>
+    </div>`).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-forn');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=forns.map(f=>`<tr>
     <td><strong>${f.nome}</strong></td><td style="font-size:12px">${f.cnpj||'—'}</td>
     <td>${f.contato||'—'}</td><td>${f.tel||'—'}</td>
@@ -2334,6 +2428,33 @@ function renderTabelaFuncionarios(){
   const tb=document.getElementById('tabela-funcionarios');
   if(!tb)return;
   if(!funcs.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="icon">👩‍💼</div><p>Nenhum funcionário cadastrado</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-func');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-func';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=funcs.map(f=>`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px;${f.status==='inativo'?'opacity:.5':''}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="avatar" style="width:36px;height:36px;background:#E6F1FB;color:#185FA5;flex-shrink:0">${iniciais(f.nome)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">${f.nome}</div>
+          <div style="font-size:11px;color:var(--text2)">${f.turno||''}</div>
+        </div>
+        <span class="badge badge-blue">${f.cargo}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div style="font-size:12px;color:var(--text2)">${f.tel||''}${f.comissao?' · '+f.comissao+'% comissão':''}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">Editar</button>
+          <button class="btn btn-sm" onclick="toggleStatusFuncionario('${f.id}')" style="${f.status==='ativo'?'color:var(--amber);border-color:var(--amber)':'color:var(--green);border-color:var(--green)'}">${f.status==='ativo'?'Desativar':'Ativar'}</button>
+        </div>
+      </div>
+    </div>`).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-func');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=funcs.map(f=>`<tr style="${f.status==='inativo'?'opacity:.5':''}">
     <td><div style="display:flex;align-items:center;gap:10px">
       <div class="avatar" style="width:32px;height:32px;background:#E6F1FB;color:#185FA5">${iniciais(f.nome)}</div>
@@ -3247,6 +3368,37 @@ function renderTabelaVendas(){
   const tb=document.getElementById('tabela-vendas');
   if(!tb)return;
   if(!vendas.length){tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="icon">🧾</div><p>Nenhuma venda encontrada</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-vendas');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-vendas';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=vendas.map(v=>`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:600;font-size:14px">${v.num} · ${v.clienteNome}</div>
+          <div style="font-size:11px;color:var(--text2)">${fmtData(v.data.split('T')[0])} ${v.data.split('T')[1]?.slice(0,5)||''} · ${v.vendedorNome}</div>
+        </div>
+        ${statusBadge(v.status)}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${v.canal==='online'?'<span class="badge badge-blue">🌐 Online</span>':'<span class="badge badge-green">🏪 Presencial</span>'}
+          <span style="font-size:12px;color:var(--text2)">${v.pag}</span>
+          <strong style="font-size:14px">${fmtMoeda(v.tot)}</strong>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="verVenda('${v.id}')">Ver</button>
+          <button class="btn btn-sm" onclick="reimprimirRomaneio('${v.id}')">🖨</button>
+          ${v.status!=='cancelada'?`<button class="btn btn-sm" onclick="abrirBling('${v.id}')" style="color:#e65c00;border-color:#e65c00">🟠</button>`:''}
+        </div>
+      </div>
+    </div>`).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-vendas');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=vendas.map(v=>`<tr>
     <td><strong>${v.num}</strong></td>
     <td style="font-size:12px">${fmtData(v.data.split('T')[0])}<div style="color:var(--text2)">${v.data.split('T')[1]?.slice(0,5)||''}</div></td>
@@ -3688,6 +3840,32 @@ function renderTabelaEstoque(){
   const tb=document.getElementById('tabela-estoque');
   if(!tb)return;
   if(!prods.length){tb.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-estoque');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-estoque';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=prods.map(p=>{
+      const st=estoqueStatus(p);
+      return`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:600;font-size:14px">${p.nome}</div>
+            <div style="font-size:11px;color:var(--text2)">${p.cod} · <span class="badge badge-pink">${p.cat}</span></div>
+          </div>
+          ${statusBadge(st)}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:13px">Estoque: <strong style="font-size:18px">${p.est}</strong> <span style="color:var(--text2);font-size:12px">(mín: ${p.estmin})</span></div>
+          <button class="btn btn-sm" onclick="abrirAjusteEstoque('${p.id}')">Ajustar</button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-estoque');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=prods.map(p=>{
     const st=estoqueStatus(p);
     return`<tr>
