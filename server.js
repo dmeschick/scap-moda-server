@@ -1,10 +1,9 @@
 const express = require('express');
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
-console.log('DATABASE_URL:', process.env.DATABASE_URL?.slice(0, 30));
 
 const app = express();
 app.use(cors());
@@ -142,7 +141,7 @@ app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
 });
 
 // ========== BACKUP IMPORT ==========
-app.post('/api/importar-backup', async (req, res) => {
+app.post('/api/importar-backup', auth, async (req, res) => {
   try {
     const dados = req.body;
     const chaves = ['produtos','clientes','fornecedores','categorias','vendas','descontos','config','trocas_pendentes'];
@@ -168,14 +167,9 @@ app.post('/api/importar-backup', async (req, res) => {
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
-app.get('/api/debug-funcionarios', async (req, res) => {
-  try {
-    const r = await pool.query('SELECT id, nome, cargo, status FROM funcionarios');
-    res.json(r.rows);
-  } catch (err) {
-    res.status(500).json({ erro: err.message });
-  }
 });
+
+const PORT = process.env.PORT || 3000;
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
 });
