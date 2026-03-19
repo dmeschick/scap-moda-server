@@ -2910,6 +2910,7 @@ function selecionarCanal(canal){
 }
 
 function aplicarDescontoPct(){
+  const pct=parseFloat(document.getElementById('cart-desc-pct')?.value)||0;
   const sub=aba().carrinho.reduce((a,i)=>a+i.preco*i.qty,0);
   const valorDesc=Math.round(sub*(pct/100)*100)/100;
   const hidden=document.getElementById('cart-desc-input');
