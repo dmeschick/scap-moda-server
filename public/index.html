@@ -525,7 +525,7 @@ tr:hover td{background:var(--bg)}
           ℹ️ Dados para emissão de NF-e. Para Simples Nacional: CSOSN 400, CST PIS/COFINS 07.
         </div>
         <div class="form-grid">
-          <div class="form-group"><label>NCM</label><div style="display:flex;gap:6px"><input id="prod-ncm" placeholder="0000.00.00" maxlength="10" oninput="mascaraNCM(this)" style="flex:1"><a href="https://portalunico.siscomex.gov.br/classif/#/sumario" target="_blank" class="btn btn-sm">🔍</a></div></div>
+          <div class="form-group"><label>NCM</label><div style="display:flex;gap:6px"><input id="prod-ncm" placeholder="0000.00.00" maxlength="10" oninput="mascaraNCM(this)" style="flex:1"><button class="btn btn-sm" onclick="sugerirNCM()" title="Sugerir NCM pela categoria">💡</button><a href="https://portalunico.siscomex.gov.br/classif/#/sumario" target="_blank" class="btn btn-sm">🔍</a></div></div>
           <div class="form-group"><label>CEST (opcional)</label><input id="prod-cest" placeholder="00.000.00" maxlength="9" oninput="mascaraCEST(this)"></div>
           <div class="form-group"><label>CFOP</label>
             <select id="prod-cfop"><option value="5102">5102 — Venda dentro do estado</option><option value="6102">6102 — Venda fora do estado</option></select>
@@ -1142,7 +1142,68 @@ function tabProd(btn, tabId) {
 
 function atualizarCodProduto() {} // placeholder — código gerado ao salvar
 
-function mascaraNCM(el) {
+function sugerirNCM() {
+  const cat = document.getElementById('prod-cat').value.toLowerCase();
+  const sugestoes = {
+    'blusas':     [{ ncm:'6106.10.00', desc:'Blusas de malha de algodão' },{ ncm:'6106.20.00', desc:'Blusas de malha sintética/viscose' },{ ncm:'6211.42.00', desc:'Blusas de tecido plano de algodão' }],
+    'vestidos':   [{ ncm:'6104.42.00', desc:'Vestidos de malha de algodão' },{ ncm:'6104.43.00', desc:'Vestidos de malha sintética' },{ ncm:'6204.42.00', desc:'Vestidos de tecido plano de algodão' }],
+    'calças':     [{ ncm:'6103.41.00', desc:'Calças de malha de algodão' },{ ncm:'6204.61.00', desc:'Calças de tecido plano de algodão' },{ ncm:'6204.69.00', desc:'Calças de outras matérias têxteis' }],
+    'shorts':     [{ ncm:'6104.62.00', desc:'Shorts de malha de algodão' },{ ncm:'6204.62.00', desc:'Shorts de tecido plano de algodão' }],
+    'saias':      [{ ncm:'6104.51.00', desc:'Saias de malha de algodão' },{ ncm:'6204.51.00', desc:'Saias de tecido plano de algodão' }],
+    'conjuntos':  [{ ncm:'6104.13.00', desc:'Conjuntos de malha de algodão' },{ ncm:'6204.13.00', desc:'Conjuntos de tecido de algodão' }],
+    'macacão':    [{ ncm:'6104.63.00', desc:'Macacão de malha de algodão' },{ ncm:'6211.42.00', desc:'Macacão de tecido plano' }],
+    'lingerie':   [{ ncm:'6212.10.00', desc:'Sutiãs' },{ ncm:'6212.20.00', desc:'Cintas e corpetes' },{ ncm:'6208.11.00', desc:'Camisolas e pijamas de malha' }],
+    'acessórios': [{ ncm:'6117.10.00', desc:'Xales, cachecóis, lenços' },{ ncm:'6217.10.00', desc:'Acessórios de vestuário' },{ ncm:'4205.00.90', desc:'Cintos e bolsas de couro' }],
+  };
+  // Busca por palavra-chave na categoria
+  let opcoes = null;
+  for (const [key, val] of Object.entries(sugestoes)) {
+    if (cat.includes(key) || key.includes(cat)) { opcoes = val; break; }
+  }
+  if (!opcoes) { toast('Nenhuma sugestão para esta categoria. Use o botão 🔍 para buscar manualmente.', 'warn'); return; }
+  // Monta modal de seleção
+  const lista = opcoes.map((o,i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer;background:var(--bg)" 
+      onmouseover="this.style.background='var(--pink-light)'" onmouseout="this.style.background='var(--bg)'"
+      onclick="selecionarNCM('${o.ncm}')">
+      <div>
+        <div style="font-weight:600;font-size:13px">${o.ncm}</div>
+        <div style="font-size:12px;color:var(--text2)">${o.desc}</div>
+      </div>
+      <span style="font-size:18px">→</span>
+    </div>`).join('');
+  // Usa o modal de categoria para mostrar as opções
+  document.getElementById('modal-cat-titulo').textContent = `Sugestões de NCM — ${document.getElementById('prod-cat').value}`;
+  document.getElementById('cat-nome').style.display = 'none';
+  document.getElementById('cat-desc').closest('.form-group').style.display = 'none';
+  document.getElementById('cat-nome').closest('.modal-body').innerHTML = `
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">⚠️ Confirme com seu contador antes de usar.</div>
+    ${lista}
+  `;
+  document.querySelector('#modal-categoria .modal-footer').innerHTML = `<button class="btn" onclick="fecharModalNCM()">Fechar</button>`;
+  abrirModal('modal-categoria');
+}
+
+function selecionarNCM(ncm) {
+  document.getElementById('prod-ncm').value = ncm;
+  fecharModalNCM();
+  toast('NCM ' + ncm + ' selecionado!');
+}
+
+function fecharModalNCM() {
+  fecharModal('modal-categoria');
+  // Restaura modal de categoria
+  document.getElementById('cat-nome').style.display = '';
+  document.getElementById('cat-nome').closest('.modal-body').innerHTML = `
+    <input type="hidden" id="cat-id">
+    <div class="form-group"><label>Nome *</label><input id="cat-nome"></div>
+    <div class="form-group" style="margin-top:10px"><label>Descrição</label><input id="cat-desc"></div>
+  `;
+  document.querySelector('#modal-categoria .modal-footer').innerHTML = `
+    <button class="btn" onclick="fecharModal('modal-categoria')">Cancelar</button>
+    <button class="btn btn-primary" onclick="salvarCategoria()">Salvar</button>
+  `;
+}
   let v = el.value.replace(/\D/g,'').slice(0,8);
   if (v.length > 4) v = v.slice(0,4) + '.' + v.slice(4);
   if (v.replace(/\D/g,'').length > 6) v = v.slice(0,7) + '.' + v.slice(7);
