@@ -1229,14 +1229,18 @@ async function iniciarLogin(){
 
   // Tenta restaurar token salvo
   const savedToken=localStorage.getItem('scap_token');
-  if(savedToken){
-    _apiToken=savedToken;
-    // Sincroniza dados em background antes de mostrar login
-    await _syncFromAPI();
-  }
+  if(savedToken) _apiToken=savedToken;
 
-  // Popula select com funcionários ativos
-  const funcs=S.get('funcionarios')||[];
+  // Busca funcionários direto da API para o select de login
+  let funcs=S.get('funcionarios')||[];
+  try{
+    const r=await fetch(API_URL+'/api/debug-funcionarios');
+    if(r.ok){
+      funcs=await r.json();
+      localStorage.setItem('mf_funcionarios',JSON.stringify(funcs));
+    }
+  }catch(e){console.log('offline - usando cache');}
+
   const sel=document.getElementById('login-usuario');
   if(!sel)return;
   sel.innerHTML='<option value="">— Selecione seu nome —</option>'
