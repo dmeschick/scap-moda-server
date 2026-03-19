@@ -1308,13 +1308,6 @@ function ajustarMobile(){
 window.addEventListener('resize',ajustarMobile);
 window.addEventListener('load',ajustarMobile);
 
-// Fecha sidebar ao navegar no mobile
-const _navOrig=window.nav;
-function nav(page,el){
-  fecharSidebar();
-  if(_navOrig) _navOrig(page,el);
-}
-
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 
 // ========== LOGIN ==========
@@ -1498,6 +1491,7 @@ function initDados(){
 // ========== NAVEGAÇÃO ==========
 const pageTitles={dashboard:'Dashboard',pdv:'PDV / Caixa',produtos:'Produtos',clientes:'Clientes',fornecedores:'Fornecedores',funcionarios:'Funcionários',categorias:'Categorias de Produtos',vendas:'Histórico de Vendas',relatorios:'Relatórios',estoque:'Controle de Estoque',etiquetas:'Impressão de Etiquetas',configuracoes:'Configurações'};
 function nav(id,el){
+  fecharSidebar();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
