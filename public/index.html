@@ -1208,6 +1208,7 @@ function fecharModalNCM() {
     <button class="btn btn-primary" onclick="salvarCategoria()">Salvar</button>
   `;
 }
+function mascaraNCM(el) {
   let v = el.value.replace(/\D/g,'').slice(0,8);
   if (v.length > 4) v = v.slice(0,4) + '.' + v.slice(4);
   if (v.replace(/\D/g,'').length > 6) v = v.slice(0,7) + '.' + v.slice(7);
