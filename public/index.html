@@ -342,8 +342,16 @@ tr:hover td{background:var(--bg)}
       <div class="page" id="page-clientes">
         <div class="search-bar">
           <input type="text" id="busca-cli" placeholder="Buscar cliente..." oninput="carregarClientes()">
+          <select id="filtro-cidade-cli" onchange="carregarClientes()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+            <option value="">Todas as cidades</option>
+          </select>
+          <select id="filtro-aniv-cli" onchange="carregarClientes()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+            <option value="">Todos</option>
+            <option value="mes">🎂 Aniversariantes do mês</option>
+          </select>
           <button class="btn btn-primary" onclick="abrirModalCliente()">+ Nova Cliente</button>
         </div>
+        <div id="aniversariantes-banner" style="display:none"></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nome</th><th>Telefone</th><th>CPF/CNPJ</th><th>Cidade</th><th>Total compras</th><th>Ações</th></tr></thead>
@@ -957,6 +965,32 @@ async function carregarDashboard() {
     document.getElementById('dash-vendas').innerHTML = vendas.length
       ? vendas.map(v => `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td><strong>${fmtMoeda(v.tot)}</strong></td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`).join('')
       : '<tr><td colspan="4"><div class="empty-state" style="padding:20px"><p>Sem vendas</p></div></td></tr>';
+    // Aniversariantes do mês
+    try {
+      const clis = await api('GET', '/api/clientes');
+      const mes = new Date().getMonth() + 1;
+      const aniv = clis.filter(c => c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mes)
+        .sort((a,b) => new Date(a.nasc+'T12:00:00').getDate() - new Date(b.nasc+'T12:00:00').getDate());
+      if (aniv.length) {
+        const anivEl = document.createElement('div');
+        anivEl.className = 'card';
+        anivEl.style.marginTop = '16px';
+        anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês (${aniv.length})</div>` +
+          anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">` +
+          aniv.map(c => {
+            const dia = new Date(c.nasc+'T12:00:00').getDate();
+            const hoje = new Date().getDate();
+            const isHoje = dia === hoje;
+            return `<div style="display:flex;align-items:center;gap:8px;background:${isHoje?'var(--amber-light)':'var(--bg)'};border-radius:var(--radius);padding:8px 12px;${isHoje?'border:1px solid var(--amber)':'border:1px solid var(--border)'}">
+              <div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
+              <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]}</div>
+              <div style="font-size:11px;color:var(--text2)">dia ${dia}${isHoje?' 🎉':''}</div></div>
+            </div>`;
+          }).join('') + '</div>';
+        document.getElementById('page-dashboard').appendChild(anivEl);
+      }
+    } catch(e) {}
   } catch(e) { toast('Erro ao carregar dashboard: ' + e.message, 'error'); }
 }
 
@@ -1274,18 +1308,36 @@ async function buscarCEP(i) {
 
 async function carregarClientes() {
   const q = document.getElementById('busca-cli')?.value || '';
+  const cidade = document.getElementById('filtro-cidade-cli')?.value || '';
+  const aniv = document.getElementById('filtro-aniv-cli')?.value || '';
   try {
-    const clis = await api('GET', `/api/clientes?q=${encodeURIComponent(q)}`);
+    let todos = await api('GET', '/api/clientes');
+    _clientesCache = todos;
+    // Popula filtro de cidades
+    const todasCidades = [...new Set(todos.flatMap(c => (c.enderecos||[]).map(e=>e.cidade).filter(Boolean)))].sort();
+    const selCidade = document.getElementById('filtro-cidade-cli');
+    if (selCidade) {
+      const atual = selCidade.value;
+      selCidade.innerHTML = '<option value="">Todas as cidades</option>' +
+        todasCidades.map(c => `<option value="${c}"${c===atual?' selected':''}>${c}</option>`).join('');
+      if (atual) selCidade.value = atual;
+    }
+    // Filtra
+    let clis = todos;
+    if (q) clis = clis.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.cpf||'').includes(q) || (c.tel||'').includes(q));
+    if (cidade) clis = clis.filter(c => (c.enderecos||[]).some(e => e.cidade === cidade));
+    const mesAtual = new Date().getMonth() + 1;
+    if (aniv === 'mes') clis = clis.filter(c => c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual);
     const tb = document.getElementById('tabela-clientes');
     if (!clis.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
-    _clientesCache = clis;
     tb.innerHTML = clis.map(c => {
       const endPrincipal = (c.enderecos||[]).find(e=>e.principal) || (c.enderecos||[])[0];
       const endStr = endPrincipal ? `${endPrincipal.cidade||''}${endPrincipal.estado?' - '+endPrincipal.estado:''}` : '—';
-      return `<tr style="cursor:pointer" onclick="verCliente('${c.id}')">
+      const isAniv = c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual;
+      return `<tr style="cursor:pointer${isAniv?';background:#FFFDE7':''}" onclick="verCliente('${c.id}')">
         <td><div style="display:flex;align-items:center;gap:8px">
           <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-          <div><strong>${c.nome}</strong>${c.ig?`<div style="font-size:11px;color:var(--text2)">${c.ig}</div>`:''}</div>
+          <div><strong>${c.nome}</strong>${isAniv?' 🎂':''}${c.ig?`<div style="font-size:11px;color:var(--text2)">${c.ig}</div>`:''}</div>
         </div></td>
         <td>${c.tel||'—'}</td>
         <td style="font-size:12px">${c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—')}</td>
@@ -1298,6 +1350,71 @@ async function carregarClientes() {
       </tr>`;
     }).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function verCliente(id) {
+  const c = _clientesCache.find(x => x.id === id);
+  if (!c) return;
+  const enderecos = c.enderecos || [];
+  const mesAtual = new Date().getMonth() + 1;
+  const isAniv = c.nasc && new Date(c.nasc+'T12:00:00').getMonth()+1 === mesAtual;
+  const endHtml = enderecos.length
+    ? enderecos.map(e => `
+        <div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--pink-dark);margin-bottom:6px">${e.tipo||'Endereço'}${e.principal?' ★':''}</div>
+          <div style="font-size:13px;line-height:1.7">
+            ${e.logradouro?`${e.logradouro}${e.numero?', '+e.numero:''}${e.complemento?' - '+e.complemento:''}<br>`:''}
+            ${e.bairro?`${e.bairro}<br>`:''}
+            ${e.cidade?`${e.cidade}${e.estado?' - '+e.estado:''}<br>`:''}
+            ${e.cep?`CEP: ${e.cep}`:''}
+          </div>
+        </div>`).join('')
+    : '<div style="color:var(--text2);font-size:13px">Nenhum endereço cadastrado</div>';
+  document.getElementById('modal-cli-resumo-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+      <div class="avatar" style="width:52px;height:52px;font-size:18px;background:var(--pink-light);color:var(--pink-dark);flex-shrink:0">${iniciais(c.nome)}</div>
+      <div>
+        <div style="font-size:20px;font-weight:700">${c.nome}${isAniv?' 🎂':''}</div>
+        <div style="font-size:13px;color:var(--text2)">${c.tel||''}${c.ig?' · '+c.ig:''}</div>
+        ${c.nasc?`<div style="font-size:12px;color:var(--text2)">📅 ${fmtData(c.nasc)}</div>`:''}
+        <div style="font-size:13px;font-weight:600;color:var(--pink-dark);margin-top:4px">Total: ${fmtMoeda(c.total_compras)}</div>
+      </div>
+    </div>
+    <div class="tabs" style="margin-bottom:12px">
+      <button class="tab active" onclick="tabCliResumo(this,'cli-res-end')">📍 Endereços</button>
+      <button class="tab" onclick="tabCliResumo(this,'cli-res-compras')">🛍 Histórico</button>
+      ${c.obs?'<button class="tab" onclick="tabCliResumo(this,\'cli-res-obs\')">📝 Obs</button>':''}
+    </div>
+    <div id="cli-res-end">${endHtml}</div>
+    <div id="cli-res-compras" style="display:none"><div style="text-align:center;padding:20px;color:var(--text2)">Carregando...</div></div>
+    ${c.obs?`<div id="cli-res-obs" style="display:none;font-size:13px;color:var(--text2);line-height:1.6">${c.obs}</div>`:''}
+  `;
+  api('GET', '/api/vendas?limit=100').then(vendas => {
+    const compras = vendas.filter(v => v.cliente_id === id && v.status !== 'cancelada');
+    const el = document.getElementById('cli-res-compras');
+    if (!el) return;
+    if (!compras.length) { el.innerHTML = '<div class="empty-state" style="padding:20px"><p>Nenhuma compra registrada</p></div>'; return; }
+    el.innerHTML = compras.map(v => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div>
+          <div style="font-weight:600">${v.num}</div>
+          <div style="font-size:11px;color:var(--text2)">${new Date(v.data).toLocaleDateString('pt-BR')} · ${v.pag}</div>
+          <div style="font-size:11px;color:var(--text2)">${(v.itens||[]).map(i=>i.nome).join(', ').slice(0,60)}</div>
+        </div>
+        <strong style="color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
+      </div>`).join('');
+  }).catch(()=>{});
+  document.getElementById('btn-cli-resumo-editar').onclick = () => { fecharModal('modal-cli-resumo'); abrirModalCliente(id); };
+  abrirModal('modal-cli-resumo');
+}
+
+function tabCliResumo(btn, tabId) {
+  document.querySelectorAll('#modal-cli-resumo-body .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['cli-res-end','cli-res-compras','cli-res-obs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === tabId ? 'block' : 'none';
+  });
 }
 
 async function abrirModalCliente(id) {
