@@ -190,9 +190,10 @@ tr:hover td{background:#FEF9FB}
   .search-bar{flex-wrap:wrap;gap:6px}
   .search-bar input,.search-bar select{min-width:0!important;flex:1}
 
-  /* PDV mobile */
-  .pdv-layout{flex-direction:column!important}
-  .pdv-sidebar{width:100%!important;border-left:none!important;border-top:1px solid var(--border)}
+  /* PDV mobile — empilha produtos em cima, carrinho embaixo */
+  .pdv-grid{grid-template-columns:1fr!important;gap:12px!important}
+  .pdv-produtos{max-height:none!important;position:static!important;overflow-y:visible!important}
+  .pdv-carrinho{margin-top:0}
 
   /* Modais */
   .modal{width:96vw!important;max-width:96vw!important;margin:8px auto}
@@ -4151,6 +4152,33 @@ function renderTabelaEtiquetas(){
   const tb=document.getElementById('tabela-etiquetas');
   if(!tb)return;
   if(!prods.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="icon">🏷</div><p>Nenhum produto encontrado</p></div></td></tr>`;return}
+  if(isMobile()){
+    const container=tb.closest('.section-card')||tb.parentElement;
+    let cardsDiv=document.getElementById('cards-etiq');
+    if(!cardsDiv){cardsDiv=document.createElement('div');cardsDiv.id='cards-etiq';cardsDiv.style.cssText='display:flex;flex-direction:column;gap:8px;padding:8px';container.appendChild(cardsDiv);}
+    tb.closest('table').style.display='none';
+    cardsDiv.innerHTML=prods.map(p=>`<div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius);padding:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <input type="checkbox" class="etiq-check" data-id="${p.id}" ${etiqSelecionados.has(p.id)?'checked':''} onchange="toggleEtiq(this)" style="width:18px;height:18px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">${p.nome}</div>
+          <div style="font-size:11px;color:var(--text2)">${p.cod} · <span class="badge badge-pink">${p.cat}</span>${p.colecao?' · '+p.colecao:''}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px">Preço: <strong>${fmtMoeda(p.venda)}</strong> · Estoque: <strong>${p.est}</strong></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:12px;color:var(--text2)">Qtd:</label>
+          <input type="number" min="1" value="${p.est||1}" id="etiq-qtd-${p.id}" style="width:55px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit">
+          <button class="btn btn-sm btn-primary" onclick="previewEtiquetas(['${p.id}'])">🖨</button>
+        </div>
+      </div>
+    </div>`).join('');
+    return;
+  }
+  const cardsDiv=document.getElementById('cards-etiq');
+  if(cardsDiv) cardsDiv.innerHTML='';
+  if(tb.closest('table')) tb.closest('table').style.display='';
   tb.innerHTML=prods.map(p=>`<tr>
     <td><input type="checkbox" class="etiq-check" data-id="${p.id}" ${etiqSelecionados.has(p.id)?'checked':''} onchange="toggleEtiq(this)"></td>
     <td><code style="font-size:12px">${p.cod}</code></td>
