@@ -388,7 +388,7 @@ tr:hover td{background:var(--bg)}
         <!-- Ponto -->
         <div id="tab-func-ponto" style="display:none">
           <div class="search-bar">
-            <select id="ponto-func-sel" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">— Selecionar funcionário —</option></select>
+            <select id="ponto-func-sel" onchange="mostrarRegistroPonto()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">— Selecionar funcionário —</option></select>
             <input type="date" id="ponto-de">
             <input type="date" id="ponto-ate">
             <button class="btn btn-primary" onclick="carregarPonto()">Ver ponto</button>
@@ -1432,8 +1432,8 @@ async function iniciarPonto() {
 
 async function mostrarRegistroPonto() {
   const funcId = document.getElementById('ponto-func-sel').value;
-  if (!funcId) return;
   const reg = document.getElementById('ponto-registro');
+  if (!funcId) { reg.style.display = 'none'; return; }
   reg.style.display = 'block';
   // Busca registros de hoje
   try {
