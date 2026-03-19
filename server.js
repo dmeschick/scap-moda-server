@@ -429,4 +429,36 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+
+app.post('/api/setup', async (req, res) => {
+  try {
+    const f = req.body;
+    await pool.query(`INSERT INTO funcionarios (id,nome,cpf,cargo,status) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
+      [f.id, f.nome, f.cpf, f.cargo, 'ativo']);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 initDB().then(() => app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`)));
