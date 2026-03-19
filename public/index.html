@@ -919,8 +919,8 @@ async function fazerLogin() {
     const data = await api('POST', '/api/login', { funcId, senha });
     TOKEN = data.token;
     usuarioLogado = data.funcionario;
-    sessionStorage.setItem('scap_token', data.token);
-    sessionStorage.setItem('scap_user', JSON.stringify(data.funcionario));
+    localStorage.setItem('scap_token', data.token);
+    localStorage.setItem('scap_user', JSON.stringify(data.funcionario));
     document.getElementById('tela-login').classList.add('hidden');
     document.getElementById('user-avatar').textContent = iniciais(usuarioLogado.nome);
     document.getElementById('user-nome').textContent = usuarioLogado.nome;
@@ -939,8 +939,8 @@ async function fazerLogin() {
 function fazerLogout() {
   if (!confirm('Sair do sistema?')) return;
   TOKEN = null; usuarioLogado = null; categorias = [];
-  sessionStorage.removeItem('scap_token');
-  sessionStorage.removeItem('scap_user');
+  localStorage.removeItem('scap_token');
+  localStorage.removeItem('scap_user');
   document.getElementById('tela-login').classList.remove('hidden');
   document.getElementById('login-senha').value = '';
   iniciarLogin();
@@ -2657,8 +2657,8 @@ ajustarMobile();
 
 // Tenta restaurar sessão salva
 (async () => {
-  const savedToken = sessionStorage.getItem('scap_token');
-  const savedUser = sessionStorage.getItem('scap_user');
+  const savedToken = localStorage.getItem('scap_token');
+  const savedUser = localStorage.getItem('scap_user');
   if (savedToken && savedUser) {
     try {
       // Verifica se o token ainda é válido
@@ -2675,8 +2675,8 @@ ajustarMobile();
     } catch(e) {
       // Token expirou — limpa e mostra login
       TOKEN = null; usuarioLogado = null;
-      sessionStorage.removeItem('scap_token');
-      sessionStorage.removeItem('scap_user');
+      localStorage.removeItem('scap_token');
+      localStorage.removeItem('scap_user');
     }
   }
   iniciarLogin();

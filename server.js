@@ -201,7 +201,7 @@ app.post('/api/login', async (req, res) => {
     const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
     const ok = func.senha_hash ? await bcrypt.compare(senha, func.senha_hash) : senha === senhaPadrao;
     if (!ok) return res.status(401).json({ erro: 'Senha incorreta' });
-    const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '12h' });
+    const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
