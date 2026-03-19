@@ -143,6 +143,78 @@ tr:hover td{background:#FEF9FB}
 .action-btns{display:flex;gap:4px}
 /* PRINT */
 @media print{.sidebar,.topbar,.search-bar,.action-btns,.btn,.modal-backdrop{display:none!important}.content{padding:0}.page{display:block!important}}
+
+/* ===== MOBILE RESPONSIVO ===== */
+@media(max-width:768px){
+  /* Layout geral */
+  body{overflow-x:hidden}
+  .app{flex-direction:column}
+
+  /* Sidebar vira menu hamburguer */
+  .sidebar{
+    position:fixed;top:0;left:-100%;width:80%;max-width:300px;height:100%;
+    z-index:1000;transition:left .3s ease;box-shadow:4px 0 20px rgba(0,0,0,.15);
+    overflow-y:auto;
+  }
+  .sidebar.open{left:0}
+  .sidebar-overlay{
+    display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,.4);z-index:999;
+  }
+  .sidebar.open~.sidebar-overlay{display:block}
+
+  /* Topbar mobile */
+  .topbar{padding:0 12px;height:52px;position:sticky;top:0;z-index:100}
+  .topbar h2{font-size:16px}
+  .topbar-right span{display:none}
+
+  /* Botão hamburguer */
+  .hamburger{display:flex!important;align-items:center;justify-content:center;
+    width:36px;height:36px;background:none;border:none;cursor:pointer;
+    font-size:22px;color:var(--text1);margin-right:8px;flex-shrink:0}
+
+  /* Main content */
+  .main{width:100%;overflow-x:hidden}
+  .content{padding:12px 10px}
+
+  /* Cards */
+  .cards-grid{grid-template-columns:1fr 1fr!important}
+  .metric-card{padding:12px!important}
+  .metric-card .value{font-size:20px!important}
+
+  /* Tabelas - scroll horizontal */
+  .section-card{overflow-x:auto}
+  table{min-width:500px}
+
+  /* Search bar */
+  .search-bar{flex-wrap:wrap;gap:6px}
+  .search-bar input,.search-bar select{min-width:0!important;flex:1}
+
+  /* PDV mobile */
+  .pdv-layout{flex-direction:column!important}
+  .pdv-sidebar{width:100%!important;border-left:none!important;border-top:1px solid var(--border)}
+
+  /* Modais */
+  .modal{width:96vw!important;max-width:96vw!important;margin:8px auto}
+  .modal-body{padding:14px}
+  .form-grid{grid-template-columns:1fr!important}
+  .form-group.full{grid-column:1}
+
+  /* Nav items maiores para toque */
+  .nav-item{padding:13px 16px;font-size:14px}
+  .nav-section{padding:14px 16px 6px}
+
+  /* Botões */
+  .btn{padding:8px 12px;font-size:13px}
+  .action-btns{flex-wrap:wrap;gap:4px}
+
+  /* Tabs */
+  .tabs{overflow-x:auto;flex-wrap:nowrap}
+  .tab{white-space:nowrap;padding:8px 12px;font-size:13px}
+
+  /* Login */
+  .login-box{width:92vw!important;padding:24px 20px!important}
+}
 /* TAG PREVIEW */
 .tag-segmento{display:flex;width:90mm;height:75mm;border:1px solid var(--border);border-radius:4px;overflow:hidden;flex-shrink:0;background:#fff}
 .tag-item{width:45mm;height:75mm;display:flex;flex-direction:column;box-sizing:border-box;background:#fff;overflow:hidden;border-right:1px dashed #aaa;font-family:'Arial',sans-serif}
@@ -231,10 +303,12 @@ tr:hover td{background:#FEF9FB}
     </div>
     <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)" id="data-hora"></div>
   </div>
+  <div class="sidebar-overlay" onclick="fecharSidebar()"></div>
 
   <!-- MAIN -->
   <div class="main">
     <div class="topbar">
+      <button class="hamburger" style="display:none" onclick="toggleSidebar()" title="Menu">☰</button>
       <h2 id="page-title">Dashboard</h2>
       <div class="topbar-right">
         <span style="font-size:12px;color:var(--text2)" id="topbar-data"></span>
@@ -1215,6 +1289,29 @@ async function _syncFromAPI(){
     }));
     console.log('Sync completo!');
   }catch(e){console.log('Offline - usando cache local');}
+}
+
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+}
+function fecharSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+}
+
+// Mostra/esconde hamburguer conforme tamanho da tela
+function ajustarMobile(){
+  const isMobile=window.innerWidth<=768;
+  const hamburger=document.querySelector('.hamburger');
+  if(hamburger) hamburger.style.display=isMobile?'flex':'none';
+}
+window.addEventListener('resize',ajustarMobile);
+window.addEventListener('load',ajustarMobile);
+
+// Fecha sidebar ao navegar no mobile
+const _navOrig=window.nav;
+function nav(page,el){
+  fecharSidebar();
+  if(_navOrig) _navOrig(page,el);
 }
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
