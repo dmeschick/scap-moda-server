@@ -3352,6 +3352,8 @@ function finalizarVenda(){
   }
   filtrarPDV();
   renderTrocasPendentes();
+  // Scroll para o topo no mobile para ver o campo de busca
+  if(isMobile()) window.scrollTo({top:0,behavior:'smooth'});
   abrirRomaneio(venda);
 }
 
