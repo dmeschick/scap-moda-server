@@ -1139,7 +1139,7 @@ function renderEnderecos() {
         <div class="form-group">
           <label>CEP</label>
           <div style="display:flex;gap:6px">
-            <input value="${e.cep||''}" oninput="enderecosTemp[${i}].cep=this.value" onblur="buscarCEP(${i})" placeholder="00000-000" maxlength="9" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)" oninput="mascaraCEP(this);enderecosTemp[${i}].cep=this.value">
+            <input value="${e.cep||''}" onblur="buscarCEP(${i})" onchange="enderecosTemp[${i}].cep=this.value" oninput="mascaraCEP(this)" placeholder="00000-000" maxlength="9" id="end-cep-${i}" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
             <button class="btn btn-sm" onclick="buscarCEP(${i})">🔍</button>
           </div>
         </div>
@@ -1193,7 +1193,8 @@ function mascaraCEP(el) {
 }
 
 async function buscarCEP(i) {
-  const cep = (enderecosTemp[i].cep||'').replace(/\D/g,'');
+  const cepInput = document.getElementById(`end-cep-${i}`);
+  const cep = (cepInput?.value||enderecosTemp[i].cep||'').replace(/\D/g,'');
   if (cep.length !== 8) return;
   try {
     const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
@@ -1203,12 +1204,18 @@ async function buscarCEP(i) {
     enderecosTemp[i].bairro = d.bairro || '';
     enderecosTemp[i].cidade = d.localidade || '';
     enderecosTemp[i].estado = d.uf || '';
-    renderEnderecos();
-    // Foca no campo número
-    setTimeout(() => {
-      const inputs = document.querySelectorAll(`#end-card-${i} input`);
-      if (inputs[1]) inputs[1].focus();
-    }, 100);
+    // Atualiza campos diretamente sem re-renderizar tudo
+    const logEl = document.getElementById(`end-logradouro-${i}`);
+    const bairEl = document.getElementById(`end-bairro-${i}`);
+    const cidEl = document.getElementById(`end-cidade-${i}`);
+    const estEl = document.getElementById(`end-estado-${i}`);
+    if (logEl) logEl.value = d.logradouro || '';
+    if (bairEl) bairEl.value = d.bairro || '';
+    if (cidEl) cidEl.value = d.localidade || '';
+    if (estEl) estEl.value = d.uf || '';
+    // Foca no campo Número
+    const numInput = document.querySelector(`#end-card-${i} input[placeholder="123"]`);
+    if (numInput) setTimeout(() => numInput.focus(), 50);
     toast('CEP encontrado! ✅');
   } catch(e) { toast('Erro ao buscar CEP', 'error'); }
 }
