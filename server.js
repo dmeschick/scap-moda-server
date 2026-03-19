@@ -178,8 +178,14 @@ app.post('/api/login', async (req, res) => {
 // FUNCIONÁRIOS
 app.get('/api/funcionarios', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status FROM funcionarios ORDER BY nome');
+    const r = await pool.query("SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status FROM funcionarios WHERE status='ativo' ORDER BY nome");
     res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+app.delete('/api/funcionarios/:id', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM funcionarios WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/funcionarios', auth, async (req, res) => {
@@ -222,6 +228,8 @@ app.delete('/api/categorias/:id', auth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
+// CATEGORIAS
 
 // FORNECEDORES
 app.get('/api/fornecedores', auth, async (req, res) => {
@@ -287,6 +295,7 @@ app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
     res.json({ est: r.rows[0]?.est });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
 
 // CLIENTES
 app.get('/api/clientes', auth, async (req, res) => {
@@ -431,12 +440,6 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 
-app.post('/api/setup', async (req, res) => {
-  try {
-    const f = req.body;
-    await pool.query(`INSERT INTO funcionarios (id,nome,cpf,cargo,status) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING`,
-      [f.id, f.nome, f.cpf, f.cargo, 'ativo']);
-    res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
