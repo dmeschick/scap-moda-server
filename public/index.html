@@ -975,8 +975,7 @@ async function carregarDashboard() {
         const anivEl = document.createElement('div');
         anivEl.className = 'card';
         anivEl.style.marginTop = '16px';
-        anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês (${aniv.length})</div>` +
-          anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
+        anivEl.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">` +
           aniv.map(c => {
             const dia = new Date(c.nasc+'T12:00:00').getDate();
