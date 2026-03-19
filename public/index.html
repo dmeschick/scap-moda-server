@@ -2932,11 +2932,16 @@ function limparCarrinho(){
   aba().faseTroca=1;
   aba().devolvidos=[];
   aba().desconto=0;
+  aba().clienteId='';
+  aba().obs='';
+  aba().canal='presencial';
   atualizarUITroca();
   if(document.getElementById('cart-desc-input'))document.getElementById('cart-desc-input').value=0;
   if(document.getElementById('cart-desc-valor'))document.getElementById('cart-desc-valor').textContent='R$ 0,00';
   if(document.getElementById('pgto-novo-tipo'))document.getElementById('pgto-novo-tipo').value='';
   if(document.getElementById('pgto-detalhe-area'))document.getElementById('pgto-detalhe-area').innerHTML='';
+  if(document.getElementById('pdv-cliente'))document.getElementById('pdv-cliente').value='';
+  if(document.getElementById('pdv-obs'))document.getElementById('pdv-obs').value='';
   // Mantém o primeiro desconto da tabela ativo
   const descs=S.get('descontos')||[];
   const el=document.getElementById('cart-desc-pct');
@@ -2947,6 +2952,10 @@ function limparCarrinho(){
   ocultarInfoProduto();
   mostrarInfoCliente('');
   selecionarCanal('presencial');
+  // Força atualização visual
+  const pdvSearch=document.getElementById('pdv-search');
+  if(pdvSearch) pdvSearch.value='';
+  filtrarPDV();
 }
 
 // ========== TROCA ==========
@@ -3350,10 +3359,14 @@ function finalizarVenda(){
   } else {
     limparCarrinho();
   }
+  // Força ocultar painel de produto e rolar para o topo
+  ocultarInfoProduto();
+  mostrarInfoCliente('');
+  const pdvSearch=document.getElementById('pdv-search');
+  if(pdvSearch){pdvSearch.value='';pdvSearch.focus();}
+  if(isMobile()) setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),100);
   filtrarPDV();
   renderTrocasPendentes();
-  // Scroll para o topo no mobile para ver o campo de busca
-  if(isMobile()) window.scrollTo({top:0,behavior:'smooth'});
   abrirRomaneio(venda);
 }
 
