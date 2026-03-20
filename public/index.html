@@ -1130,9 +1130,16 @@ async function salvarProduto() {
   if (!cod) {
     const sufixos = {'Blusas':'B','Vestidos':'V','Calças':'C','Shorts':'H','Saias':'S','Macacões':'M','Conjuntos':'U','Acessórios':'A','Lingerie':'L'};
     const suf = sufixos[cat] || 'X';
-    const prods = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=ativo`).catch(() => []);
-    const num = String(prods.length + 1).padStart(6,'0');
-    cod = num + suf;
+    // Busca todos os produtos da categoria (ativos e inativos) para pegar o maior número
+    const todos = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=ativo`).catch(() => []);
+    const inativos = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=inativo`).catch(() => []);
+    const todos2 = [...todos, ...inativos];
+    let maxNum = 0;
+    todos2.forEach(p => {
+      const n = parseInt(p.cod?.replace(/\D/g,'')) || 0;
+      if (n > maxNum) maxNum = n;
+    });
+    cod = String(maxNum + 1).padStart(6,'0') + suf;
   }
   const prod = {
     id, cod, nome, cat,
