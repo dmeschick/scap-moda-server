@@ -515,10 +515,10 @@ tr:hover td{background:var(--bg)}
           <div class="form-group"><label>Fornecedor</label><select id="prod-forn"><option value="">— Selecionar —</option></select></div>
           <div class="form-group"><label>Cor</label><input id="prod-cor" placeholder="Azul, Preto..."></div>
           <div class="form-group"><label>Tamanhos</label><input id="prod-tam" placeholder="P, M, G, GG"></div>
-          <div class="form-group"><label>Preço de custo (R$) *</label><input type="number" id="prod-custo" placeholder="0,00" step="0.01" min="0"></div>
-          <div class="form-group"><label>Preço de venda (R$) *</label><input type="number" id="prod-venda" placeholder="0,00" step="0.01" min="0"></div>
-          <div class="form-group"><label>Estoque inicial</label><input type="number" id="prod-est" placeholder="0" min="0"></div>
-          <div class="form-group"><label>Estoque mínimo</label><input type="number" id="prod-estmin" placeholder="5" min="0"></div>
+          <div class="form-group"><label>Preço de custo (R$) *</label><input type="number" id="prod-custo" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
+          <div class="form-group"><label>Preço de venda (R$) *</label><input type="number" id="prod-venda" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
+          <div class="form-group"><label>Estoque inicial</label><input type="number" id="prod-est" placeholder="0" min="0" onfocus="this.select()"></div>
+          <div class="form-group"><label>Estoque mínimo</label><input type="number" id="prod-estmin" placeholder="5" min="0" onfocus="this.select()"></div>
           <div class="form-group full"><label>Coleção / Temporada</label><input id="prod-colecao" placeholder="Ex: Outono Inverno 2026"></div>
           <div class="form-group full"><label>Descrição / Observações</label><textarea id="prod-desc" placeholder="Detalhes, material..."></textarea></div>
         </div>
@@ -1053,7 +1053,6 @@ async function carregarProdutos() {
 async function abrirModalProduto(id) {
   document.getElementById('modal-prod-titulo').textContent = id ? 'Editar Produto' : 'Novo Produto';
   await carregarCategoriasGlobal();
-  // Popular fornecedores
   try {
     const forns = await api('GET', '/api/fornecedores');
     document.getElementById('prod-forn').innerHTML = '<option value="">— Selecionar —</option>' +
@@ -1064,8 +1063,18 @@ async function abrirModalProduto(id) {
       const prods = await api('GET', `/api/produtos?q=`);
       const p = prods.find(x => x.id === id);
       if (!p) return;
-      ['id','nome','cod','cat','cor','tam','colecao','desc'].forEach(k => { const el = document.getElementById('prod-'+k); if (el) el.value = p[k]||''; });
-      ['custo','venda','est','estmin'].forEach(k => { const el = document.getElementById('prod-'+k); if (el) el.value = p[k]||0; });
+      document.getElementById('prod-id').value = p.id||'';
+      document.getElementById('prod-nome').value = p.nome||'';
+      document.getElementById('prod-cod').value = p.cod||'';
+      document.getElementById('prod-cat').value = p.cat||'';
+      document.getElementById('prod-cor').value = p.cor||'';
+      document.getElementById('prod-tam').value = p.tam||'';
+      document.getElementById('prod-colecao').value = p.colecao||'';
+      document.getElementById('prod-desc').value = p.descricao||'';
+      document.getElementById('prod-custo').value = p.custo||0;
+      document.getElementById('prod-venda').value = p.venda||0;
+      document.getElementById('prod-est').value = p.est||0;
+      document.getElementById('prod-estmin').value = p.estmin||5;
       document.getElementById('prod-forn').value = p.forn||'';
       document.getElementById('prod-ncm').value = p.ncm||'';
       document.getElementById('prod-cest').value = p.cest||'';
@@ -1075,13 +1084,17 @@ async function abrirModalProduto(id) {
       document.getElementById('prod-unidade').value = p.unidade||'UN';
       document.getElementById('prod-cst-pis').value = p.cst_pis||'07';
       document.getElementById('prod-cst-cofins').value = p.cst_cofins||'07';
-      document.getElementById('prod-cod').readOnly = false;
-      document.getElementById('prod-cod').style.background = '';
     } catch(e) { toast('Erro ao carregar produto', 'error'); return; }
   } else {
-    ['id','nome','cod','cat','cor','tam','colecao','desc'].forEach(k => { const el = document.getElementById('prod-'+k); if (el) el.value = ''; });
-    ['custo','venda'].forEach(k => { const el = document.getElementById('prod-'+k); if (el) el.value = ''; });
-    document.getElementById('prod-est').value = 0;
+    document.getElementById('prod-id').value = '';
+    document.getElementById('prod-nome').value = '';
+    document.getElementById('prod-cod').value = '';
+    document.getElementById('prod-cor').value = '';
+    document.getElementById('prod-tam').value = '';
+    document.getElementById('prod-desc').value = '';
+    document.getElementById('prod-custo').value = '';
+    document.getElementById('prod-venda').value = '';
+    document.getElementById('prod-est').value = '';
     document.getElementById('prod-estmin').value = 5;
     document.getElementById('prod-cfop').value = '5102';
     document.getElementById('prod-csosn').value = '400';
@@ -1089,9 +1102,13 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-unidade').value = 'UN';
     document.getElementById('prod-cst-pis').value = '07';
     document.getElementById('prod-cst-cofins').value = '07';
-    document.getElementById('prod-cod').readOnly = true;
-    document.getElementById('prod-cod').style.background = 'var(--bg)';
+    // Mantém categoria, coleção e NCM do último cadastro
+    // (já preenchidos pelo salvarProduto via _ultimoProdCat)
   }
+  // Código sempre editável
+  document.getElementById('prod-cod').readOnly = false;
+  document.getElementById('prod-cod').style.background = '';
+  document.getElementById('prod-cod').placeholder = id ? '' : 'Deixe vazio para gerar automático';
   // Reset tab
   document.querySelectorAll('#modal-produto .tab').forEach((t,i) => t.classList.toggle('active', i===0));
   document.getElementById('tab-prod-geral').style.display = 'block';
@@ -1142,13 +1159,18 @@ async function salvarProduto() {
     toast('Produto salvo! ✅');
     carregarProdutos();
     if (isNovo) {
-      // Abre novo cadastro com mesma categoria, cursor no nome
-      const catAtual = cat;
+      // Lembra NCM e coleção por categoria
+      const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
+      memoria[cat] = { ncm: prod.ncm, colecao: prod.colecao };
+      localStorage.setItem('scap_prod_mem', JSON.stringify(memoria));
+      // Abre novo cadastro mantendo categoria, NCM e coleção
       abrirModalProduto();
       setTimeout(() => {
-        document.getElementById('prod-cat').value = catAtual;
+        document.getElementById('prod-cat').value = cat;
+        document.getElementById('prod-ncm').value = prod.ncm||'';
+        document.getElementById('prod-colecao').value = prod.colecao||'';
         document.getElementById('prod-nome').focus();
-      }, 100);
+      }, 150);
     } else {
       fecharModal('modal-produto');
     }
