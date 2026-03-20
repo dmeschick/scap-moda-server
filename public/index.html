@@ -242,6 +242,26 @@ tr:hover td{background:var(--bg)}
   .pdv-cart-panel{position:relative!important;border-radius:var(--radius-lg)!important;box-shadow:var(--shadow)!important;max-height:none}
   .pdv-search-panel{padding-bottom:0}
 }
+
+/* ===== MOBILE CARDS (tabelas viram cards) ===== */
+.mobile-cards-list{display:none}
+@media(max-width:768px){
+  /* Esconde tabelas e mostra cards */
+  .table-wrap{display:none}
+  .mobile-cards-list{display:flex;flex-direction:column;gap:10px}
+  /* Card base */
+  .m-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow)}
+  .m-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+  .m-card-title{font-weight:700;font-size:14px;color:var(--text1)}
+  .m-card-sub{font-size:12px;color:var(--text2);margin-top:2px}
+  .m-card-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)}
+  .m-card-row:last-child{border-bottom:none}
+  .m-card-label{color:var(--text2);font-size:11px;font-weight:600;text-transform:uppercase}
+  .m-card-value{font-size:13px;text-align:right}
+  .m-card-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .m-card-actions .btn{flex:1;justify-content:center;font-size:13px;padding:8px}
+}
+
 </style>
 </head>
 <body>
@@ -426,6 +446,7 @@ tr:hover td{background:var(--bg)}
             <tbody id="tabela-clientes"></tbody>
           </table>
         </div>
+        <div id="mobile-cards-clientes" class="mobile-cards-list"></div>
       </div>
 
       <!-- FORNECEDORES -->
@@ -440,6 +461,7 @@ tr:hover td{background:var(--bg)}
             <tbody id="tabela-fornecedores"></tbody>
           </table>
         </div>
+        <div id="mobile-cards-fornecedores" class="mobile-cards-list"></div>
       </div>
 
       <!-- FUNCIONÁRIOS -->
@@ -460,6 +482,7 @@ tr:hover td{background:var(--bg)}
               <tbody id="tabela-funcionarios"></tbody>
             </table>
           </div>
+        <div id="mobile-cards-funcionarios" class="mobile-cards-list"></div>
         </div>
         <!-- Ponto -->
         <div id="tab-func-ponto" style="display:none">
@@ -502,6 +525,7 @@ tr:hover td{background:var(--bg)}
             <tbody id="tabela-vendas"></tbody>
           </table>
         </div>
+        <div id="mobile-cards-vendas" class="mobile-cards-list"></div>
       </div>
 
       <!-- RELATÓRIOS -->
@@ -534,6 +558,7 @@ tr:hover td{background:var(--bg)}
             <tbody id="tabela-estoque"></tbody>
           </table>
         </div>
+        <div id="mobile-cards-estoque" class="mobile-cards-list"></div>
       </div>
 
       <!-- CONFIGURAÇÕES -->
@@ -1092,6 +1117,7 @@ async function carregarProdutos() {
     const prods = await api('GET', `/api/produtos?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}`);
     const tb = document.getElementById('tabela-produtos');
     if (!prods.length) { tb.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>'; return; }
+    renderMobileCardsProdutos(prods);
     tb.innerHTML = prods.map(p => {
       const margem = p.venda > 0 ? Math.round(((p.venda - p.custo) / p.venda) * 100) : 0;
       const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
@@ -1498,6 +1524,7 @@ async function carregarClientes() {
     if (aniv === 'mes') clis = clis.filter(c => c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual);
     const tb = document.getElementById('tabela-clientes');
     if (!clis.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
+    renderMobileCardsClientes(clis);
     tb.innerHTML = clis.map(c => {
       const endPrincipal = (c.enderecos||[]).find(e=>e.principal) || (c.enderecos||[])[0];
       const endStr = endPrincipal ? `${endPrincipal.cidade||''}${endPrincipal.estado?' - '+endPrincipal.estado:''}` : '—';
@@ -1675,6 +1702,7 @@ async function carregarFornecedores() {
     const filtrado = q ? forns.filter(f => f.nome.toLowerCase().includes(q.toLowerCase())) : forns;
     const tb = document.getElementById('tabela-fornecedores');
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">🚚</div><p>Nenhum fornecedor</p></div></td></tr>'; return; }
+    renderMobileCardsFornecedores(filtrado);
     tb.innerHTML = filtrado.map(f => `<tr>
       <td><strong>${f.nome}</strong></td>
       <td style="font-size:12px">${f.cnpj||'—'}</td>
@@ -1771,6 +1799,7 @@ async function carregarFuncionarios() {
     const filtrado = q ? funcs.filter(f => f.nome.toLowerCase().includes(q.toLowerCase())) : funcs;
     const tb = document.getElementById('tabela-funcionarios');
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👩</div><p>Nenhum funcionário</p></div></td></tr>'; return; }
+    renderMobileCardsFuncionarios(filtrado);
     tb.innerHTML = filtrado.map(f => `<tr style="${f.status==='inativo'?'opacity:.5':''}">
       <td><div style="display:flex;align-items:center;gap:8px">
         ${f.foto ? `<img src="${f.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div class="avatar" style="background:#E6F1FB;color:var(--blue)">${iniciais(f.nome)}</div>`}
@@ -2139,6 +2168,7 @@ async function carregarVendas() {
     const vendas = await api('GET', url);
     const tb = document.getElementById('tabela-vendas');
     if (!vendas.length) { tb.innerHTML = '<tr><td colspan="9"><div class="empty-state" style="padding:24px"><div class="icon">🧾</div><p>Nenhuma venda</p></div></td></tr>'; return; }
+    renderMobileCardsVendas(vendas);
     tb.innerHTML = vendas.map(v => `<tr>
       <td><strong>${v.num}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
@@ -2287,6 +2317,7 @@ async function carregarEstoque() {
     filtrado.sort((a,b) => a.est - b.est);
     const tb = document.getElementById('tabela-estoque');
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>'; return; }
+    renderMobileCardsEstoque(filtrado);
     tb.innerHTML = filtrado.map(p => {
       const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
       const badge = est==='ok'?'badge-green':est==='baixo'?'badge-amber':'badge-red';
@@ -2745,6 +2776,152 @@ setInterval(()=>{
   const el=document.getElementById('sidebar-hora');
   if(el)el.textContent=new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 },1000);
+
+
+// ===== MOBILE CARDS =====
+function renderMobileCardsProdutos(prods) {
+  const el = document.getElementById('mobile-cards-produtos');
+  if (!el) return;
+  if (!prods.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Nenhum produto</p></div>'; return; }
+  el.innerHTML = prods.map(p => {
+    const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
+    const estBadge = est === 'ok' ? 'badge-green' : est === 'baixo' ? 'badge-amber' : 'badge-red';
+    const estLabel = est === 'ok' ? 'Normal' : est === 'baixo' ? 'Baixo' : 'Zerado';
+    return `<div class="m-card">
+      <div class="m-card-header">
+        <div>
+          <div class="m-card-title">${p.nome}</div>
+          <div class="m-card-sub"><code>${p.cod}</code> · <span class="badge badge-pink">${p.cat||'—'}</span></div>
+        </div>
+        <strong style="font-size:16px;color:var(--pink-dark)">${fmtMoeda(p.venda)}</strong>
+      </div>
+      <div class="m-card-row"><span class="m-card-label">Estoque</span><span class="m-card-value"><span class="badge ${estBadge}">${estLabel}</span> ${p.est}</span></div>
+      ${p.tam ? `<div class="m-card-row"><span class="m-card-label">Tamanhos</span><span class="m-card-value">${p.tam}</span></div>` : ''}
+      ${p.cor ? `<div class="m-card-row"><span class="m-card-label">Cor</span><span class="m-card-value">${p.cor}</span></div>` : ''}
+      <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${p.status==='ativo'?'badge-green':'badge-gray'}">${p.status}</span></span></div>
+      <div class="m-card-actions">
+        <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">✏️ Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}','${p.nome.replace(/'/g,"\\'")}')">Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderMobileCardsClientes(clis) {
+  const el = document.getElementById('mobile-cards-clientes');
+  if (!el) return;
+  if (!clis.length) { el.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>Nenhuma cliente</p></div>'; return; }
+  el.innerHTML = clis.map(c => `<div class="m-card">
+    <div class="m-card-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
+        <div>
+          <div class="m-card-title">${c.nome}${c.nasc && isAniversario(c.nasc) ? ' 🎂' : ''}</div>
+          <div class="m-card-sub">${c.ig||''}</div>
+        </div>
+      </div>
+      <strong style="color:var(--pink-dark)">${fmtMoeda(c.total_compras)}</strong>
+    </div>
+    ${c.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${c.tel}" style="color:var(--blue)">${c.tel}</a></span></div>` : ''}
+    ${c.email ? `<div class="m-card-row"><span class="m-card-label">E-mail</span><span class="m-card-value" style="font-size:12px">${c.email}</span></div>` : ''}
+    <div class="m-card-row"><span class="m-card-label">Última compra</span><span class="m-card-value">${c.ult_compra ? fmtData(c.ult_compra) : '—'}</span></div>
+    <div class="m-card-actions">
+      <button class="btn btn-sm" onclick="abrirResumoCliente('${c.id}')">👁 Ver</button>
+      <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">✏️ Editar</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderMobileCardsFornecedores(forns) {
+  const el = document.getElementById('mobile-cards-fornecedores');
+  if (!el) return;
+  if (!forns.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🚚</div><p>Nenhum fornecedor</p></div>'; return; }
+  el.innerHTML = forns.map(f => `<div class="m-card">
+    <div class="m-card-header">
+      <div>
+        <div class="m-card-title">${f.nome}</div>
+        <div class="m-card-sub">${f.cats||''}</div>
+      </div>
+    </div>
+    ${f.contato ? `<div class="m-card-row"><span class="m-card-label">Contato</span><span class="m-card-value">${f.contato}</span></div>` : ''}
+    ${f.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${f.tel}" style="color:var(--blue)">${f.tel}</a></span></div>` : ''}
+    ${f.prazo ? `<div class="m-card-row"><span class="m-card-label">Prazo</span><span class="m-card-value">${f.prazo}</span></div>` : ''}
+    <div class="m-card-actions">
+      <button class="btn btn-sm" onclick="abrirModalFornecedor('${f.id}')">✏️ Editar</button>
+      <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderMobileCardsFuncionarios(funcs) {
+  const el = document.getElementById('mobile-cards-funcionarios');
+  if (!el) return;
+  if (!funcs.length) { el.innerHTML = '<div class="empty-state"><div class="icon">👩</div><p>Nenhum funcionário</p></div>'; return; }
+  el.innerHTML = funcs.map(f => `<div class="m-card" style="${f.status==='inativo'?'opacity:.5':''}">
+    <div class="m-card-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar" style="background:#E6F1FB;color:var(--blue)">${f.foto ? `<img src="${f.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : iniciais(f.nome)}</div>
+        <div>
+          <div class="m-card-title">${f.nome}</div>
+          <div class="m-card-sub"><span class="badge badge-blue">${f.cargo}</span></div>
+        </div>
+      </div>
+      <span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span>
+    </div>
+    ${f.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${f.tel}" style="color:var(--blue)">${f.tel}</a></span></div>` : ''}
+    <div class="m-card-row"><span class="m-card-label">Comissão</span><span class="m-card-value">${f.comissao||0}%</span></div>
+    <div class="m-card-actions">
+      <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">✏️ Editar</button>
+      <button class="btn btn-sm ${f.status==='ativo'?'':'btn-primary'}" onclick="toggleFuncionario('${f.id}','${f.status}')">${f.status==='ativo'?'Desativar':'Ativar'}</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderMobileCardsVendas(vendas) {
+  const el = document.getElementById('mobile-cards-vendas');
+  if (!el) return;
+  if (!vendas.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>Nenhuma venda</p></div>'; return; }
+  el.innerHTML = vendas.map(v => `<div class="m-card">
+    <div class="m-card-header">
+      <div>
+        <div class="m-card-title">${v.num} · ${v.cliente_nome||'Consumidor final'}</div>
+        <div class="m-card-sub">${new Date(v.data).toLocaleString('pt-BR')}</div>
+      </div>
+      <strong style="font-size:16px;color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
+    </div>
+    <div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">${v.pag}</span></div>
+    <div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">${v.canal==='online'?'🌐 Online':'🏪 Presencial'}</span></div>
+    <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></span></div>
+    <div class="m-card-actions">
+      <button class="btn btn-sm" onclick="verVenda('${v.id}')">👁 Ver detalhes</button>
+    </div>
+  </div>`).join('');
+}
+
+function renderMobileCardsEstoque(prods) {
+  const el = document.getElementById('mobile-cards-estoque');
+  if (!el) return;
+  if (!prods.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>Nenhum produto</p></div>'; return; }
+  el.innerHTML = prods.map(p => {
+    const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
+    const badge = est==='ok'?'badge-green':est==='baixo'?'badge-amber':'badge-red';
+    const label = est==='ok'?'Normal':est==='baixo'?'Baixo':'Zerado';
+    return `<div class="m-card">
+      <div class="m-card-header">
+        <div>
+          <div class="m-card-title">${p.nome}</div>
+          <div class="m-card-sub"><code>${p.cod}</code> · <span class="badge badge-pink">${p.cat||'—'}</span></div>
+        </div>
+        <span class="badge ${badge}" style="font-size:14px">${p.est}</span>
+      </div>
+      <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${badge}">${label}</span></span></div>
+      <div class="m-card-row"><span class="m-card-label">Mínimo</span><span class="m-card-value">${p.estmin}</span></div>
+      <div class="m-card-actions">
+        <button class="btn btn-sm btn-primary" onclick="abrirAjusteEstoque('${p.id}','${p.nome.replace(/'/g,"\\'")}',${p.est})">📦 Ajustar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // ===== INIT =====
 ajustarMobile();
