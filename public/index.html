@@ -223,25 +223,7 @@ tr:hover td{background:var(--bg)}
 @media print{.sidebar,.topbar,.search-bar,.action-btns,.btn,.modal-backdrop{display:none!important}.content{padding:0}.page{display:block!important}}
 
 /* Mobile: esconde td nas colunas marcadas com col-hide-mobile */
-@media(max-width:768px){
-  th.col-hide-mobile{display:none}
-  /* Vendas: col 3=Pagamento, col 4=Status */
-  #page-vendas table td:nth-child(3),
-  #page-vendas table td:nth-child(4){display:none}
-  /* Produtos: col 4=Tamanhos */
-  #page-produtos table td:nth-child(4){display:none}
-  /* Clientes: col 3=CPF, col 5=Total compras */
-  #page-clientes table td:nth-child(3),
-  #page-clientes table td:nth-child(5){display:none}
-  /* Fornecedores: col 2=CNPJ, col 5=Categorias */
-  #page-fornecedores table td:nth-child(2),
-  #page-fornecedores table td:nth-child(5){display:none}
-  /* Funcionários: col 4=Comissão */
-  #page-funcionarios table td:nth-child(4){display:none}
-  /* PDV: carrinho não fica fixo na parte inferior (simplifica) */
-  .pdv-cart-panel{position:relative!important;border-radius:var(--radius-lg)!important;box-shadow:var(--shadow)!important;max-height:none}
-  .pdv-search-panel{padding-bottom:0}
-}
+/* col-hide-mobile removido - tabelas usam cards no mobile */
 
 /* ===== MOBILE CARDS (tabelas viram cards) ===== */
 .mobile-cards-list{display:none}
