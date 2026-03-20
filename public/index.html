@@ -1114,6 +1114,8 @@ async function abrirModalProduto(id) {
   document.getElementById('tab-prod-geral').style.display = 'block';
   document.getElementById('tab-prod-fiscal').style.display = 'none';
   abrirModal('modal-produto');
+  // Cursor no Nome ao abrir novo
+  if (!id) setTimeout(() => document.getElementById('prod-nome').focus(), 100);
 }
 
 async function salvarProduto() {
@@ -1130,13 +1132,12 @@ async function salvarProduto() {
   if (!cod) {
     const sufixos = {'Blusas':'B','Vestidos':'V','Calças':'C','Shorts':'H','Saias':'S','Macacões':'M','Conjuntos':'U','Acessórios':'A','Lingerie':'L'};
     const suf = sufixos[cat] || 'X';
-    // Busca todos os produtos da categoria (ativos e inativos) para pegar o maior número
-    const todos = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=ativo`).catch(() => []);
+    // Busca o maior número já usado em todos os produtos desta categoria (ativos e inativos)
+    const ativos = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=ativo`).catch(() => []);
     const inativos = await api('GET', `/api/produtos?cat=${encodeURIComponent(cat)}&status=inativo`).catch(() => []);
-    const todos2 = [...todos, ...inativos];
     let maxNum = 0;
-    todos2.forEach(p => {
-      const n = parseInt(p.cod?.replace(/\D/g,'')) || 0;
+    [...ativos, ...inativos].forEach(p => {
+      const n = parseInt((p.cod||'').replace(/\D/g,'')) || 0;
       if (n > maxNum) maxNum = n;
     });
     cod = String(maxNum + 1).padStart(6,'0') + suf;
@@ -1170,14 +1171,15 @@ async function salvarProduto() {
       const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
       memoria[cat] = { ncm: prod.ncm, colecao: prod.colecao };
       localStorage.setItem('scap_prod_mem', JSON.stringify(memoria));
-      // Abre novo cadastro mantendo categoria, NCM e coleção
+      // Abre novo cadastro mantendo categoria, NCM e coleção, cursor no Nome
       abrirModalProduto();
       setTimeout(() => {
         document.getElementById('prod-cat').value = cat;
         document.getElementById('prod-ncm').value = prod.ncm||'';
         document.getElementById('prod-colecao').value = prod.colecao||'';
         document.getElementById('prod-nome').focus();
-      }, 150);
+        document.getElementById('prod-nome').select();
+      }, 200);
     } else {
       fecharModal('modal-produto');
     }
