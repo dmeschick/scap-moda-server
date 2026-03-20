@@ -513,8 +513,8 @@ tr:hover td{background:var(--bg)}
       <!-- VENDAS -->
       <div class="page" id="page-vendas">
         <div class="search-bar">
-          <input type="date" id="venda-de">
-          <input type="date" id="venda-ate">
+          <div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:11px;font-weight:600;color:var(--text2)">DE</label><input type="date" id="venda-de"></div>
+          <div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:11px;font-weight:600;color:var(--text2)">ATÉ</label><input type="date" id="venda-ate"></div>
           <select id="venda-status"><option value="">Todos os status</option><option value="pago">Pago</option><option value="cancelada">Cancelada</option></select>
           <button class="btn" onclick="carregarVendas()">Filtrar</button>
           <button class="btn" onclick="limparFiltroVendas()">Limpar</button>
@@ -2787,23 +2787,21 @@ function renderMobileCardsProdutos(prods) {
     const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
     const estBadge = est === 'ok' ? 'badge-green' : est === 'baixo' ? 'badge-amber' : 'badge-red';
     const estLabel = est === 'ok' ? 'Normal' : est === 'baixo' ? 'Baixo' : 'Zerado';
-    return `<div class="m-card">
-      <div class="m-card-header">
-        <div>
-          <div class="m-card-title">${p.nome}</div>
-          <div class="m-card-sub"><code>${p.cod}</code> · <span class="badge badge-pink">${p.cat||'—'}</span></div>
-        </div>
-        <strong style="font-size:16px;color:var(--pink-dark)">${fmtMoeda(p.venda)}</strong>
-      </div>
-      <div class="m-card-row"><span class="m-card-label">Estoque</span><span class="m-card-value"><span class="badge ${estBadge}">${estLabel}</span> ${p.est}</span></div>
-      ${p.tam ? `<div class="m-card-row"><span class="m-card-label">Tamanhos</span><span class="m-card-value">${p.tam}</span></div>` : ''}
-      ${p.cor ? `<div class="m-card-row"><span class="m-card-label">Cor</span><span class="m-card-value">${p.cor}</span></div>` : ''}
-      <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${p.status==='ativo'?'badge-green':'badge-gray'}">${p.status}</span></span></div>
-      <div class="m-card-actions">
-        <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">✏️ Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}','${p.nome.replace(/'/g,"\\'")}')">Excluir</button>
-      </div>
-    </div>`;
+    const nomeEsc = (p.nome||'').replace(/'/g, '&#39;');
+    const stBadge = p.status === 'ativo' ? 'badge-green' : 'badge-gray';
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div>' +
+        '<div class="m-card-title">' + (p.nome||'') + '</div>' +
+        '<div class="m-card-sub"><code>' + (p.cod||'') + '</code> · <span class="badge badge-pink">' + (p.cat||'—') + '</span></div>' +
+      '</div><strong style="font-size:16px;color:var(--pink-dark)">' + fmtMoeda(p.venda) + '</strong></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Estoque</span><span class="m-card-value"><span class="badge ' + estBadge + '">' + estLabel + '</span> ' + p.est + '</span></div>' +
+      (p.tam ? '<div class="m-card-row"><span class="m-card-label">Tamanhos</span><span class="m-card-value">' + p.tam + '</span></div>' : '') +
+      (p.cor ? '<div class="m-card-row"><span class="m-card-label">Cor</span><span class="m-card-value">' + p.cor + '</span></div>' : '') +
+      '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + p.status + '</span></span></div>' +
+      '<div class="m-card-actions">' +
+        '<button class="btn btn-sm" onclick="abrirModalProduto(\'' + p.id + '\')">✏️ Editar</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="excluirProduto(\'' + p.id + '\',\'' + nomeEsc + '\')">Excluir</button>' +
+      '</div></div>';
   }).join('');
 }
 
@@ -2811,91 +2809,88 @@ function renderMobileCardsClientes(clis) {
   const el = document.getElementById('mobile-cards-clientes');
   if (!el) return;
   if (!clis.length) { el.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>Nenhuma cliente</p></div>'; return; }
-  el.innerHTML = clis.map(c => `<div class="m-card">
-    <div class="m-card-header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-        <div>
-          <div class="m-card-title">${c.nome}${c.nasc && nascDate(c.nasc).getMonth()+1 === new Date().getMonth()+1 ? ' 🎂' : ''}</div>
-          <div class="m-card-sub">${c.ig||''}</div>
-        </div>
-      </div>
-      <strong style="color:var(--pink-dark)">${fmtMoeda(c.total_compras)}</strong>
-    </div>
-    ${c.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${c.tel}" style="color:var(--blue)">${c.tel}</a></span></div>` : ''}
-    ${c.email ? `<div class="m-card-row"><span class="m-card-label">E-mail</span><span class="m-card-value" style="font-size:12px">${c.email}</span></div>` : ''}
-    <div class="m-card-row"><span class="m-card-label">Última compra</span><span class="m-card-value">${c.ult_compra ? fmtData(c.ult_compra) : '—'}</span></div>
-    <div class="m-card-actions">
-      <button class="btn btn-sm" onclick="abrirResumoCliente('${c.id}')">👁 Ver</button>
-      <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">✏️ Editar</button>
-    </div>
-  </div>`).join('');
+  const mesAtual = new Date().getMonth() + 1;
+  el.innerHTML = clis.map(c => {
+    const isAniv = c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual;
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div style="display:flex;align-items:center;gap:10px">' +
+        '<div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">' + iniciais(c.nome) + '</div>' +
+        '<div><div class="m-card-title">' + (c.nome||'') + (isAniv ? ' 🎂' : '') + '</div>' +
+        '<div class="m-card-sub">' + (c.ig||'') + '</div></div>' +
+      '</div><strong style="color:var(--pink-dark)">' + fmtMoeda(c.total_compras) + '</strong></div>' +
+      (c.tel ? '<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:' + c.tel + '" style="color:var(--blue)">' + c.tel + '</a></span></div>' : '') +
+      (c.email ? '<div class="m-card-row"><span class="m-card-label">E-mail</span><span class="m-card-value" style="font-size:12px">' + c.email + '</span></div>' : '') +
+      '<div class="m-card-row"><span class="m-card-label">Última compra</span><span class="m-card-value">' + (c.ult_compra ? fmtData(c.ult_compra) : '—') + '</span></div>' +
+      '<div class="m-card-actions">' +
+        '<button class="btn btn-sm" onclick="abrirResumoCliente(\'' + c.id + '\')">👁 Ver</button>' +
+        '<button class="btn btn-sm" onclick="abrirModalCliente(\'' + c.id + '\')">✏️ Editar</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function renderMobileCardsFornecedores(forns) {
   const el = document.getElementById('mobile-cards-fornecedores');
   if (!el) return;
   if (!forns.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🚚</div><p>Nenhum fornecedor</p></div>'; return; }
-  el.innerHTML = forns.map(f => `<div class="m-card">
-    <div class="m-card-header">
-      <div>
-        <div class="m-card-title">${f.nome}</div>
-        <div class="m-card-sub">${f.cats||''}</div>
-      </div>
-    </div>
-    ${f.contato ? `<div class="m-card-row"><span class="m-card-label">Contato</span><span class="m-card-value">${f.contato}</span></div>` : ''}
-    ${f.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${f.tel}" style="color:var(--blue)">${f.tel}</a></span></div>` : ''}
-    ${f.prazo ? `<div class="m-card-row"><span class="m-card-label">Prazo</span><span class="m-card-value">${f.prazo}</span></div>` : ''}
-    <div class="m-card-actions">
-      <button class="btn btn-sm" onclick="abrirModalFornecedor('${f.id}')">✏️ Editar</button>
-      <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
-    </div>
-  </div>`).join('');
+  el.innerHTML = forns.map(f => {
+    const nomeEsc = (f.nome||'').replace(/'/g, '&#39;');
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div>' +
+        '<div class="m-card-title">' + (f.nome||'') + '</div>' +
+        '<div class="m-card-sub">' + (f.cats||'') + '</div>' +
+      '</div></div>' +
+      (f.contato ? '<div class="m-card-row"><span class="m-card-label">Contato</span><span class="m-card-value">' + f.contato + '</span></div>' : '') +
+      (f.tel ? '<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:' + f.tel + '" style="color:var(--blue)">' + f.tel + '</a></span></div>' : '') +
+      (f.prazo ? '<div class="m-card-row"><span class="m-card-label">Prazo</span><span class="m-card-value">' + f.prazo + '</span></div>' : '') +
+      '<div class="m-card-actions">' +
+        '<button class="btn btn-sm" onclick="abrirModalFornecedor(\'' + f.id + '\')">✏️ Editar</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="excluirFornecedor(\'' + f.id + '\',\'' + nomeEsc + '\')">Excluir</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function renderMobileCardsFuncionarios(funcs) {
   const el = document.getElementById('mobile-cards-funcionarios');
   if (!el) return;
   if (!funcs.length) { el.innerHTML = '<div class="empty-state"><div class="icon">👩</div><p>Nenhum funcionário</p></div>'; return; }
-  el.innerHTML = funcs.map(f => `<div class="m-card" style="${f.status==='inativo'?'opacity:.5':''}">
-    <div class="m-card-header">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="avatar" style="background:#E6F1FB;color:var(--blue)">${f.foto ? `<img src="${f.foto}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : iniciais(f.nome)}</div>
-        <div>
-          <div class="m-card-title">${f.nome}</div>
-          <div class="m-card-sub"><span class="badge badge-blue">${f.cargo}</span></div>
-        </div>
-      </div>
-      <span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span>
-    </div>
-    ${f.tel ? `<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:${f.tel}" style="color:var(--blue)">${f.tel}</a></span></div>` : ''}
-    <div class="m-card-row"><span class="m-card-label">Comissão</span><span class="m-card-value">${f.comissao||0}%</span></div>
-    <div class="m-card-actions">
-      <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">✏️ Editar</button>
-      <button class="btn btn-sm ${f.status==='ativo'?'':'btn-primary'}" onclick="toggleFuncionario('${f.id}','${f.status}')">${f.status==='ativo'?'Desativar':'Ativar'}</button>
-    </div>
-  </div>`).join('');
+  el.innerHTML = funcs.map(f => {
+    const stBadge = f.status === 'ativo' ? 'badge-green' : 'badge-gray';
+    const avatar = f.foto
+      ? '<img src="' + f.foto + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
+      : iniciais(f.nome);
+    return '<div class="m-card" style="' + (f.status==='inativo'?'opacity:.5':'') + '">' +
+      '<div class="m-card-header"><div style="display:flex;align-items:center;gap:10px">' +
+        '<div class="avatar" style="background:#E6F1FB;color:var(--blue)">' + avatar + '</div>' +
+        '<div><div class="m-card-title">' + (f.nome||'') + '</div>' +
+        '<div class="m-card-sub"><span class="badge badge-blue">' + (f.cargo||'') + '</span></div></div>' +
+      '</div><span class="badge ' + stBadge + '">' + f.status + '</span></div>' +
+      (f.tel ? '<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:' + f.tel + '" style="color:var(--blue)">' + f.tel + '</a></span></div>' : '') +
+      '<div class="m-card-row"><span class="m-card-label">Comissão</span><span class="m-card-value">' + (f.comissao||0) + '%</span></div>' +
+      '<div class="m-card-actions">' +
+        '<button class="btn btn-sm" onclick="abrirModalFuncionario(\'' + f.id + '\')">✏️ Editar</button>' +
+        '<button class="btn btn-sm ' + (f.status==='ativo'?'':'btn-primary') + '" onclick="toggleFuncionario(\'' + f.id + '\',\'' + f.status + '\')">' + (f.status==='ativo'?'Desativar':'Ativar') + '</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function renderMobileCardsVendas(vendas) {
   const el = document.getElementById('mobile-cards-vendas');
   if (!el) return;
   if (!vendas.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>Nenhuma venda</p></div>'; return; }
-  el.innerHTML = vendas.map(v => `<div class="m-card">
-    <div class="m-card-header">
-      <div>
-        <div class="m-card-title">${v.num} · ${v.cliente_nome||'Consumidor final'}</div>
-        <div class="m-card-sub">${new Date(v.data).toLocaleString('pt-BR')}</div>
-      </div>
-      <strong style="font-size:16px;color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
-    </div>
-    <div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">${v.pag}</span></div>
-    <div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">${v.canal==='online'?'🌐 Online':'🏪 Presencial'}</span></div>
-    <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></span></div>
-    <div class="m-card-actions">
-      <button class="btn btn-sm" onclick="verVenda('${v.id}')">👁 Ver detalhes</button>
-    </div>
-  </div>`).join('');
+  el.innerHTML = vendas.map(v => {
+    const canal = v.canal === 'online' ? '🌐 Online' : '🏪 Presencial';
+    const stBadge = v.status === 'pago' ? 'badge-green' : 'badge-red';
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div>' +
+        '<div class="m-card-title">' + (v.num||'') + ' · ' + (v.cliente_nome||'Consumidor final') + '</div>' +
+        '<div class="m-card-sub">' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
+      '</div><strong style="font-size:16px;color:var(--pink-dark)">' + fmtMoeda(v.tot) + '</strong></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">' + (v.pag||'') + '</span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">' + canal + '</span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + v.status + '</span></span></div>' +
+      '<div class="m-card-actions"><button class="btn btn-sm" onclick="verVenda(\'' + v.id + '\')">👁 Ver detalhes</button></div>' +
+    '</div>';
+  }).join('');
 }
 
 function renderMobileCardsEstoque(prods) {
@@ -2906,20 +2901,16 @@ function renderMobileCardsEstoque(prods) {
     const est = p.est <= 0 ? 'zerado' : p.est <= p.estmin ? 'baixo' : 'ok';
     const badge = est==='ok'?'badge-green':est==='baixo'?'badge-amber':'badge-red';
     const label = est==='ok'?'Normal':est==='baixo'?'Baixo':'Zerado';
-    return `<div class="m-card">
-      <div class="m-card-header">
-        <div>
-          <div class="m-card-title">${p.nome}</div>
-          <div class="m-card-sub"><code>${p.cod}</code> · <span class="badge badge-pink">${p.cat||'—'}</span></div>
-        </div>
-        <span class="badge ${badge}" style="font-size:14px">${p.est}</span>
-      </div>
-      <div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ${badge}">${label}</span></span></div>
-      <div class="m-card-row"><span class="m-card-label">Mínimo</span><span class="m-card-value">${p.estmin}</span></div>
-      <div class="m-card-actions">
-        <button class="btn btn-sm btn-primary" onclick="abrirAjusteEstoque('${p.id}','${p.nome.replace(/'/g,"\\'")}',${p.est})">📦 Ajustar</button>
-      </div>
-    </div>`;
+    const nomeEsc = (p.nome||'').replace(/'/g, '&#39;');
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div>' +
+        '<div class="m-card-title">' + (p.nome||'') + '</div>' +
+        '<div class="m-card-sub"><code>' + (p.cod||'') + '</code> · <span class="badge badge-pink">' + (p.cat||'—') + '</span></div>' +
+      '</div><span class="badge ' + badge + '" style="font-size:14px">' + p.est + '</span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + badge + '">' + label + '</span></span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Mínimo</span><span class="m-card-value">' + p.estmin + '</span></div>' +
+      '<div class="m-card-actions"><button class="btn btn-sm btn-primary" onclick="abrirAjusteEstoque(\'' + p.id + '\',\'' + nomeEsc + '\',' + p.est + ')">📦 Ajustar</button></div>' +
+    '</div>';
   }).join('');
 }
 
