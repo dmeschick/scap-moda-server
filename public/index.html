@@ -160,22 +160,88 @@ tr:hover td{background:var(--bg)}
 
 /* ===== MOBILE ===== */
 @media(max-width:768px){
-  .sidebar{position:fixed;top:0;left:-100%;width:80%;max-width:280px;height:100%;z-index:100;transition:left .3s ease}
+  /* ---- LAYOUT BASE ---- */
+  .sidebar{position:fixed;top:0;left:-100%;width:82%;max-width:280px;height:100%;z-index:100;transition:left .3s ease;overflow-y:auto}
   .sidebar.open{left:0}
   .sidebar-overlay.open{display:block}
   .hamburger{display:flex}
   .app{flex-direction:column}
   .main{height:100vh}
-  .content{padding:12px}
-  .pdv-grid{grid-template-columns:1fr}
+  .content{padding:10px}
+
+  /* ---- TOPBAR ---- */
+  .topbar{padding:0 10px;gap:8px}
+  #page-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+  #user-nome{display:none}
+
+  /* ---- CARDS DASHBOARD ---- */
+  .cards-grid{grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .cards-grid > div{padding:12px}
+
+  /* ---- MODAIS ---- */
+  .modal{max-width:100vw;margin:0;border-radius:0;max-height:100dvh;border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .modal-backdrop{align-items:flex-end}
+  .modal-header{padding:12px 14px}
+  .modal-body{padding:12px 14px}
+  .modal-footer{padding:10px 14px}
+  .modal-box{max-width:100%;width:100%;border-radius:16px 16px 0 0;max-height:92dvh}
+
+  /* ---- FORMULÁRIOS ---- */
   .form-grid{grid-template-columns:1fr}
   .form-group.full{grid-column:1}
-  .cards-grid{grid-template-columns:1fr 1fr}
-  .modal{max-width:96vw}
-  .table-wrap{overflow-x:auto}
-  table{min-width:500px}
+  .form-group label{font-size:12px}
+  .form-group input,.form-group select,.form-group textarea{font-size:15px;padding:9px 10px}
+  .tabs{overflow-x:auto;flex-wrap:nowrap}
+  .tab{font-size:12px;padding:6px 10px;white-space:nowrap}
+
+  /* ---- TABELAS ---- */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:480px;font-size:12px}
+  table th,table td{padding:8px 6px}
+  /* Esconde colunas menos importantes em mobile */
+  .col-hide-mobile{display:none}
+
+  /* ---- PDV ---- */
+  .pdv-grid{grid-template-columns:1fr;gap:10px}
+  .pdv-panel{padding:10px}
+  /* Carrinho vira modal-like na parte inferior */
+  .pdv-cart-panel{position:fixed;bottom:0;left:0;right:0;z-index:50;max-height:55vh;overflow-y:auto;border-radius:16px 16px 0 0;border:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,.12)}
+  .pdv-search-panel{padding-bottom:calc(55vh + 8px)}
+
+  /* ---- BOTÕES ---- */
+  .btn{font-size:12px;padding:7px 10px}
+  .action-btns{gap:6px;flex-wrap:wrap}
+
+  /* ---- PONTO ---- */
+  .ponto-grid{grid-template-columns:1fr!important}
+}
+
+@media(max-width:400px){
+  .cards-grid{grid-template-columns:1fr}
+  #page-title{max-width:100px}
 }
 @media print{.sidebar,.topbar,.search-bar,.action-btns,.btn,.modal-backdrop{display:none!important}.content{padding:0}.page{display:block!important}}
+
+/* Mobile: esconde td nas colunas marcadas com col-hide-mobile */
+@media(max-width:768px){
+  th.col-hide-mobile{display:none}
+  /* Vendas: col 3=Pagamento, col 4=Status */
+  #page-vendas table td:nth-child(3),
+  #page-vendas table td:nth-child(4){display:none}
+  /* Produtos: col 4=Tamanhos */
+  #page-produtos table td:nth-child(4){display:none}
+  /* Clientes: col 3=CPF, col 5=Total compras */
+  #page-clientes table td:nth-child(3),
+  #page-clientes table td:nth-child(5){display:none}
+  /* Fornecedores: col 2=CNPJ, col 5=Categorias */
+  #page-fornecedores table td:nth-child(2),
+  #page-fornecedores table td:nth-child(5){display:none}
+  /* Funcionários: col 4=Comissão */
+  #page-funcionarios table td:nth-child(4){display:none}
+  /* PDV: carrinho não fica fixo na parte inferior (simplifica) */
+  .pdv-cart-panel{position:relative!important;border-radius:var(--radius-lg)!important;box-shadow:var(--shadow)!important;max-height:none}
+  .pdv-search-panel{padding-bottom:0}
+}
 </style>
 </head>
 <body>
@@ -262,7 +328,7 @@ tr:hover td{background:var(--bg)}
         <div class="card">
           <div class="card-title">Últimas vendas</div>
           <div class="table-wrap"><table>
-            <thead><tr><th>Cliente</th><th>Total</th><th>Pagamento</th><th>Status</th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Total</th><th class="col-hide-mobile">Pagamento</th><th class="col-hide-mobile">Status</th></tr></thead>
             <tbody id="dash-vendas"></tbody>
           </table></div>
         </div>
@@ -273,7 +339,7 @@ tr:hover td{background:var(--bg)}
         <div id="pdv-abas" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
         <div class="pdv-grid">
           <!-- Coluna de produtos -->
-          <div class="pdv-panel">
+          <div class="pdv-panel pdv-search-panel">
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
               <input type="text" id="pdv-search" placeholder="🔍 Código ou nome do produto..." style="flex:1;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font)" oninput="filtrarPDV()" onkeydown="pdvKeyDown(event)">
               <select id="pdv-cat" onchange="filtrarPDV()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas categorias</option></select>
@@ -283,7 +349,7 @@ tr:hover td{background:var(--bg)}
             <div id="pdv-empty" class="empty-state" style="display:none"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>
           </div>
           <!-- Carrinho -->
-          <div class="pdv-panel" style="position:sticky;top:0">
+          <div class="pdv-panel pdv-cart-panel" style="position:sticky;top:0">
             <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
               🛍 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
             </div>
@@ -333,7 +399,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th>Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th class="col-hide-mobile">Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead>
             <tbody id="tabela-produtos"></tbody>
           </table>
         </div>
@@ -356,7 +422,7 @@ tr:hover td{background:var(--bg)}
         <div id="aniversariantes-banner-cli" style="display:none"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Telefone</th><th>CPF/CNPJ</th><th>Cidade</th><th>Total compras</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Telefone</th><th class="col-hide-mobile">CPF/CNPJ</th><th>Cidade</th><th class="col-hide-mobile">Total compras</th><th>Ações</th></tr></thead>
             <tbody id="tabela-clientes"></tbody>
           </table>
         </div>
@@ -370,7 +436,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>CNPJ</th><th>Contato</th><th>Telefone</th><th>Categorias</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th class="col-hide-mobile">CNPJ</th><th>Contato</th><th>Telefone</th><th class="col-hide-mobile">Categorias</th><th>Ações</th></tr></thead>
             <tbody id="tabela-fornecedores"></tbody>
           </table>
         </div>
@@ -390,7 +456,7 @@ tr:hover td{background:var(--bg)}
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th>Comissão</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th class="col-hide-mobile">Comissão</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody id="tabela-funcionarios"></tbody>
             </table>
           </div>
@@ -432,7 +498,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Ações</th></tr></thead>
+            <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Canal</th><th>Total</th><th class="col-hide-mobile">Pagamento</th><th>Status</th><th>Ações</th></tr></thead>
             <tbody id="tabela-vendas"></tbody>
           </table>
         </div>
