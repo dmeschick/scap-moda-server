@@ -2504,19 +2504,17 @@ function mostrarCampoPgto() {
   const restante = (sub - desc) - pgtoItens.reduce((a,p) => a+p.valor, 0);
   const campo = document.getElementById('pgto-campo');
   if (!tipo) { campo.innerHTML = ''; return; }
-  let html = `<div style="display:flex;gap:6px;margin-top:6px">`;
+  const iStyle = `flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);min-width:0`;
+  const btnAdd = `<button class="btn btn-sm btn-primary" onclick="adicionarPgto()" style="white-space:nowrap;flex-shrink:0">+ Add</button>`;
+  let html = `<div style="margin-top:6px">`;
   if (tipo === 'dinheiro') {
-    html += `<input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-    <input type="number" id="pgto-troco-in" placeholder="Recebido" step="0.01" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">`;
+    html += `<div style="display:flex;gap:6px;margin-bottom:6px"><input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="${iStyle}"><input type="number" id="pgto-troco-in" placeholder="Recebido" step="0.01" style="${iStyle}"></div><div style="display:flex;justify-content:flex-end">${btnAdd}</div>`;
   } else if (tipo === 'credito') {
-    html += `<input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-    <select id="pgto-parc" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-      ${[1,2,3,4,5,6,8,10,12].map(n=>`<option value="${n}">${n}x</option>`).join('')}
-    </select>`;
+    html += `<div style="display:flex;gap:6px"><input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="${iStyle}"><select id="pgto-parc" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);flex-shrink:0">${[1,2,3,4,5,6,8,10,12].map(n=>`<option value="${n}">${n}x</option>`).join('')}</select>${btnAdd}</div>`;
   } else {
-    html += `<input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">`;
+    html += `<div style="display:flex;gap:6px"><input type="number" id="pgto-val" placeholder="Valor" value="${restante.toFixed(2)}" step="0.01" style="${iStyle}">${btnAdd}</div>`;
   }
-  html += `<button class="btn btn-sm btn-primary" onclick="adicionarPgto()">+ Add</button></div>`;
+  html += `</div>`;
   campo.innerHTML = html;
 }
 
