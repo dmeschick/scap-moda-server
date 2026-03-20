@@ -186,6 +186,56 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_ponto_func ON ponto(funcionario_id);
     CREATE INDEX IF NOT EXISTS idx_ponto_data ON ponto(data);
     ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS foto TEXT;
+    CREATE TABLE IF NOT EXISTS contas_pagar (
+      id TEXT PRIMARY KEY,
+      descricao TEXT NOT NULL,
+      categoria TEXT NOT NULL,
+      valor NUMERIC(10,2) NOT NULL,
+      vencimento DATE NOT NULL,
+      pago BOOLEAN DEFAULT FALSE,
+      data_pagamento DATE,
+      valor_pago NUMERIC(10,2),
+      forma_pagamento TEXT,
+      observacao TEXT,
+      recorrente BOOLEAN DEFAULT FALSE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS cheques (
+      id TEXT PRIMARY KEY,
+      tipo TEXT NOT NULL,
+      valor NUMERIC(10,2) NOT NULL,
+      data_cheque DATE NOT NULL,
+      data_compensacao DATE NOT NULL,
+      nome TEXT NOT NULL,
+      banco TEXT,
+      numero TEXT,
+      status TEXT DEFAULT 'pendente',
+      cliente_id TEXT,
+      observacao TEXT,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS caixa (
+      id TEXT PRIMARY KEY,
+      data DATE NOT NULL UNIQUE,
+      valor_abertura NUMERIC(10,2) NOT NULL,
+      valor_fechamento NUMERIC(10,2),
+      valor_sistema NUMERIC(10,2),
+      diferenca NUMERIC(10,2),
+      status TEXT DEFAULT 'aberto',
+      observacao TEXT,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS caixa_movimentos (
+      id TEXT PRIMARY KEY,
+      caixa_id TEXT NOT NULL,
+      tipo TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      valor NUMERIC(10,2) NOT NULL,
+      categoria TEXT,
+      referencia_id TEXT,
+      referencia_tipo TEXT,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
   console.log('Banco inicializado!');
 }
@@ -580,5 +630,55 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
+
+// FINANCEIRO — CONTAS A PAGAR
+app.get('/api/financeiro/contas-pagar', auth, async (req, res) => {
+  try {
+    const { mes, status, categoria } = req.query;
+    let where = ['1=1'];
+    let params = [];
+    let i = 1;
+    if (mes) { where.push(`TO_CHAR(vencimento,'YYYY-MM')=$${i++}`); params.push(mes); }
+    if (status === 'pendente') { where.push(`pago=FALSE`); }
+    else if (status === 'pago') { where.push(`pago=TRUE`); }
+    if (categoria) { where.push(`categoria=$${i++}`); params.push(categoria); }
+    const r = await pool.query(
+      `SELECT * FROM contas_pagar WHERE ${where.join(' AND ')} ORDER BY vencimento`,
+      params
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/contas-pagar', auth, async (req, res) => {
+  try {
+    const c = req.body;
+    await pool.query(
+      `INSERT INTO contas_pagar (id,descricao,categoria,valor,vencimento,pago,data_pagamento,valor_pago,forma_pagamento,observacao,recorrente)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (id) DO UPDATE SET descricao=$2,categoria=$3,valor=$4,vencimento=$5,pago=$6,data_pagamento=$7,valor_pago=$8,forma_pagamento=$9,observacao=$10,recorrente=$11`,
+      [c.id,c.descricao,c.categoria,c.valor,c.vencimento,c.pago||false,c.dataPagamento||null,c.valorPago||null,c.formaPagamento||null,c.observacao||null,c.recorrente||false]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.patch('/api/financeiro/contas-pagar/:id/pagar', auth, async (req, res) => {
+  try {
+    const { dataPagamento, valorPago, formaPagamento } = req.body;
+    await pool.query(
+      `UPDATE contas_pagar SET pago=TRUE,data_pagamento=$1,valor_pago=$2,forma_pagamento=$3 WHERE id=$4`,
+      [dataPagamento||new Date().toISOString().split('T')[0], valorPago||null, formaPagamento||null, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.delete('/api/financeiro/contas-pagar/:id', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM contas_pagar WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
 
 initDB().then(() => app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`)));
