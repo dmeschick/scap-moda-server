@@ -2816,7 +2816,7 @@ function renderMobileCardsClientes(clis) {
       <div style="display:flex;align-items:center;gap:10px">
         <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
         <div>
-          <div class="m-card-title">${c.nome}${c.nasc && isAniversario(c.nasc) ? ' 🎂' : ''}</div>
+          <div class="m-card-title">${c.nome}${c.nasc && nascDate(c.nasc).getMonth()+1 === new Date().getMonth()+1 ? ' 🎂' : ''}</div>
           <div class="m-card-sub">${c.ig||''}</div>
         </div>
       </div>
