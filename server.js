@@ -631,6 +631,59 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
+// FINANCEIRO — DRE MENSAL
+app.get('/api/financeiro/dre', auth, async (req, res) => {
+  try {
+    const { mes } = req.query; // formato YYYY-MM
+    if (!mes) return res.status(400).json({ erro: 'Informe o mês' });
+
+    // Receita bruta (vendas pagas no mês)
+    const vendas = await pool.query(
+      `SELECT COALESCE(SUM(tot),0) as receita, COUNT(*) as qtd_vendas
+       FROM vendas WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status='pago'`,
+      [mes]
+    );
+
+    // CMV — custo dos produtos vendidos
+    const cmv = await pool.query(
+      `SELECT COALESCE(SUM(vi.qty * p.custo),0) as cmv
+       FROM venda_itens vi
+       JOIN vendas v ON v.id=vi.venda_id
+       JOIN produtos p ON p.id=vi.produto_id
+       WHERE TO_CHAR(v.data,'YYYY-MM')=$1 AND v.status='pago'`,
+      [mes]
+    );
+
+    // Despesas por categoria
+    const despesas = await pool.query(
+      `SELECT categoria, COALESCE(SUM(valor_pago),SUM(valor)) as total
+       FROM contas_pagar
+       WHERE TO_CHAR(vencimento,'YYYY-MM')=$1 AND pago=TRUE
+       GROUP BY categoria ORDER BY total DESC`,
+      [mes]
+    );
+
+    // Total despesas
+    const totalDespesas = despesas.rows.reduce((a, d) => a + parseFloat(d.total), 0);
+
+    const receitaBruta = parseFloat(vendas.rows[0].receita);
+    const cmvTotal = parseFloat(cmv.rows[0].cmv);
+    const lucroBruto = receitaBruta - cmvTotal;
+    const lucroLiquido = lucroBruto - totalDespesas;
+
+    res.json({
+      mes,
+      receitaBruta,
+      cmv: cmvTotal,
+      lucroBruto,
+      despesas: despesas.rows,
+      totalDespesas,
+      lucroLiquido,
+      qtdVendas: parseInt(vendas.rows[0].qtd_vendas)
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // FINANCEIRO — CHEQUES
 app.get('/api/financeiro/cheques', auth, async (req, res) => {
   try {
