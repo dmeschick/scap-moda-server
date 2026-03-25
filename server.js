@@ -677,6 +677,74 @@ app.delete('/api/financeiro/cheques/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// FINANCEIRO — CAIXA
+app.get('/api/financeiro/caixa/hoje', auth, async (req, res) => {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    const caixa = await pool.query(`SELECT * FROM caixa WHERE data=$1`, [hoje]);
+    if (!caixa.rows.length) return res.json(null);
+    const movimentos = await pool.query(
+      `SELECT * FROM caixa_movimentos WHERE caixa_id=$1 ORDER BY criado_em`,
+      [caixa.rows[0].id]
+    );
+    res.json({ ...caixa.rows[0], movimentos: movimentos.rows });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/financeiro/caixa/:data', auth, async (req, res) => {
+  try {
+    const caixa = await pool.query(`SELECT * FROM caixa WHERE data=$1`, [req.params.data]);
+    if (!caixa.rows.length) return res.json(null);
+    const movimentos = await pool.query(
+      `SELECT * FROM caixa_movimentos WHERE caixa_id=$1 ORDER BY criado_em`,
+      [caixa.rows[0].id]
+    );
+    res.json({ ...caixa.rows[0], movimentos: movimentos.rows });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/caixa/abrir', auth, async (req, res) => {
+  try {
+    const { id, data, valorAbertura } = req.body;
+    await pool.query(
+      `INSERT INTO caixa (id,data,valor_abertura,status) VALUES ($1,$2,$3,'aberto')
+       ON CONFLICT (data) DO NOTHING`,
+      [id, data, valorAbertura]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/caixa/fechar', auth, async (req, res) => {
+  try {
+    const { id, valorFechamento, valorSistema, diferenca, observacao } = req.body;
+    await pool.query(
+      `UPDATE caixa SET valor_fechamento=$1,valor_sistema=$2,diferenca=$3,observacao=$4,status='fechado' WHERE id=$5`,
+      [valorFechamento, valorSistema, diferenca, observacao||null, id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/caixa/movimento', auth, async (req, res) => {
+  try {
+    const m = req.body;
+    await pool.query(
+      `INSERT INTO caixa_movimentos (id,caixa_id,tipo,descricao,valor,categoria,referencia_id,referencia_tipo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [m.id, m.caixaId, m.tipo, m.descricao, m.valor, m.categoria||null, m.referenciaId||null, m.referenciaTipo||null]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.delete('/api/financeiro/caixa/movimento/:id', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM caixa_movimentos WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // FINANCEIRO — CONTAS A PAGAR
 app.get('/api/financeiro/contas-pagar', auth, async (req, res) => {
   try {
