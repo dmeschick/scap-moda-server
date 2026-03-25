@@ -299,6 +299,9 @@ tr:hover td{background:var(--bg)}
     <div class="nav-item" onclick="nav('estoque',this)">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Estoque
     </div>
+    <div class="nav-item" onclick="nav('financeiro',this)">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Financeiro
+    </div>
     <div class="nav-section">Sistema</div>
     <div class="nav-item" onclick="nav('configuracoes',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Configurações
@@ -538,6 +541,140 @@ tr:hover td{background:var(--bg)}
           </table>
         </div>
         <div id="mobile-cards-estoque" class="mobile-cards-list"></div>
+      </div>
+
+      <!-- FINANCEIRO -->
+      <div class="page" id="page-financeiro">
+        <!-- Abas -->
+        <div class="tabs" id="fin-tabs" style="margin-bottom:16px">
+          <button class="tab active" onclick="finTab('contas')">Contas a Pagar</button>
+          <button class="tab" onclick="finTab('cheques')">Cheques</button>
+          <button class="tab" onclick="finTab('caixa')">Caixa do Dia</button>
+          <button class="tab" onclick="finTab('dre')">DRE</button>
+          <button class="tab" onclick="finTab('projecao')">Projeção 30 dias</button>
+        </div>
+
+        <!-- ABA: CONTAS A PAGAR -->
+        <div id="fin-contas">
+          <div class="search-bar">
+            <input type="month" id="fin-contas-mes">
+            <select id="fin-contas-status">
+              <option value="">Todos</option>
+              <option value="pendente">Pendentes</option>
+              <option value="pago">Pagas</option>
+            </select>
+            <select id="fin-contas-cat">
+              <option value="">Todas categorias</option>
+              <option>Fornecedores</option>
+              <option>Aluguel</option>
+              <option>Luz</option>
+              <option>Água</option>
+              <option>Telefone/Internet</option>
+              <option>Salários</option>
+              <option>Comissões</option>
+              <option>Limpeza</option>
+              <option>Embalagens</option>
+              <option>Papelaria</option>
+              <option>Outros</option>
+            </select>
+            <button class="btn" onclick="carregarContas()">Filtrar</button>
+            <button class="btn btn-primary" onclick="abrirModalConta()">+ Nova Conta</button>
+          </div>
+          <div id="fin-contas-alerta" style="display:none;background:var(--red-light);border:1px solid var(--red);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--red)"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Vencimento</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody id="tabela-contas"></tbody>
+            </table>
+          </div>
+          <div id="mobile-cards-contas" class="mobile-cards-list"></div>
+        </div>
+
+        <!-- ABA: CHEQUES -->
+        <div id="fin-cheques" style="display:none">
+          <div class="search-bar">
+            <select id="fin-cheq-tipo">
+              <option value="">Todos</option>
+              <option value="recebido">Recebidos</option>
+              <option value="emitido">Emitidos</option>
+            </select>
+            <select id="fin-cheq-status">
+              <option value="">Todos status</option>
+              <option value="pendente">Pendente</option>
+              <option value="compensado">Compensado</option>
+              <option value="devolvido">Devolvido</option>
+            </select>
+            <input type="month" id="fin-cheq-mes">
+            <button class="btn" onclick="carregarCheques()">Filtrar</button>
+            <button class="btn btn-primary" onclick="abrirModalCheque()">+ Novo Cheque</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tipo</th><th>Nome</th><th>Valor</th><th>Data Cheque</th><th>Compensação</th><th>Banco</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody id="tabela-cheques"></tbody>
+            </table>
+          </div>
+          <div id="mobile-cards-cheques" class="mobile-cards-list"></div>
+        </div>
+
+        <!-- ABA: CAIXA DO DIA -->
+        <div id="fin-caixa" style="display:none">
+          <div id="caixa-fechado" style="display:none">
+            <div class="card" style="max-width:400px;margin:0 auto;text-align:center;padding:32px">
+              <div style="font-size:40px;margin-bottom:12px">🏦</div>
+              <div style="font-size:16px;font-weight:700;margin-bottom:8px">Caixa fechado</div>
+              <div style="font-size:13px;color:var(--text2);margin-bottom:20px">Abra o caixa para começar o dia</div>
+              <div class="form-group" style="margin-bottom:12px;text-align:left">
+                <label>Valor de abertura (R$)</label>
+                <input type="number" id="caixa-abertura-val" step="0.01" min="0" placeholder="0,00">
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="abrirCaixa()">Abrir Caixa</button>
+            </div>
+          </div>
+          <div id="caixa-aberto" style="display:none">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <div class="card">
+                <div class="card-title">Resumo do dia</div>
+                <div id="caixa-resumo"></div>
+              </div>
+              <div class="card">
+                <div class="card-title">Lançar movimento
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-sm btn-primary" onclick="abrirModalMovimento('entrada')">+ Entrada</button>
+                    <button class="btn btn-sm btn-danger" onclick="abrirModalMovimento('saida')">- Saída</button>
+                  </div>
+                </div>
+                <div id="caixa-movimentos-lista" style="max-height:300px;overflow-y:auto"></div>
+              </div>
+            </div>
+            <div class="card" style="max-width:400px">
+              <div class="card-title">Fechar Caixa</div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label>Valor contado (R$)</label>
+                <input type="number" id="caixa-fechamento-val" step="0.01" min="0" placeholder="0,00">
+              </div>
+              <div id="caixa-diferenca" style="font-size:13px;margin-bottom:12px"></div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="fecharCaixa()">Fechar Caixa</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ABA: DRE -->
+        <div id="fin-dre" style="display:none">
+          <div class="card" style="padding:14px;margin-bottom:16px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:600;color:var(--text2)">Mês:</span>
+              <input type="month" id="dre-mes" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              <button class="btn btn-primary btn-sm" onclick="carregarDRE()">Atualizar</button>
+            </div>
+          </div>
+          <div id="dre-content"></div>
+        </div>
+
+        <!-- ABA: PROJEÇÃO -->
+        <div id="fin-projecao" style="display:none">
+          <div id="projecao-content"></div>
+        </div>
       </div>
 
       <!-- CONFIGURAÇÕES -->
@@ -940,7 +1077,7 @@ const pageTitles = {
   dashboard:'Dashboard', pdv:'PDV / Caixa', produtos:'Produtos',
   clientes:'Clientes', fornecedores:'Fornecedores', funcionarios:'Funcionários',
   vendas:'Histórico de Vendas', relatorios:'Relatórios', estoque:'Estoque',
-  configuracoes:'Configurações'
+  configuracoes:'Configurações', financeiro:'Financeiro'
 };
 function nav(id, el) {
   fecharSidebar();
@@ -959,6 +1096,7 @@ function nav(id, el) {
   if (id === 'relatorios') { document.getElementById('rel-mes').value = new Date().toISOString().slice(0,7); carregarRelatorio(); }
   if (id === 'estoque') carregarEstoque();
   if (id === 'configuracoes') carregarConfiguracoes();
+  if (id === 'financeiro') finTab('contas');
 }
 
 // ===== LOGIN =====
@@ -2922,6 +3060,536 @@ ajustarMobile();
   }
   iniciarLogin();
 })();
+
+// ===== FINANCEIRO =====
+let _caixaAtual = null;
+
+function finTab(aba) {
+  ['contas','cheques','caixa','dre','projecao'].forEach(a => {
+    document.getElementById('fin-' + a).style.display = a === aba ? 'block' : 'none';
+  });
+  document.querySelectorAll('#fin-tabs .tab').forEach((t,i) => {
+    t.classList.toggle('active', ['contas','cheques','caixa','dre','projecao'][i] === aba);
+  });
+  if (aba === 'contas') carregarContas();
+  if (aba === 'cheques') carregarCheques();
+  if (aba === 'caixa') carregarCaixa();
+  if (aba === 'dre') { document.getElementById('dre-mes').value = new Date().toISOString().slice(0,7); carregarDRE(); }
+  if (aba === 'projecao') carregarProjecao();
+}
+
+// --- CONTAS A PAGAR ---
+async function carregarContas() {
+  const mes = document.getElementById('fin-contas-mes')?.value || '';
+  const status = document.getElementById('fin-contas-status')?.value || '';
+  const cat = document.getElementById('fin-contas-cat')?.value || '';
+  try {
+    let url = '/api/financeiro/contas-pagar?';
+    if (mes) url += 'mes=' + mes + '&';
+    if (status) url += 'status=' + status + '&';
+    if (cat) url += 'categoria=' + encodeURIComponent(cat) + '&';
+    const contas = await api('GET', url);
+
+    const hoje = new Date();
+    const vencendo = contas.filter(c => !c.pago && new Date(c.vencimento+'T12:00:00') <= new Date(hoje.getTime() + 7*24*60*60*1000));
+    const alertaEl = document.getElementById('fin-contas-alerta');
+    if (vencendo.length) {
+      alertaEl.style.display = 'block';
+      alertaEl.textContent = '⚠️ ' + vencendo.length + ' conta(s) vencem nos próximos 7 dias: ' + vencendo.map(c => c.descricao).join(', ');
+    } else {
+      alertaEl.style.display = 'none';
+    }
+
+    const tb = document.getElementById('tabela-contas');
+    if (!contas.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><p>Nenhuma conta</p></div></td></tr>'; return; }
+
+    const hoje2 = new Date().toISOString().split('T')[0];
+    tb.innerHTML = contas.map(c => {
+      const venc = c.vencimento.split('T')[0];
+      const atrasada = !c.pago && venc < hoje2;
+      const proxima = !c.pago && venc >= hoje2 && new Date(venc+'T12:00:00') <= new Date(Date.now() + 7*24*60*60*1000);
+      const badge = c.pago ? 'badge-green' : atrasada ? 'badge-red' : proxima ? 'badge-amber' : 'badge-gray';
+      const label = c.pago ? 'Paga' : atrasada ? 'Atrasada' : proxima ? 'Vence em breve' : 'Pendente';
+      return '<tr>' +
+        '<td><strong>' + c.descricao + '</strong>' + (c.recorrente ? ' <span class="badge badge-blue">Mensal</span>' : '') + '</td>' +
+        '<td><span class="badge badge-pink">' + c.categoria + '</span></td>' +
+        '<td><strong>' + fmtMoeda(c.valor) + '</strong>' + (c.pago && c.valor_pago ? '<div style="font-size:11px;color:var(--text2)">Pago: ' + fmtMoeda(c.valor_pago) + '</div>' : '') + '</td>' +
+        '<td>' + fmtData(venc) + '</td>' +
+        '<td><span class="badge ' + badge + '">' + label + '</span></td>' +
+        '<td><div class="action-btns">' +
+          (!c.pago ? '<button class="btn btn-sm btn-primary" onclick="abrirModalPagar(\'' + c.id + '\',' + c.valor + ')">✓ Pagar</button>' : '') +
+          '<button class="btn btn-sm" onclick="abrirModalConta(\'' + c.id + '\')">Editar</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirConta(\'' + c.id + '\')">Excluir</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function abrirModalConta(id) {
+  document.getElementById('modal-conta-titulo').textContent = id ? 'Editar Conta' : 'Nova Conta';
+  document.getElementById('conta-id').value = id || '';
+  document.getElementById('conta-desc').value = '';
+  document.getElementById('conta-cat').value = '';
+  document.getElementById('conta-valor').value = '';
+  document.getElementById('conta-venc').value = '';
+  document.getElementById('conta-obs').value = '';
+  document.getElementById('conta-recorrente').checked = false;
+  if (id) {
+    api('GET', '/api/financeiro/contas-pagar').then(contas => {
+      const c = contas.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('conta-desc').value = c.descricao || '';
+      document.getElementById('conta-cat').value = c.categoria || '';
+      document.getElementById('conta-valor').value = c.valor || '';
+      document.getElementById('conta-venc').value = (c.vencimento||'').split('T')[0];
+      document.getElementById('conta-obs').value = c.observacao || '';
+      document.getElementById('conta-recorrente').checked = c.recorrente || false;
+    });
+  }
+  abrirModal('modal-conta');
+}
+
+async function salvarConta() {
+  const desc = document.getElementById('conta-desc').value.trim();
+  const cat = document.getElementById('conta-cat').value;
+  const valor = parseFloat(document.getElementById('conta-valor').value)||0;
+  const venc = document.getElementById('conta-venc').value;
+  if (!desc) { toast('Informe a descrição', 'warn'); return; }
+  if (!cat) { toast('Selecione a categoria', 'warn'); return; }
+  if (!valor) { toast('Informe o valor', 'warn'); return; }
+  if (!venc) { toast('Informe o vencimento', 'warn'); return; }
+  const conta = {
+    id: document.getElementById('conta-id').value || uid(),
+    descricao: desc, categoria: cat, valor, vencimento: venc,
+    observacao: document.getElementById('conta-obs').value,
+    recorrente: document.getElementById('conta-recorrente').checked,
+    pago: false
+  };
+  try {
+    await api('POST', '/api/financeiro/contas-pagar', conta);
+    fecharModal('modal-conta');
+    toast('Conta salva!');
+    carregarContas();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function abrirModalPagar(id, valor) {
+  document.getElementById('pagar-conta-id').value = id;
+  document.getElementById('pagar-data').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pagar-valor').value = valor;
+  document.getElementById('pagar-forma').value = 'Dinheiro';
+  abrirModal('modal-pagar-conta');
+}
+
+async function confirmarPagamento() {
+  const id = document.getElementById('pagar-conta-id').value;
+  try {
+    await api('PATCH', '/api/financeiro/contas-pagar/' + id + '/pagar', {
+      dataPagamento: document.getElementById('pagar-data').value,
+      valorPago: parseFloat(document.getElementById('pagar-valor').value)||null,
+      formaPagamento: document.getElementById('pagar-forma').value
+    });
+    fecharModal('modal-pagar-conta');
+    toast('Pagamento registrado!');
+    carregarContas();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirConta(id) {
+  if (!confirm('Excluir esta conta?')) return;
+  try {
+    await api('DELETE', '/api/financeiro/contas-pagar/' + id);
+    toast('Conta excluída');
+    carregarContas();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// --- CHEQUES ---
+async function carregarCheques() {
+  const tipo = document.getElementById('fin-cheq-tipo')?.value || '';
+  const status = document.getElementById('fin-cheq-status')?.value || '';
+  const mes = document.getElementById('fin-cheq-mes')?.value || '';
+  try {
+    let url = '/api/financeiro/cheques?';
+    if (tipo) url += 'tipo=' + tipo + '&';
+    if (status) url += 'status=' + status + '&';
+    if (mes) url += 'mes=' + mes + '&';
+    const cheques = await api('GET', url);
+    const tb = document.getElementById('tabela-cheques');
+    if (!cheques.length) { tb.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhum cheque</p></div></td></tr>'; return; }
+    tb.innerHTML = cheques.map(c => {
+      const stBadge = c.status === 'compensado' ? 'badge-green' : c.status === 'devolvido' ? 'badge-red' : 'badge-amber';
+      const tipoBadge = c.tipo === 'recebido' ? 'badge-green' : 'badge-blue';
+      return '<tr>' +
+        '<td><span class="badge ' + tipoBadge + '">' + (c.tipo === 'recebido' ? '⬇ Recebido' : '⬆ Emitido') + '</span></td>' +
+        '<td><strong>' + c.nome + '</strong></td>' +
+        '<td><strong>' + fmtMoeda(c.valor) + '</strong></td>' +
+        '<td>' + fmtData(c.data_cheque) + '</td>' +
+        '<td>' + fmtData(c.data_compensacao) + '</td>' +
+        '<td>' + (c.banco||'—') + '</td>' +
+        '<td><span class="badge ' + stBadge + '">' + c.status + '</span></td>' +
+        '<td><div class="action-btns">' +
+          (c.status === 'pendente' ? '<button class="btn btn-sm btn-primary" onclick="compensarCheque(\'' + c.id + '\')">✓ Compensar</button>' : '') +
+          (c.status === 'pendente' ? '<button class="btn btn-sm btn-danger" onclick="devolverCheque(\'' + c.id + '\')">✗ Devolver</button>' : '') +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCheque(\'' + c.id + '\')">Excluir</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function abrirModalCheque() {
+  document.getElementById('modal-cheque-titulo').textContent = 'Novo Cheque';
+  document.getElementById('cheque-id').value = uid();
+  setTipoCheque('recebido');
+  ['nome','valor','numero','banco','obs'].forEach(k => { const el = document.getElementById('cheque-'+k); if(el) el.value = ''; });
+  document.getElementById('cheque-data').value = new Date().toISOString().split('T')[0];
+  document.getElementById('cheque-compensacao').value = '';
+  abrirModal('modal-cheque');
+}
+
+function setTipoCheque(tipo) {
+  document.getElementById('cheque-tipo').value = tipo;
+  document.getElementById('btn-cheq-recebido').className = 'btn btn-sm' + (tipo==='recebido'?' btn-primary':'');
+  document.getElementById('btn-cheq-emitido').className = 'btn btn-sm' + (tipo==='emitido'?' btn-primary':'');
+  document.getElementById('cheque-nome-label').textContent = tipo === 'recebido' ? 'Nome do cliente *' : 'Nome do fornecedor/destinatário *';
+}
+
+async function salvarCheque() {
+  const nome = document.getElementById('cheque-nome').value.trim();
+  const valor = parseFloat(document.getElementById('cheque-valor').value)||0;
+  const data = document.getElementById('cheque-data').value;
+  const comp = document.getElementById('cheque-compensacao').value;
+  if (!nome) { toast('Informe o nome', 'warn'); return; }
+  if (!valor) { toast('Informe o valor', 'warn'); return; }
+  if (!data) { toast('Informe a data do cheque', 'warn'); return; }
+  if (!comp) { toast('Informe a data de compensação', 'warn'); return; }
+  try {
+    await api('POST', '/api/financeiro/cheques', {
+      id: document.getElementById('cheque-id').value,
+      tipo: document.getElementById('cheque-tipo').value,
+      valor, nome, dataCheque: data, dataCompensacao: comp,
+      numero: document.getElementById('cheque-numero').value,
+      banco: document.getElementById('cheque-banco').value,
+      observacao: document.getElementById('cheque-obs').value,
+      status: 'pendente'
+    });
+    fecharModal('modal-cheque');
+    toast('Cheque salvo!');
+    carregarCheques();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function compensarCheque(id) {
+  if (!confirm('Marcar cheque como compensado?')) return;
+  try {
+    await api('PATCH', '/api/financeiro/cheques/' + id + '/status', { status: 'compensado' });
+    toast('Cheque compensado!');
+    carregarCheques();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function devolverCheque(id) {
+  if (!confirm('Marcar cheque como devolvido?')) return;
+  try {
+    await api('PATCH', '/api/financeiro/cheques/' + id + '/status', { status: 'devolvido' });
+    toast('Cheque marcado como devolvido');
+    carregarCheques();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirCheque(id) {
+  if (!confirm('Excluir este cheque?')) return;
+  try {
+    await api('DELETE', '/api/financeiro/cheques/' + id);
+    toast('Cheque excluído');
+    carregarCheques();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// --- CAIXA ---
+async function carregarCaixa() {
+  try {
+    const caixa = await api('GET', '/api/financeiro/caixa/hoje');
+    _caixaAtual = caixa;
+    if (!caixa || caixa.status === 'fechado') {
+      document.getElementById('caixa-fechado').style.display = 'block';
+      document.getElementById('caixa-aberto').style.display = 'none';
+    } else {
+      document.getElementById('caixa-fechado').style.display = 'none';
+      document.getElementById('caixa-aberto').style.display = 'block';
+      renderCaixa(caixa);
+    }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function renderCaixa(caixa) {
+  const movs = caixa.movimentos || [];
+  const entradas = movs.filter(m => m.tipo === 'entrada').reduce((a,m) => a + parseFloat(m.valor), 0);
+  const saidas = movs.filter(m => m.tipo === 'saida').reduce((a,m) => a + parseFloat(m.valor), 0);
+  const saldo = parseFloat(caixa.valor_abertura) + entradas - saidas;
+
+  document.getElementById('caixa-resumo').innerHTML =
+    '<div class="m-card-row"><span class="m-card-label">Abertura</span><span>' + fmtMoeda(caixa.valor_abertura) + '</span></div>' +
+    '<div class="m-card-row"><span class="m-card-label">Entradas</span><span style="color:var(--green)">' + fmtMoeda(entradas) + '</span></div>' +
+    '<div class="m-card-row"><span class="m-card-label">Saídas</span><span style="color:var(--red)">-' + fmtMoeda(saidas) + '</span></div>' +
+    '<div class="m-card-row" style="font-weight:700"><span class="m-card-label">Saldo atual</span><span style="color:var(--pink-dark)">' + fmtMoeda(saldo) + '</span></div>';
+
+  document.getElementById('caixa-movimentos-lista').innerHTML = movs.length
+    ? movs.map(m => '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
+        '<div><span style="color:' + (m.tipo==='entrada'?'var(--green)':'var(--red)') + '">' + (m.tipo==='entrada'?'▲':'▼') + '</span> ' + m.descricao + (m.categoria?' <span style="color:var(--text3)">(' + m.categoria + ')</span>':'') + '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px"><strong>' + fmtMoeda(m.valor) + '</strong>' +
+        '<button onclick="excluirMovimento(\'' + m.id + '\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">×</button></div>' +
+      '</div>').join('')
+    : '<div style="text-align:center;color:var(--text3);padding:16px;font-size:12px">Nenhum movimento ainda</div>';
+
+  const valInput = document.getElementById('caixa-fechamento-val');
+  if (valInput) {
+    valInput.oninput = () => {
+      const contado = parseFloat(valInput.value)||0;
+      const dif = contado - saldo;
+      const difEl = document.getElementById('caixa-diferenca');
+      difEl.innerHTML = 'Sistema: <strong>' + fmtMoeda(saldo) + '</strong> · Diferença: <strong style="color:' + (Math.abs(dif)<0.01?'var(--green)':dif>0?'var(--green)':'var(--red)') + '">' + (dif>=0?'+':'') + fmtMoeda(dif) + '</strong>';
+      difEl._saldo = saldo;
+      difEl._dif = dif;
+    };
+  }
+}
+
+async function abrirCaixa() {
+  const val = parseFloat(document.getElementById('caixa-abertura-val').value)||0;
+  try {
+    await api('POST', '/api/financeiro/caixa/abrir', {
+      id: uid(),
+      data: new Date().toISOString().split('T')[0],
+      valorAbertura: val
+    });
+    toast('Caixa aberto!');
+    carregarCaixa();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function fecharCaixa() {
+  if (!_caixaAtual) return;
+  const valInput = document.getElementById('caixa-fechamento-val');
+  const difEl = document.getElementById('caixa-diferenca');
+  const contado = parseFloat(valInput.value)||0;
+  const saldo = difEl._saldo || 0;
+  const dif = contado - saldo;
+  if (!confirm('Confirmar fechamento do caixa?')) return;
+  try {
+    await api('POST', '/api/financeiro/caixa/fechar', {
+      id: _caixaAtual.id,
+      valorFechamento: contado,
+      valorSistema: saldo,
+      diferenca: dif
+    });
+    toast('Caixa fechado!');
+    carregarCaixa();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function abrirModalMovimento(tipo) {
+  document.getElementById('mov-tipo').value = tipo;
+  document.getElementById('modal-mov-titulo').textContent = tipo === 'entrada' ? 'Lançar Entrada' : 'Lançar Saída';
+  document.getElementById('mov-desc').value = '';
+  document.getElementById('mov-valor').value = '';
+  document.getElementById('mov-cat').value = '';
+  abrirModal('modal-movimento');
+}
+
+async function salvarMovimento() {
+  const desc = document.getElementById('mov-desc').value.trim();
+  const valor = parseFloat(document.getElementById('mov-valor').value)||0;
+  const tipo = document.getElementById('mov-tipo').value;
+  if (!desc) { toast('Informe a descrição', 'warn'); return; }
+  if (!valor) { toast('Informe o valor', 'warn'); return; }
+  if (!_caixaAtual) { toast('Nenhum caixa aberto', 'warn'); return; }
+  try {
+    await api('POST', '/api/financeiro/caixa/movimento', {
+      id: uid(), caixaId: _caixaAtual.id, tipo, descricao: desc, valor,
+      categoria: document.getElementById('mov-cat').value || null
+    });
+    fecharModal('modal-movimento');
+    toast('Movimento lançado!');
+    carregarCaixa();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirMovimento(id) {
+  if (!confirm('Excluir este movimento?')) return;
+  try {
+    await api('DELETE', '/api/financeiro/caixa/movimento/' + id);
+    toast('Movimento excluído');
+    carregarCaixa();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// --- DRE ---
+async function carregarDRE() {
+  const mes = document.getElementById('dre-mes').value;
+  if (!mes) return;
+  try {
+    const d = await api('GET', '/api/financeiro/dre?mes=' + mes);
+    const pct = (v, t) => t > 0 ? (v/t*100).toFixed(1) + '%' : '0%';
+    document.getElementById('dre-content').innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">' +
+        '<div class="metric-card"><div class="label">Receita Bruta</div><div class="value">' + fmtMoeda(d.receitaBruta) + '</div><div class="sub">' + d.qtdVendas + ' vendas</div></div>' +
+        '<div class="metric-card"><div class="label">CMV</div><div class="value" style="color:var(--red)">-' + fmtMoeda(d.cmv) + '</div><div class="sub">' + pct(d.cmv,d.receitaBruta) + ' da receita</div></div>' +
+        '<div class="metric-card"><div class="label">Lucro Bruto</div><div class="value" style="color:var(--green)">' + fmtMoeda(d.lucroBruto) + '</div><div class="sub">' + pct(d.lucroBruto,d.receitaBruta) + ' margem</div></div>' +
+        '<div class="metric-card"><div class="label">Despesas</div><div class="value" style="color:var(--red)">-' + fmtMoeda(d.totalDespesas) + '</div></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">' +
+        '<div class="card"><div class="card-title">Despesas por categoria</div>' +
+          (d.despesas.length ? d.despesas.map(dep =>
+            '<div class="m-card-row"><span>' + dep.categoria + '</span><strong style="color:var(--red)">-' + fmtMoeda(dep.total) + '</strong></div>'
+          ).join('') : '<div class="empty-state" style="padding:16px"><p>Nenhuma despesa paga no mês</p></div>') +
+        '</div>' +
+        '<div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px">' +
+          '<div style="font-size:13px;color:var(--text2);margin-bottom:8px">LUCRO LÍQUIDO</div>' +
+          '<div style="font-size:36px;font-weight:800;color:' + (d.lucroLiquido>=0?'var(--green)':'var(--red)') + '">' + fmtMoeda(d.lucroLiquido) + '</div>' +
+          '<div style="font-size:13px;color:var(--text3);margin-top:4px">' + pct(d.lucroLiquido,d.receitaBruta) + ' da receita</div>' +
+        '</div>' +
+      '</div>';
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// --- PROJEÇÃO ---
+async function carregarProjecao() {
+  try {
+    const p = await api('GET', '/api/financeiro/projecao');
+    document.getElementById('projecao-content').innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">' +
+        '<div class="metric-card"><div class="label">Entradas previstas</div><div class="value" style="color:var(--green)">' + fmtMoeda(p.entradas.total) + '</div><div class="sub">cheques a compensar</div></div>' +
+        '<div class="metric-card"><div class="label">Saídas previstas</div><div class="value" style="color:var(--red)">-' + fmtMoeda(p.saidas.total) + '</div><div class="sub">contas + cheques emitidos</div></div>' +
+        '<div class="metric-card"><div class="label">Saldo projetado</div><div class="value" style="color:' + (p.saldoProjetado>=0?'var(--green)':'var(--red)') + '">' + fmtMoeda(p.saldoProjetado) + '</div><div class="sub">próximos 30 dias</div></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">' +
+        '<div class="card"><div class="card-title" style="color:var(--green)">⬇ Cheques a receber</div>' +
+          (p.entradas.cheques.length ? p.entradas.cheques.map(c =>
+            '<div class="m-card-row"><span>' + c.nome + '<div style="font-size:11px;color:var(--text3)">' + fmtData(c.data_compensacao) + '</div></span><strong style="color:var(--green)">' + fmtMoeda(c.valor) + '</strong></div>'
+          ).join('') : '<div class="empty-state" style="padding:16px"><p>Nenhum cheque a compensar</p></div>') +
+        '</div>' +
+        '<div class="card"><div class="card-title" style="color:var(--red)">⬆ Contas a vencer</div>' +
+          (p.saidas.contas.length ? p.saidas.contas.map(c =>
+            '<div class="m-card-row"><span>' + c.descricao + '<div style="font-size:11px;color:var(--text3)">' + fmtData(c.vencimento) + '</div></span><strong style="color:var(--red)">-' + fmtMoeda(c.valor) + '</strong></div>'
+          ).join('') : '<div class="empty-state" style="padding:16px"><p>Nenhuma conta a vencer</p></div>') +
+        '</div>' +
+      '</div>';
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
 </script>
+<!-- Modal Conta a Pagar -->
+<div class="modal-backdrop" id="modal-conta">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header"><h3 id="modal-conta-titulo">Nova Conta</h3><button class="modal-close" onclick="fecharModal('modal-conta')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="conta-id">
+      <div class="form-grid">
+        <div class="form-group full"><label>Descrição *</label><input id="conta-desc" placeholder="Ex: Aluguel março"></div>
+        <div class="form-group"><label>Categoria *</label>
+          <select id="conta-cat">
+            <option value="">— Selecionar —</option>
+            <option>Fornecedores</option><option>Aluguel</option><option>Luz</option>
+            <option>Água</option><option>Telefone/Internet</option><option>Salários</option>
+            <option>Comissões</option><option>Limpeza</option><option>Embalagens</option>
+            <option>Papelaria</option><option>Outros</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Valor (R$) *</label><input type="number" id="conta-valor" step="0.01" min="0"></div>
+        <div class="form-group"><label>Vencimento *</label><input type="date" id="conta-venc"></div>
+        <div class="form-group full"><label>Observação</label><input id="conta-obs" placeholder="Opcional"></div>
+        <div class="form-group full" style="flex-direction:row;align-items:center;gap:8px">
+          <input type="checkbox" id="conta-recorrente" style="width:auto">
+          <label for="conta-recorrente" style="font-size:13px;color:var(--text1)">Conta recorrente (mensal)</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-conta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarConta()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Pagar Conta -->
+<div class="modal-backdrop" id="modal-pagar-conta">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h3>Registrar Pagamento</h3><button class="modal-close" onclick="fecharModal('modal-pagar-conta')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pagar-conta-id">
+      <div class="form-grid">
+        <div class="form-group"><label>Data pagamento</label><input type="date" id="pagar-data"></div>
+        <div class="form-group"><label>Valor pago (R$)</label><input type="number" id="pagar-valor" step="0.01" min="0"></div>
+        <div class="form-group full"><label>Forma de pagamento</label>
+          <select id="pagar-forma">
+            <option>Dinheiro</option><option>PIX</option><option>Débito</option>
+            <option>Crédito</option><option>Cheque</option><option>Transferência</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-pagar-conta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarPagamento()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cheque -->
+<div class="modal-backdrop" id="modal-cheque">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header"><h3 id="modal-cheque-titulo">Novo Cheque</h3><button class="modal-close" onclick="fecharModal('modal-cheque')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="cheque-id">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="btn-cheq-recebido" class="btn btn-primary btn-sm" onclick="setTipoCheque('recebido')">Recebido</button>
+        <button id="btn-cheq-emitido" class="btn btn-sm" onclick="setTipoCheque('emitido')">Emitido</button>
+      </div>
+      <input type="hidden" id="cheque-tipo" value="recebido">
+      <div class="form-grid">
+        <div class="form-group full"><label id="cheque-nome-label">Nome do cliente *</label><input id="cheque-nome"></div>
+        <div class="form-group"><label>Valor (R$) *</label><input type="number" id="cheque-valor" step="0.01" min="0"></div>
+        <div class="form-group"><label>Nº do cheque</label><input id="cheque-numero" placeholder="000000"></div>
+        <div class="form-group"><label>Data do cheque *</label><input type="date" id="cheque-data"></div>
+        <div class="form-group"><label>Data compensação *</label><input type="date" id="cheque-compensacao"></div>
+        <div class="form-group"><label>Banco</label><input id="cheque-banco" placeholder="Ex: Bradesco"></div>
+        <div class="form-group full"><label>Observação</label><input id="cheque-obs"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-cheque')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCheque()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Movimento Caixa -->
+<div class="modal-backdrop" id="modal-movimento">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h3 id="modal-mov-titulo">Lançar Entrada</h3><button class="modal-close" onclick="fecharModal('modal-movimento')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mov-tipo">
+      <div class="form-grid">
+        <div class="form-group full"><label>Descrição *</label><input id="mov-desc" placeholder="Ex: Pagamento fornecedor"></div>
+        <div class="form-group"><label>Valor (R$) *</label><input type="number" id="mov-valor" step="0.01" min="0"></div>
+        <div class="form-group"><label>Categoria</label>
+          <select id="mov-cat">
+            <option value="">— Selecionar —</option>
+            <option>Venda</option><option>Fornecedores</option><option>Aluguel</option>
+            <option>Luz</option><option>Água</option><option>Telefone/Internet</option>
+            <option>Salários</option><option>Comissões</option><option>Limpeza</option>
+            <option>Embalagens</option><option>Papelaria</option><option>Sangria</option><option>Outros</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-movimento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarMovimento()">Lançar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
