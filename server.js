@@ -631,6 +631,52 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
+// FINANCEIRO — PROJEÇÃO 30 DIAS
+app.get('/api/financeiro/projecao', auth, async (req, res) => {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    const em30 = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+
+    // Contas a vencer
+    const contas = await pool.query(
+      `SELECT id, descricao, categoria, valor, vencimento
+       FROM contas_pagar
+       WHERE pago=FALSE AND vencimento BETWEEN $1 AND $2
+       ORDER BY vencimento`,
+      [hoje, em30]
+    );
+
+    // Cheques a compensar (recebidos)
+    const chequesEntrada = await pool.query(
+      `SELECT id, nome, valor, data_compensacao
+       FROM cheques
+       WHERE tipo='recebido' AND status='pendente' AND data_compensacao BETWEEN $1 AND $2
+       ORDER BY data_compensacao`,
+      [hoje, em30]
+    );
+
+    // Cheques a compensar (emitidos)
+    const chequesSaida = await pool.query(
+      `SELECT id, nome, valor, data_compensacao
+       FROM cheques
+       WHERE tipo='emitido' AND status='pendente' AND data_compensacao BETWEEN $1 AND $2
+       ORDER BY data_compensacao`,
+      [hoje, em30]
+    );
+
+    const totalEntrada = chequesEntrada.rows.reduce((a, c) => a + parseFloat(c.valor), 0);
+    const totalSaida = contas.rows.reduce((a, c) => a + parseFloat(c.valor), 0)
+                     + chequesSaida.rows.reduce((a, c) => a + parseFloat(c.valor), 0);
+
+    res.json({
+      periodo: { de: hoje, ate: em30 },
+      entradas: { cheques: chequesEntrada.rows, total: totalEntrada },
+      saidas: { contas: contas.rows, cheques: chequesSaida.rows, total: totalSaida },
+      saldoProjetado: totalEntrada - totalSaida
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // FINANCEIRO — DRE MENSAL
 app.get('/api/financeiro/dre', auth, async (req, res) => {
   try {
