@@ -631,6 +631,52 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
+// FINANCEIRO — CHEQUES
+app.get('/api/financeiro/cheques', auth, async (req, res) => {
+  try {
+    const { tipo, status, mes } = req.query;
+    let where = ['1=1'];
+    let params = [];
+    let i = 1;
+    if (tipo) { where.push(`tipo=$${i++}`); params.push(tipo); }
+    if (status) { where.push(`status=$${i++}`); params.push(status); }
+    if (mes) { where.push(`TO_CHAR(data_compensacao,'YYYY-MM')=$${i++}`); params.push(mes); }
+    const r = await pool.query(
+      `SELECT * FROM cheques WHERE ${where.join(' AND ')} ORDER BY data_compensacao`,
+      params
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/cheques', auth, async (req, res) => {
+  try {
+    const c = req.body;
+    await pool.query(
+      `INSERT INTO cheques (id,tipo,valor,data_cheque,data_compensacao,nome,banco,numero,status,cliente_id,observacao)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       ON CONFLICT (id) DO UPDATE SET tipo=$2,valor=$3,data_cheque=$4,data_compensacao=$5,nome=$6,banco=$7,numero=$8,status=$9,cliente_id=$10,observacao=$11`,
+      [c.id, c.tipo, c.valor, c.dataCheque, c.dataCompensacao, c.nome, c.banco||null, c.numero||null, c.status||'pendente', c.clienteId||null, c.observacao||null]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.patch('/api/financeiro/cheques/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    await pool.query(`UPDATE cheques SET status=$1 WHERE id=$2`, [status, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.delete('/api/financeiro/cheques/:id', auth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM cheques WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // FINANCEIRO — CONTAS A PAGAR
 app.get('/api/financeiro/contas-pagar', auth, async (req, res) => {
   try {
