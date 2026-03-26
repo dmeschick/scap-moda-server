@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 app.use(cors());
@@ -24,7 +26,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 
 function auth(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   if (!token) return res.status(401).json({ erro: 'Não autorizado' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
   catch { res.status(401).json({ erro: 'Token inválido' }); }
@@ -992,4 +994,135 @@ app.delete('/api/financeiro/contas-pagar/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-initDB().then(() => app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`)));
+async function gerarBackup() {
+  const [
+    funcionarios, produtos, clientes, fornecedores,
+    vendas, categorias, contasPagar, cheques, caixa,
+    caixaMovimentos, metasComissao
+  ] = await Promise.all([
+    pool.query('SELECT * FROM funcionarios'),
+    pool.query('SELECT * FROM produtos'),
+    pool.query('SELECT * FROM clientes'),
+    pool.query('SELECT * FROM fornecedores'),
+    pool.query('SELECT * FROM vendas'),
+    pool.query('SELECT * FROM categorias'),
+    pool.query('SELECT * FROM contas_pagar'),
+    pool.query('SELECT * FROM cheques'),
+    pool.query('SELECT * FROM caixa'),
+    pool.query('SELECT * FROM caixa_movimentos'),
+    pool.query('SELECT * FROM metas_comissao')
+  ]);
+  return {
+    geradoEm: new Date().toISOString(),
+    versao: '1.0',
+    funcionarios: funcionarios.rows,
+    produtos: produtos.rows,
+    clientes: clientes.rows,
+    fornecedores: fornecedores.rows,
+    vendas: vendas.rows,
+    categorias: categorias.rows,
+    contasPagar: contasPagar.rows,
+    cheques: cheques.rows,
+    caixa: caixa.rows,
+    caixaMovimentos: caixaMovimentos.rows,
+    metasComissao: metasComissao.rows
+  };
+}
+
+// BACKUP — Exportação manual
+app.get('/api/backup/exportar', auth, async (req, res) => {
+  try {
+    const backup = await gerarBackup();
+    const json = JSON.stringify(backup, null, 2);
+    const data = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="scap-backup-${data}.json"`);
+    res.send(json);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// BACKUP — Envio manual por e-mail
+app.post('/api/backup/enviar-email', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    const backup = await gerarBackup();
+    const json = JSON.stringify(backup, null, 2);
+    const data = new Date().toISOString().split('T')[0];
+    const stats = {
+      funcionarios: backup.funcionarios.length,
+      produtos: backup.produtos.length,
+      clientes: backup.clientes.length,
+      vendas: backup.vendas.length
+    };
+    await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: email,
+      subject: `Backup Scap Moda — ${data}`,
+      html: `
+        <h2>Backup Scap Moda Feminina</h2>
+        <p>Backup gerado em ${new Date().toLocaleString('pt-BR')}</p>
+        <ul>
+          <li>${stats.funcionarios} funcionários</li>
+          <li>${stats.produtos} produtos</li>
+          <li>${stats.clientes} clientes</li>
+          <li>${stats.vendas} vendas</li>
+        </ul>
+        <p>O arquivo JSON com todos os dados está em anexo.</p>
+      `,
+      attachments: [{
+        filename: `scap-backup-${data}.json`,
+        content: Buffer.from(json).toString('base64')
+      }]
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// BACKUP — Automático diário às 23h
+const agendarBackupDiario = () => {
+  const agora = new Date();
+  const proximas23h = new Date();
+  proximas23h.setHours(23, 0, 0, 0);
+  if (agora >= proximas23h) {
+    proximas23h.setDate(proximas23h.getDate() + 1);
+  }
+  const msAte23h = proximas23h - agora;
+  setTimeout(async () => {
+    try {
+      const cfg = await pool.query(`SELECT valor FROM configuracoes WHERE chave='backup_email'`);
+      const email = cfg.rows[0]?.valor || 'dmeschick@hotmail.com';
+      const backup = await gerarBackup();
+      const json = JSON.stringify(backup, null, 2);
+      const data = new Date().toISOString().split('T')[0];
+      await resend.emails.send({
+        from: 'onboarding@resend.dev',
+        to: email,
+        subject: `Backup automático Scap Moda — ${data}`,
+        html: `
+          <h2>Backup automático Scap Moda Feminina</h2>
+          <p>Backup automático gerado em ${new Date().toLocaleString('pt-BR')}</p>
+          <ul>
+            <li>${backup.funcionarios.length} funcionários</li>
+            <li>${backup.produtos.length} produtos</li>
+            <li>${backup.clientes.length} clientes</li>
+            <li>${backup.vendas.length} vendas</li>
+          </ul>
+          <p>O arquivo JSON com todos os dados está em anexo.</p>
+        `,
+        attachments: [{
+          filename: `scap-backup-${data}.json`,
+          content: Buffer.from(json).toString('base64')
+        }]
+      });
+      console.log('Backup diário enviado para', email);
+    } catch (err) {
+      console.error('Erro no backup diário:', err.message);
+    }
+    agendarBackupDiario();
+  }, msAte23h);
+};
+
+initDB().then(() => {
+  app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
+  agendarBackupDiario();
+});
