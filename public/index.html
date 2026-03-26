@@ -2851,8 +2851,7 @@ async function finalizarVenda() {
   if (!carrinho.length) { toast('Carrinho vazio', 'warn'); return; }
   // Cheque pré-datado exige cliente cadastrado
   const temChequePre = pgtoItens.some(p => p.tipo === 'cheque_pre');
-  const cliId = document.getElementById('pdv-cliente').value;
-  if (temChequePre && !cliId) {
+  if (temChequePre && !document.getElementById('pdv-cliente').value) {
     toast('Cheque pré-datado exige cliente cadastrado', 'warn');
     return;
   }
