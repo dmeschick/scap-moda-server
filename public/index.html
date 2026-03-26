@@ -3107,9 +3107,9 @@ async function abrirRomaneio(v, cliNome) {
       '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
       '<div style="display:flex;margin-top:2px">' +
         '<span style="width:30px">' + i.qty + '</span>' +
-        '<span style="flex:1">R$' + precoUnit.toFixed(2).replace('.',',') + '</span>' +
-        (pct > 0 ? '<span style="flex:1">R$' + precoDesc.toFixed(2).replace('.',',') + '</span>' : '<span style="flex:1">—</span>') +
-        '<span style="flex:1;text-align:right">R$' + totalItem.toFixed(2).replace('.',',') + '</span>' +
+        '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
+        (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
+        '<span style="flex:1;text-align:right">' + fmtMoeda(totalItem) + '</span>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -3153,9 +3153,9 @@ async function abrirRomaneio(v, cliNome) {
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
-      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>R$' + sub.toFixed(2).replace('.',',') + '</span></div>' +
-      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-R$' + desc.toFixed(2).replace('.',',') + '</span></div>' : '') +
-      '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>R$' + tot.toFixed(2).replace('.',',') + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>' +
       '<div style="margin-top:4px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
