@@ -3057,9 +3057,9 @@ async function finalizarVenda() {
 async function abrirRomaneio(v, cliNome) {
   // Itens primeiro — necessário para calcular subtotal quando v.sub vier nulo da API
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
-  const sub = v.sub || v.subtotal || itens.reduce((a, i) => a + (i.preco||0) * (i.qty||1), 0);
-  const desc = v.desc || v.desconto || 0;
-  const tot = v.tot || 0;
+  const sub = Number(v.sub || v.subtotal) || itens.reduce((a, i) => a + (Number(i.preco)||0) * (i.qty||1), 0);
+  const desc = Number(v.desc || v.desconto) || 0;
+  const tot = Number(v.tot) || 0;
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
 
   // Busca texto do romaneio
@@ -3100,7 +3100,7 @@ async function abrirRomaneio(v, cliNome) {
     '</div>';
 
   const linhasItens = itens.map(i => {
-    const precoUnit = i.preco || 0;
+    const precoUnit = Number(i.preco) || 0;
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
     const totalItem = precoDesc * i.qty;
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
