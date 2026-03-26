@@ -2753,6 +2753,15 @@ function setCanal(c) {
   document.getElementById('btn-online').className = 'btn' + (c==='online'?' btn-primary':'');
 }
 
+function renderNumsCheque() {
+  const n = parseInt(document.getElementById('pgto-parc')?.value)||1;
+  const container = document.getElementById('pgto-cheque-nums');
+  if (!container) return;
+  container.innerHTML = Array.from({length:n}, (_,i) =>
+    '<input type="text" id="pgto-cheque-num-' + (i+1) + '" placeholder="Nº cheque ' + (i+1) + '" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);box-sizing:border-box">'
+  ).join('');
+}
+
 function mostrarCampoPgto() {
   const tipo = document.getElementById('pgto-tipo').value;
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
@@ -2783,14 +2792,16 @@ function mostrarCampoPgto() {
     '</div>';
 
   } else if (tipo === 'cheque_pre') {
-    html = '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' +
+    html = '<div style="display:flex;gap:6px;margin-top:6px">' +
       inputVal +
-      '<select id="pgto-parc" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
-        [1,2,3,4,5,6].map(n => '<option value="' + n + '">' + n + (n===1?' cheque':' cheques') + '</option>').join('') +
+      '<select id="pgto-parc" onchange="renderNumsCheque()" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+        Array.from({length:20},(_,i)=>i+1).map(n => '<option value="' + n + '">' + n + (n===1?' cheque':' cheques') + '</option>').join('') +
       '</select>' +
     '</div>' +
-    '<div style="display:flex;gap:6px;margin-top:6px">' +
-      '<input type="text" id="pgto-cheque-num" placeholder="Nº do cheque" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+    '<div id="pgto-cheque-nums" style="display:flex;flex-direction:column;gap:4px;margin-top:6px">' +
+      '<input type="text" id="pgto-cheque-num-1" placeholder="Nº cheque 1" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);box-sizing:border-box">' +
+    '</div>' +
+    '<div style="display:flex;justify-content:flex-end;margin-top:6px">' +
       btnAdd +
     '</div>';
 
@@ -2820,8 +2831,12 @@ function adicionarPgto() {
   } else if (tipo === 'cheque_pre') {
     parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
     vlParcela = val/parcelas;
-    const numCheque = document.getElementById('pgto-cheque-num')?.value || '';
-    det = (parcelas > 1 ? parcelas + ' cheques de ' + fmtMoeda(vlParcela) : fmtMoeda(vlParcela)) + (numCheque ? ' · Nº ' + numCheque : '');
+    const nums = [];
+    for (let i = 1; i <= parcelas; i++) {
+      const v = document.getElementById('pgto-cheque-num-' + i)?.value.trim();
+      if (v) nums.push(v);
+    }
+    det = (parcelas > 1 ? parcelas + ' cheques de ' + fmtMoeda(vlParcela) : fmtMoeda(vlParcela)) + (nums.length ? ' · Nº ' + nums.join(', ') : '');
   }
   const labels = {dinheiro:'Dinheiro',pix:'PIX',debito:'Débito',credito:'Crédito',cheque:'Cheque à vista',cheque_pre:'Cheque pré'};
   pgtoItens.push({ tipo, label: labels[tipo]||tipo, valor: val, parcelas, vlParcela, troco, detalhe: det });
