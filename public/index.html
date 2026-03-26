@@ -2571,7 +2571,7 @@ async function carregarConfiguracoes() {
 async function carregarTextoRomaneio() {
   try {
     const r = await api('GET', '/api/config/romaneio_texto');
-    document.getElementById('config-romaneio-texto').value = r.valor || 'Obrigada pela preferência! 🌸';
+    document.getElementById('config-romaneio-texto').value = r.valor || 'Obrigada pela preferencia!';
   } catch(e) {}
 }
 
@@ -3063,7 +3063,7 @@ async function abrirRomaneio(v, cliNome) {
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
 
   // Busca texto do romaneio
-  let textoRodape = 'Obrigada pela preferência! 🌸';
+  let textoRodape = 'Obrigada pela preferencia!';
   try {
     const cfg = await api('GET', '/api/config/romaneio_texto');
     if (cfg.valor) textoRodape = cfg.valor;
@@ -3176,23 +3176,46 @@ function imprimirRomaneio() {
   j.document.write(`<!DOCTYPE html><html><head><title>Romaneio</title><style>
     @page {
       size: 80mm auto;
-      margin: 4mm;
+      margin: 3mm 4mm;
     }
-    * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
       padding: 0;
-      font-family: monospace;
-      font-size: 11px;
       width: 72mm;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      line-height: 1.3;
       color: #000;
+      -webkit-print-color-adjust: exact;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    td, th { padding: 2px 4px; white-space: nowrap; }
+    * {
+      box-sizing: border-box;
+      font-size: 10px !important;
+      line-height: 1.3 !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    td, th {
+      padding: 1px 3px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    strong, b {
+      font-weight: bold;
+    }
+    div {
+      max-width: 72mm;
+    }
     @media print {
-      body { margin: 0; padding: 0; }
+      html, body {
+        width: 72mm;
+        margin: 0;
+        padding: 0;
+      }
     }
-  </style></head><body>${conteudo}<script>window.onload=function(){window.print();window.close()}<\/script></body></html>`);
+  </style></head><body>${conteudo}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},300);}<\/script></body></html>`);
   j.document.close();
 }
 
