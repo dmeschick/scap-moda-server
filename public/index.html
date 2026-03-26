@@ -1004,6 +1004,22 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
+<!-- Modal Desconto -->
+<div class="modal-backdrop" id="modal-desconto">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header"><h3 id="modal-desc-titulo">Novo Tipo de Desconto</h3><button class="modal-close" onclick="fecharModal('modal-desconto')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="desc-id">
+      <div class="form-group"><label>Nome *</label><input id="desc-nome" placeholder="Ex: Atacado"></div>
+      <div class="form-group" style="margin-top:10px"><label>Percentual (%) *</label><input type="number" id="desc-pct" min="0" max="100" step="0.1" placeholder="Ex: 10"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-desconto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarDesconto()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Confirmação Ponto -->
 <div class="modal-backdrop" id="modal-ponto-confirm">
   <div class="modal" style="max-width:340px;text-align:center">
@@ -2540,6 +2556,10 @@ function renderListaDescontos() {
   document.getElementById('lista-descontos').innerHTML = descontos.length
     ? descontos.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
         <span><strong>${d.nome}</strong> — ${d.pct}%</span>
+        <div class="action-btns">
+          <button class="btn btn-sm" onclick="abrirModalDesconto('${d.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirDesconto('${d.id}','${d.nome.replace(/'/g,"\\'")}')">Excluir</button>
+        </div>
       </div>`).join('')
     : '<div class="empty-state" style="padding:16px"><p>Nenhum tipo de desconto</p></div>';
 }
@@ -2576,7 +2596,43 @@ async function excluirCategoria(id, nome) {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
-function abrirModalDesconto() { toast('Em breve!', 'warn'); }
+function abrirModalDesconto(id) {
+  document.getElementById('modal-desc-titulo').textContent = id ? 'Editar Tipo de Desconto' : 'Novo Tipo de Desconto';
+  const d = id ? descontos.find(x => x.id === id) : null;
+  document.getElementById('desc-id').value = id || '';
+  document.getElementById('desc-nome').value = d?.nome || '';
+  document.getElementById('desc-pct').value = d?.pct ?? '';
+  abrirModal('modal-desconto');
+}
+
+async function salvarDesconto() {
+  const nome = document.getElementById('desc-nome').value.trim();
+  const pct = parseFloat(document.getElementById('desc-pct').value);
+  if (!nome) { toast('Informe o nome', 'warn'); return; }
+  if (isNaN(pct) || pct < 0) { toast('Informe o percentual', 'warn'); return; }
+  const id = document.getElementById('desc-id').value || uid();
+  const idx = descontos.findIndex(x => x.id === id);
+  if (idx >= 0) descontos[idx] = { id, nome, pct };
+  else descontos.push({ id, nome, pct });
+  try {
+    await api('POST', '/api/config/descontos', { valor: descontos });
+    fecharModal('modal-desconto');
+    toast('Desconto salvo!');
+    renderListaDescontos();
+    renderBotoesDesconto();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirDesconto(id, nome) {
+  if (!confirm(`Excluir tipo de desconto "${nome}"?`)) return;
+  descontos = descontos.filter(x => x.id !== id);
+  try {
+    await api('POST', '/api/config/descontos', { valor: descontos });
+    toast('Desconto excluído');
+    renderListaDescontos();
+    renderBotoesDesconto();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
 
 // ===== PDV =====
 let carrinho = [];
