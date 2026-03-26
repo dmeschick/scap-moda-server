@@ -639,6 +639,92 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
+// COMISSÕES — METAS
+app.get('/api/comissoes/metas', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM metas_comissao ORDER BY mes DESC`);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/comissoes/metas', auth, async (req, res) => {
+  try {
+    const { id, mes, faixa2, faixa3, faixa4 } = req.body;
+    await pool.query(
+      `INSERT INTO metas_comissao (id, mes, faixa2, faixa3, faixa4)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (mes) DO UPDATE SET faixa2=$3, faixa3=$4, faixa4=$5`,
+      [id, mes, faixa2, faixa3, faixa4]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.delete('/api/comissoes/metas/:mes', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM metas_comissao WHERE mes=$1`, [req.params.mes]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// COMISSÕES — CÁLCULO DO MÊS
+app.get('/api/comissoes/calcular', auth, async (req, res) => {
+  try {
+    const { mes } = req.query;
+    if (!mes) return res.status(400).json({ erro: 'Informe o mês' });
+
+    const metaRes = await pool.query(
+      `SELECT * FROM metas_comissao WHERE mes=$1`, [mes]
+    );
+    const meta = metaRes.rows[0] || null;
+
+    const vendas = await pool.query(
+      `SELECT v.vendedor_id, f.nome as vendedor_nome,
+              COALESCE(SUM(v.tot), 0) as total_vendido,
+              COUNT(*) as qtd_vendas
+       FROM vendas v
+       JOIN funcionarios f ON f.id = v.vendedor_id
+       WHERE TO_CHAR(v.data, 'YYYY-MM') = $1
+         AND v.status = 'pago'
+         AND v.vendedor_id IS NOT NULL
+       GROUP BY v.vendedor_id, f.nome
+       ORDER BY total_vendido DESC`,
+      [mes]
+    );
+
+    const resultado = vendas.rows.map(v => {
+      const total = parseFloat(v.total_vendido);
+      let pct = 2.0;
+      let faixa = 'Base';
+
+      if (meta) {
+        if (total >= parseFloat(meta.faixa4)) { pct = 3.3; faixa = 'Faixa 4'; }
+        else if (total >= parseFloat(meta.faixa3)) { pct = 2.8; faixa = 'Faixa 3'; }
+        else if (total >= parseFloat(meta.faixa2)) { pct = 2.3; faixa = 'Faixa 2'; }
+      }
+
+      const comissao = Math.round(total * pct / 100 * 100) / 100;
+
+      return {
+        vendedorId: v.vendedor_id,
+        vendedorNome: v.vendedor_nome,
+        totalVendido: total,
+        qtdVendas: parseInt(v.qtd_vendas),
+        faixa,
+        pct,
+        comissao
+      };
+    });
+
+    res.json({
+      mes,
+      meta: meta || null,
+      vendedoras: resultado,
+      totalComissoes: resultado.reduce((a, v) => a + v.comissao, 0)
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // FINANCEIRO — PROJEÇÃO 30 DIAS
 app.get('/api/financeiro/projecao', auth, async (req, res) => {
   try {
