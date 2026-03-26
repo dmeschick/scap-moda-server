@@ -3055,8 +3055,10 @@ async function finalizarVenda() {
 }
 
 async function abrirRomaneio(v, cliNome) {
-  const sub = v.sub || 0;
-  const desc = v.desc || 0;
+  // Itens primeiro — necessário para calcular subtotal quando v.sub vier nulo da API
+  const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
+  const sub = v.sub || v.subtotal || itens.reduce((a, i) => a + (i.preco||0) * (i.qty||1), 0);
+  const desc = v.desc || v.desconto || 0;
   const tot = v.tot || 0;
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
 
@@ -3084,36 +3086,45 @@ async function abrirRomaneio(v, cliNome) {
     nomeDesconto = d ? d.nome + ' (' + pct + '%)' : pct + '%';
   }
 
-  // Itens
-  const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
-
   // Cheques pré-datados
-  const pgtoItens = v.pgtoItens || v.pgto_itens || [];
-  const cheques = pgtoItens.filter(p => p.tipo === 'cheque_pre');
+  const pgtoItensArr = v.pgtoItens || v.pgto_itens || [];
+  const chequesPgto = pgtoItensArr.filter(p => p.tipo === 'cheque_pre');
 
   // Monta linhas dos itens
   const linhasItens = itens.map(i => {
     const primeiraPalavra = (i.nome || '').split(' ')[0];
     const precoUnit = i.preco || 0;
-    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
-    const totalItem = precoDesc * i.qty;
+    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : 0;
+    const totalItem = (pct > 0 ? precoDesc : precoUnit) * i.qty;
     return '<tr>' +
       '<td style="padding:2px 4px">' + (i.cod || '') + '</td>' +
       '<td style="padding:2px 4px">' + primeiraPalavra + '</td>' +
       '<td style="padding:2px 4px;text-align:center">' + i.qty + '</td>' +
-      '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(precoUnit) + '</td>' +
-      (pct > 0 ? '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(precoDesc) + '</td>' : '<td></td>') +
-      '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(totalItem) + '</td>' +
+      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + fmtMoeda(precoUnit) + '</td>' +
+      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + (pct > 0 ? fmtMoeda(precoDesc) : '') + '</td>' +
+      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + fmtMoeda(totalItem) + '</td>' +
     '</tr>';
   }).join('');
 
-  // Monta seção de cheques
+  // Monta seção de cheques — um por linha com número e data de compensação
   let secaoCheques = '';
-  if (cheques.length) {
-    secaoCheques = '<div style="border-top:1px dashed #000;padding-top:6px;margin-top:6px;font-family:monospace;font-size:11px">';
-    cheques.forEach((c, idx) => {
-      const det = c.detalhe || '';
-      secaoCheques += '<div>Cheque ' + (idx+1) + ': ' + det + '</div>';
+  if (chequesPgto.length) {
+    secaoCheques = '<div style="border-top:1px dashed #000;padding-top:6px;margin-top:6px;font-family:monospace;font-size:11px"><b>Cheques pré-datados:</b>';
+    let seq = 1;
+    chequesPgto.forEach(p => {
+      const chArr = p.cheques || p.cheques_json || [];
+      const vlUnit = p.vlParcela || p.vl_parcela || p.valor;
+      if (chArr.length) {
+        chArr.forEach(ch => {
+          const num = ch.num ? 'Nº ' + ch.num : 'Cheque ' + seq;
+          const comp = ch.comp ? new Date(ch.comp + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+          secaoCheques += '<div style="display:flex;justify-content:space-between"><span>' + num + '</span><span style="white-space:nowrap">Comp: ' + comp + ' — ' + fmtMoeda(vlUnit) + '</span></div>';
+          seq++;
+        });
+      } else {
+        // fallback: sem array individual, usa detalhe como linha única
+        secaoCheques += '<div>' + (p.detalhe || '') + '</div>';
+      }
     });
     secaoCheques += '</div>';
   }
@@ -3144,9 +3155,9 @@ async function abrirRomaneio(v, cliNome) {
       '<tbody>' + linhasItens + '</tbody>' +
     '</table>' +
     '<div style="font-family:monospace;font-size:12px;border-top:1px dashed #000;padding-top:6px">' +
-      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
-      '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span style="white-space:nowrap">' + fmtMoeda(sub) + '</span></div>' +
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span style="white-space:nowrap">-' + fmtMoeda(desc) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span>TOTAL:</span><span style="white-space:nowrap">' + fmtMoeda(tot) + '</span></div>' +
       '<div style="margin-top:6px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
