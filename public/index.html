@@ -3171,54 +3171,39 @@ async function abrirRomaneio(v, cliNome) {
 
 function imprimirRomaneio() {
   const conteudo = document.getElementById('romaneio-body').innerHTML;
-
-  // Remove iframe anterior se existir
-  const old = document.getElementById('iframe-print');
-  if (old) old.remove();
-
-  const iframe = document.createElement('iframe');
-  iframe.id = 'iframe-print';
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:80mm;border:none;';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html><head><title>Romaneio</title><style>
-    @page {
-      size: 80mm auto;
-      margin: 3mm 4mm;
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 72mm;
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 10px;
-      line-height: 1.4;
-      color: #000;
-    }
-    * {
-      box-sizing: border-box;
-      font-size: 10px !important;
-      line-height: 1.4 !important;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    td, th {
-      padding: 1px 3px;
-      white-space: nowrap;
-    }
-    b, strong { font-weight: bold; }
-  </style></head><body>${conteudo}</body></html>`);
-  doc.close();
-
-  iframe.contentWindow.focus();
-  setTimeout(() => {
-    iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 1000);
-  }, 500);
+  const j = window.open('', '_blank', 'width=302,height=800');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+  j.document.write(`<!DOCTYPE html><html><head>
+    <title>Romaneio</title>
+    <meta name="viewport" content="width=302px">
+    <style>
+      @page { size: 80mm auto; margin: 2mm; }
+      html { width: 76mm; }
+      body {
+        margin: 0;
+        padding: 2mm;
+        width: 76mm;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 10px;
+        line-height: 1.4;
+        color: #000;
+      }
+      * { box-sizing: border-box; }
+      table { width: 100%; border-collapse: collapse; }
+      td, th { padding: 1px 2px; white-space: nowrap; font-size: 10px; }
+      b, strong { font-weight: bold; }
+      @media print {
+        html, body { width: 76mm; margin: 0; padding: 2mm; }
+      }
+    </style>
+  </head><body>${conteudo}
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); window.close(); }, 500);
+    };
+  <\/script>
+  </body></html>`);
+  j.document.close();
 }
 
 // ===== ATALHOS DE TECLADO =====
