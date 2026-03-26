@@ -1239,7 +1239,7 @@ async function carregarCategoriasGlobal() {
 async function carregarDescontosGlobal() {
   try {
     const r = await api('GET', '/api/config/descontos');
-    if (r) descontos = r;
+    if (r && r.valor) descontos = r.valor;
   } catch(e) {}
 }
 

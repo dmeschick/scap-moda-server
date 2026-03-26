@@ -525,7 +525,7 @@ app.patch('/api/vendas/:id/cancelar', auth, async (req, res) => {
 app.get('/api/config/:chave', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT valor FROM configuracoes WHERE chave=$1', [req.params.chave]);
-    res.json(r.rows[0]?.valor || null);
+    res.json({ valor: r.rows[0]?.valor || null });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/config/:chave', auth, async (req, res) => {
