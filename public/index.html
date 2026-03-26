@@ -2813,9 +2813,15 @@ function renderNumsCheque() {
   const n = parseInt(document.getElementById('pgto-parc')?.value)||1;
   const container = document.getElementById('pgto-cheque-nums');
   if (!container) return;
-  container.innerHTML = Array.from({length:n}, (_,i) =>
-    '<input type="text" id="pgto-cheque-num-' + (i+1) + '" placeholder="Nº cheque ' + (i+1) + '" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);box-sizing:border-box">'
-  ).join('');
+  const hoje = new Date();
+  container.innerHTML = Array.from({length:n}, (_,i) => {
+    const comp = new Date(hoje.getTime() + (i+1)*30*24*60*60*1000);
+    const compStr = comp.toISOString().split('T')[0];
+    return '<div style="display:flex;gap:6px;margin-bottom:4px">' +
+      '<input type="text" id="pgto-cheque-num-' + (i+1) + '" placeholder="Nº cheque ' + (i+1) + '" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+      '<input type="date" id="pgto-cheque-comp-' + (i+1) + '" value="' + compStr + '" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+    '</div>';
+  }).join('');
 }
 
 function mostrarCampoPgto() {
@@ -2855,7 +2861,7 @@ function mostrarCampoPgto() {
       '</select>' +
     '</div>' +
     '<div id="pgto-cheque-nums" style="display:flex;flex-direction:column;gap:4px;margin-top:6px">' +
-      '<input type="text" id="pgto-cheque-num-1" placeholder="Nº cheque 1" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);box-sizing:border-box">' +
+      (function(){ const c=new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0]; return '<div style="display:flex;gap:6px"><input type="text" id="pgto-cheque-num-1" placeholder="Nº cheque 1" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><input type="date" id="pgto-cheque-comp-1" value="'+c+'" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"></div>'; })() +
     '</div>' +
     '<div style="display:flex;justify-content:flex-end;margin-top:6px">' +
       btnAdd +
@@ -2887,12 +2893,21 @@ function adicionarPgto() {
   } else if (tipo === 'cheque_pre') {
     parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
     vlParcela = val/parcelas;
-    const nums = [];
+    const cheques = [];
     for (let i = 1; i <= parcelas; i++) {
-      const v = document.getElementById('pgto-cheque-num-' + i)?.value.trim();
-      if (v) nums.push(v);
+      cheques.push({
+        num: document.getElementById('pgto-cheque-num-' + i)?.value.trim() || '',
+        comp: document.getElementById('pgto-cheque-comp-' + i)?.value || ''
+      });
     }
+    const nums = cheques.map(c => c.num).filter(Boolean);
     det = (parcelas > 1 ? parcelas + ' cheques de ' + fmtMoeda(vlParcela) : fmtMoeda(vlParcela)) + (nums.length ? ' · Nº ' + nums.join(', ') : '');
+    // armazena cheques no item para usar em finalizarVenda
+    pgtoItens.push({ tipo, label: 'Cheque pré', valor: val, parcelas, vlParcela, troco: 0, detalhe: det, cheques });
+    document.getElementById('pgto-tipo').value = '';
+    document.getElementById('pgto-campo').innerHTML = '';
+    renderPgtoLista();
+    return;
   }
   const labels = {dinheiro:'Dinheiro',pix:'PIX',debito:'Débito',credito:'Crédito',cheque:'Cheque à vista',cheque_pre:'Cheque pré'};
   pgtoItens.push({ tipo, label: labels[tipo]||tipo, valor: val, parcelas, vlParcela, troco, detalhe: det });
@@ -2970,6 +2985,23 @@ async function finalizarVenda() {
   };
   try {
     await api('POST', '/api/vendas', venda);
+    // Registrar cheques pré-datados no financeiro
+    const hoje = new Date().toISOString().split('T')[0];
+    for (const p of pgtoItens.filter(p => p.tipo === 'cheque_pre')) {
+      for (const ch of (p.cheques || [])) {
+        await api('POST', '/api/financeiro/cheques', {
+          id: uid(),
+          tipo: 'recebido',
+          valor: p.vlParcela,
+          dataCheque: hoje,
+          dataCompensacao: ch.comp || hoje,
+          nome: cliNome,
+          numero: ch.num || '',
+          clienteId: cliId || null,
+          status: 'pendente'
+        }).catch(() => {});
+      }
+    }
     toast('Venda finalizada! ✅');
     // Recarrega produtos para atualizar estoque
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
