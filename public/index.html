@@ -3093,7 +3093,7 @@ async function abrirRomaneio(v, cliNome) {
   // Monta linhas dos itens
   const cabecalhoItens =
     '<div style="display:flex;border-bottom:1px solid #000;padding:2px 0;font-weight:bold">' +
-      '<span style="width:20px">Qtd</span>' +
+      '<span style="width:30px">Qtd</span>' +
       '<span style="flex:1">Unit:</span>' +
       '<span style="flex:1">Desc:</span>' +
       '<span style="flex:1;text-align:right">Total:</span>' +
@@ -3105,8 +3105,8 @@ async function abrirRomaneio(v, cliNome) {
     const totalItem = precoDesc * i.qty;
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
       '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
-      '<div style="display:flex">' +
-        '<span style="width:20px">' + i.qty + '</span>' +
+      '<div style="display:flex;margin-top:2px">' +
+        '<span style="width:30px">' + i.qty + '</span>' +
         '<span style="flex:1">R$' + precoUnit.toFixed(2).replace('.',',') + '</span>' +
         (pct > 0 ? '<span style="flex:1">R$' + precoDesc.toFixed(2).replace('.',',') + '</span>' : '<span style="flex:1">—</span>') +
         '<span style="flex:1;text-align:right">R$' + totalItem.toFixed(2).replace('.',',') + '</span>' +
