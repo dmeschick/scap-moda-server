@@ -3031,12 +3031,17 @@ async function finalizarVenda() {
 }
 
 function abrirRomaneio(v, cliNome) {
-  const sub = v.sub || 0;
-  const desc = v.desc || 0;
+  const sub = v.sub || v.subtotal || 0;
+  const desc = v.desc || v.desconto || 0;
   const tot = v.tot || 0;
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
   const vendedor = v.vendedorNome || v.vendedor_nome || '—';
-  const pgtos = v.pgtoItens || v.pgto_itens || [];
+  // Normaliza pgtoItens independente da origem (PDV camelCase ou API snake_case)
+  const pgtos = (v.pgtoItens || v.pgto_itens || []).map(p => ({
+    ...p,
+    vlParcela: p.vlParcela || p.vl_parcela || p.valor,
+    cheques: p.cheques || p.cheques_json || []
+  }));
 
   // Seção de cheques pré-datados
   const chequeItens = pgtos.filter(p => p.tipo === 'cheque_pre');

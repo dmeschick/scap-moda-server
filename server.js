@@ -153,7 +153,8 @@ async function initDB() {
       parcelas INTEGER DEFAULT 1,
       vl_parcela DECIMAL(10,2),
       troco DECIMAL(10,2) DEFAULT 0,
-      detalhe VARCHAR(200)
+      detalhe VARCHAR(200),
+      cheques_json JSONB DEFAULT '[]'
     );
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave VARCHAR(100) PRIMARY KEY,
@@ -186,6 +187,7 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_ponto_func ON ponto(funcionario_id);
     CREATE INDEX IF NOT EXISTS idx_ponto_data ON ponto(data);
     ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS foto TEXT;
+    ALTER TABLE venda_pagamentos ADD COLUMN IF NOT EXISTS cheques_json JSONB DEFAULT '[]';
     CREATE TABLE IF NOT EXISTS metas_comissao (
       id TEXT PRIMARY KEY,
       mes TEXT NOT NULL UNIQUE,
@@ -456,7 +458,7 @@ app.get('/api/vendas', auth, async (req, res) => {
     const sql = `
       SELECT v.*,
         COALESCE(json_agg(DISTINCT jsonb_build_object('id',vi.id,'nome',vi.nome,'cod',vi.cod,'preco',vi.preco,'qty',vi.qty,'tipo',vi.tipo)) FILTER (WHERE vi.id IS NOT NULL),'[]') as itens,
-        COALESCE(json_agg(DISTINCT jsonb_build_object('tipo',vp.tipo,'valor',vp.valor,'parcelas',vp.parcelas,'detalhe',vp.detalhe)) FILTER (WHERE vp.id IS NOT NULL),'[]') as pgto_itens
+        COALESCE(json_agg(DISTINCT jsonb_build_object('tipo',vp.tipo,'valor',vp.valor,'parcelas',vp.parcelas,'vl_parcela',vp.vl_parcela,'detalhe',vp.detalhe,'cheques_json',vp.cheques_json)) FILTER (WHERE vp.id IS NOT NULL),'[]') as pgto_itens
       FROM vendas v
       LEFT JOIN venda_itens vi ON vi.venda_id=v.id
       LEFT JOIN venda_pagamentos vp ON vp.venda_id=v.id
@@ -483,8 +485,8 @@ app.post('/api/vendas', auth, async (req, res) => {
       }
     }
     for (const p of (v.pgtoItens||[])) {
-      await client.query('INSERT INTO venda_pagamentos (venda_id,tipo,valor,parcelas,vl_parcela,troco,detalhe) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-        [v.id,p.tipo,p.valor,p.parcelas||1,p.vlParcela||p.valor,p.troco||0,p.detalhe||'']);
+      await client.query('INSERT INTO venda_pagamentos (venda_id,tipo,valor,parcelas,vl_parcela,troco,detalhe,cheques_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [v.id,p.tipo,p.valor,p.parcelas||1,p.vlParcela||p.valor,p.troco||0,p.detalhe||'',JSON.stringify(p.cheques||[])]);
     }
     if (v.clienteId) {
       await client.query('UPDATE clientes SET total_compras=total_compras+$1,ult_compra=CURRENT_DATE WHERE id=$2', [v.tot, v.clienteId]);
