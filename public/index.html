@@ -745,6 +745,26 @@ tr:hover td{background:var(--bg)}
           </div>
           <button class="btn btn-primary" onclick="salvarTextoRomaneio()">Salvar</button>
         </div>
+        <div class="card" style="margin-top:16px;max-width:800px">
+          <div class="card-title">Backup de dados</div>
+          <div style="margin-bottom:16px">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
+              O backup inclui todos os dados do sistema: produtos, clientes, vendas, financeiro e configurações.
+            </div>
+            <button class="btn btn-primary" onclick="exportarBackup()">⬇ Baixar backup agora</button>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px">Backup automático por e-mail</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
+              Todo dia às 23h o sistema envia automaticamente o backup para o e-mail abaixo.
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="email" id="config-backup-email" placeholder="seu@email.com" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              <button class="btn btn-primary" onclick="salvarEmailBackup()">Salvar</button>
+              <button class="btn" onclick="enviarBackupAgora()">📧 Enviar agora</button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div><!-- /content -->
@@ -2566,6 +2586,41 @@ async function carregarConfiguracoes() {
   renderListaCats();
   renderListaDescontos();
   carregarTextoRomaneio();
+  carregarEmailBackup();
+}
+
+async function carregarEmailBackup() {
+  try {
+    const r = await api('GET', '/api/config/backup_email');
+    document.getElementById('config-backup-email').value = r.valor || 'dmeschick@hotmail.com';
+  } catch(e) {}
+}
+
+async function salvarEmailBackup() {
+  const email = document.getElementById('config-backup-email').value.trim();
+  if (!email) { toast('Informe o e-mail', 'warn'); return; }
+  try {
+    await api('POST', '/api/config/backup_email', { valor: email });
+    toast('E-mail salvo!');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function exportarBackup() {
+  window.open(API + '/api/backup/exportar?token=' + TOKEN, '_blank');
+}
+
+async function enviarBackupAgora() {
+  const email = document.getElementById('config-backup-email').value.trim();
+  if (!email) { toast('Informe o e-mail', 'warn'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    await api('POST', '/api/backup/enviar-email', { email });
+    toast('Backup enviado para ' + email + '!');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  btn.disabled = false;
+  btn.textContent = '📧 Enviar agora';
 }
 
 async function carregarTextoRomaneio() {
