@@ -552,6 +552,7 @@ tr:hover td{background:var(--bg)}
           <button class="tab" onclick="finTab('caixa')">Caixa do Dia</button>
           <button class="tab" onclick="finTab('dre')">DRE</button>
           <button class="tab" onclick="finTab('projecao')">Projeção 30 dias</button>
+          <button class="tab" onclick="finTab('comissoes')">Comissões</button>
         </div>
 
         <!-- ABA: CONTAS A PAGAR -->
@@ -669,6 +670,47 @@ tr:hover td{background:var(--bg)}
             </div>
           </div>
           <div id="dre-content"></div>
+        </div>
+
+        <!-- ABA: COMISSÕES -->
+        <div id="fin-comissoes" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+            <div class="card">
+              <div class="card-title">Metas do mês</div>
+              <div class="form-group" style="margin-bottom:10px">
+                <label>Mês</label>
+                <input type="month" id="com-mes" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label>Faixa 2 — 2,3% (R$)</label>
+                <input type="number" id="com-faixa2" step="0.01" min="0" placeholder="Ex: 5000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label>Faixa 3 — 2,8% (R$)</label>
+                <input type="number" id="com-faixa3" step="0.01" min="0" placeholder="Ex: 8000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label>Faixa 4 — 3,3% (R$)</label>
+                <input type="number" id="com-faixa4" step="0.01" min="0" placeholder="Ex: 12000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="salvarMetas()">Salvar Metas</button>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Metas cadastradas</div>
+              <div id="com-metas-lista"></div>
+            </div>
+
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              Comissões calculadas
+              <button class="btn btn-sm" onclick="calcularComissoes()">🔄 Calcular</button>
+            </div>
+            <div id="com-resultado"></div>
+          </div>
         </div>
 
         <!-- ABA: PROJEÇÃO -->
@@ -3031,6 +3073,104 @@ function renderMobileCardsEstoque(prods) {
   }).join('');
 }
 
+// ===== COMISSÕES =====
+async function carregarComissoes() {
+  const mes = document.getElementById('com-mes').value || new Date().toISOString().slice(0,7);
+  document.getElementById('com-mes').value = mes;
+  try {
+    const metas = await api('GET', '/api/comissoes/metas');
+    const metaMes = metas.find(m => m.mes === mes);
+    if (metaMes) {
+      document.getElementById('com-faixa2').value = metaMes.faixa2;
+      document.getElementById('com-faixa3').value = metaMes.faixa3;
+      document.getElementById('com-faixa4').value = metaMes.faixa4;
+    } else {
+      document.getElementById('com-faixa2').value = '';
+      document.getElementById('com-faixa3').value = '';
+      document.getElementById('com-faixa4').value = '';
+    }
+    const listaEl = document.getElementById('com-metas-lista');
+    if (!metas.length) {
+      listaEl.innerHTML = '<div class="empty-state" style="padding:16px"><p>Nenhuma meta cadastrada</p></div>';
+    } else {
+      listaEl.innerHTML = metas.slice(0,6).map(m =>
+        '<div class="m-card-row">' +
+          '<div><strong>' + m.mes + '</strong>' +
+          '<div style="font-size:11px;color:var(--text2)">F2: ' + fmtMoeda(m.faixa2) + ' · F3: ' + fmtMoeda(m.faixa3) + ' · F4: ' + fmtMoeda(m.faixa4) + '</div></div>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirMeta(\'' + m.mes + '\')">Excluir</button>' +
+        '</div>'
+      ).join('');
+    }
+    await calcularComissoes();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function salvarMetas() {
+  const mes = document.getElementById('com-mes').value;
+  const faixa2 = parseFloat(document.getElementById('com-faixa2').value)||0;
+  const faixa3 = parseFloat(document.getElementById('com-faixa3').value)||0;
+  const faixa4 = parseFloat(document.getElementById('com-faixa4').value)||0;
+  if (!mes) { toast('Selecione o mês', 'warn'); return; }
+  if (!faixa2 || !faixa3 || !faixa4) { toast('Preencha todas as faixas', 'warn'); return; }
+  if (faixa2 >= faixa3 || faixa3 >= faixa4) { toast('As faixas devem ser crescentes: F2 < F3 < F4', 'warn'); return; }
+  try {
+    await api('POST', '/api/comissoes/metas', { id: uid(), mes, faixa2, faixa3, faixa4 });
+    toast('Metas salvas!');
+    carregarComissoes();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirMeta(mes) {
+  if (!confirm('Excluir metas de ' + mes + '?')) return;
+  try {
+    await api('DELETE', '/api/comissoes/metas/' + mes);
+    toast('Metas excluídas');
+    carregarComissoes();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function calcularComissoes() {
+  const mes = document.getElementById('com-mes').value || new Date().toISOString().slice(0,7);
+  try {
+    const r = await api('GET', '/api/comissoes/calcular?mes=' + mes);
+    const el = document.getElementById('com-resultado');
+    if (!r.vendedoras.length) {
+      el.innerHTML = '<div class="empty-state" style="padding:24px"><p>Nenhuma venda registrada em ' + mes + '</p></div>';
+      return;
+    }
+    const metaInfo = r.meta
+      ? '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Metas: F2 ≥ ' + fmtMoeda(r.meta.faixa2) + ' · F3 ≥ ' + fmtMoeda(r.meta.faixa3) + ' · F4 ≥ ' + fmtMoeda(r.meta.faixa4) + '</div>'
+      : '<div style="font-size:12px;color:var(--amber);margin-bottom:12px">⚠️ Nenhuma meta definida para ' + mes + ' — aplicando 2% para todas</div>';
+
+    el.innerHTML = metaInfo +
+      '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr>' +
+          '<th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)">Vendedora</th>' +
+          '<th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)">Total Vendido</th>' +
+          '<th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)">Faixa</th>' +
+          '<th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)">%</th>' +
+          '<th style="text-align:right;padding:8px 12px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1px solid var(--border)">Comissão</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+          r.vendedoras.map(v => {
+            const badgeColor = v.faixa === 'Faixa 4' ? 'badge-green' : v.faixa === 'Faixa 3' ? 'badge-blue' : v.faixa === 'Faixa 2' ? 'badge-amber' : 'badge-gray';
+            return '<tr>' +
+              '<td style="padding:10px 12px;border-bottom:1px solid var(--border)"><strong>' + v.vendedorNome + '</strong><div style="font-size:11px;color:var(--text2)">' + v.qtdVendas + ' venda(s)</div></td>' +
+              '<td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right"><strong>' + fmtMoeda(v.totalVendido) + '</strong></td>' +
+              '<td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center"><span class="badge ' + badgeColor + '">' + v.faixa + '</span></td>' +
+              '<td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center"><strong>' + v.pct + '%</strong></td>' +
+              '<td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right"><strong style="color:var(--pink-dark)">' + fmtMoeda(v.comissao) + '</strong></td>' +
+            '</tr>';
+          }).join('') +
+        '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="4" style="padding:10px 12px;font-weight:700;font-size:13px">Total comissões</td>' +
+          '<td style="padding:10px 12px;text-align:right;font-weight:700;font-size:15px;color:var(--pink-dark)">' + fmtMoeda(r.totalComissoes) + '</td>' +
+        '</tr></tfoot>' +
+      '</table>';
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
 // ===== INIT =====
 ajustarMobile();
 
@@ -3065,17 +3205,18 @@ ajustarMobile();
 let _caixaAtual = null;
 
 function finTab(aba) {
-  ['contas','cheques','caixa','dre','projecao'].forEach(a => {
+  ['contas','cheques','caixa','dre','projecao','comissoes'].forEach(a => {
     document.getElementById('fin-' + a).style.display = a === aba ? 'block' : 'none';
   });
   document.querySelectorAll('#fin-tabs .tab').forEach((t,i) => {
-    t.classList.toggle('active', ['contas','cheques','caixa','dre','projecao'][i] === aba);
+    t.classList.toggle('active', ['contas','cheques','caixa','dre','projecao','comissoes'][i] === aba);
   });
   if (aba === 'contas') carregarContas();
   if (aba === 'cheques') carregarCheques();
   if (aba === 'caixa') carregarCaixa();
   if (aba === 'dre') { document.getElementById('dre-mes').value = new Date().toISOString().slice(0,7); carregarDRE(); }
   if (aba === 'projecao') carregarProjecao();
+  if (aba === 'comissoes') carregarComissoes();
 }
 
 // --- CONTAS A PAGAR ---
