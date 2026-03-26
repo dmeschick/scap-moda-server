@@ -3097,11 +3097,11 @@ async function abrirRomaneio(v, cliNome) {
     const totalItem = precoDesc * i.qty;
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
       '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
-      '<div style="display:flex;justify-content:flex-end;gap:8px">' +
-        '<span>Qtd: ' + i.qty + '</span>' +
-        '<span>Unit: ' + fmtMoeda(precoUnit) + '</span>' +
-        (pct > 0 ? '<span>Desc: ' + fmtMoeda(precoDesc) + '</span>' : '') +
-        '<span><b>Total: ' + fmtMoeda(totalItem) + '</b></span>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:nowrap">' +
+        '<span style="white-space:nowrap">Qtd: ' + i.qty + '</span>' +
+        '<span style="white-space:nowrap">Unit: ' + fmtMoeda(precoUnit) + '</span>' +
+        (pct > 0 ? '<span style="white-space:nowrap">Desc: ' + fmtMoeda(precoDesc) + '</span>' : '') +
+        '<span style="white-space:nowrap"><b>Total: ' + fmtMoeda(totalItem) + '</b></span>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -3145,9 +3145,9 @@ async function abrirRomaneio(v, cliNome) {
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:8px">' + linhasItens + '</div>' +
     '<div style="font-family:monospace;font-size:12px;border-top:1px dashed #000;padding-top:6px">' +
-      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span style="white-space:nowrap">' + fmtMoeda(sub) + '</span></div>' +
-      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span style="white-space:nowrap">-' + fmtMoeda(desc) + '</span></div>' : '') +
-      '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span>TOTAL:</span><span style="white-space:nowrap">' + fmtMoeda(tot) + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between;flex-wrap:nowrap"><span style="white-space:nowrap">Subtotal:</span><span style="white-space:nowrap">' + fmtMoeda(sub) + '</span></div>' +
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between;flex-wrap:nowrap"><span style="white-space:nowrap">Desconto (' + pct + '%):</span><span style="white-space:nowrap">-' + fmtMoeda(desc) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;flex-wrap:nowrap;font-weight:bold;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span style="white-space:nowrap">TOTAL:</span><span style="white-space:nowrap">' + fmtMoeda(tot) + '</span></div>' +
       '<div style="margin-top:6px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
