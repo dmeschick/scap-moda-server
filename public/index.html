@@ -949,6 +949,7 @@ tr:hover td{background:var(--bg)}
     <div class="modal-body" id="modal-venda-det-body"></div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-venda-det')">Fechar</button>
+      <button class="btn" onclick="reimprimirRomaneio()">🖨️ Romaneio</button>
       <button class="btn" id="btn-cancelar-venda" style="color:var(--red);border-color:var(--red)">Cancelar venda</button>
     </div>
   </div>
@@ -1522,6 +1523,7 @@ function mascaraCEST(el) {
 // ===== CLIENTES =====
 let enderecosTemp = [];
 let _clientesCache = [];
+let _vendaAtual = null;
 
 function verCliente(id) {
   const c = _clientesCache.find(x => x.id === id);
@@ -1764,14 +1766,18 @@ function verCliente(id) {
     const el = document.getElementById('cli-res-compras');
     if (!el) return;
     if (!compras.length) { el.innerHTML = '<div class="empty-state" style="padding:20px"><p>Nenhuma compra registrada</p></div>'; return; }
-    el.innerHTML = compras.map(v => `
+    window._historicoCompras = compras;
+    el.innerHTML = compras.map((v, idx) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
         <div>
           <div style="font-weight:600">${v.num}</div>
           <div style="font-size:11px;color:var(--text2)">${new Date(v.data).toLocaleDateString('pt-BR')} · ${v.pag}</div>
           <div style="font-size:11px;color:var(--text2)">${(v.itens||[]).map(i=>i.nome).join(', ').slice(0,60)}</div>
         </div>
-        <strong style="color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
+        <div style="display:flex;align-items:center;gap:8px">
+          <strong style="color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
+          <button class="btn btn-sm" onclick="abrirRomaneioHistorico(${idx},'${c.nome.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Reimprimir romaneio">🖨️</button>
+        </div>
       </div>`).join('');
   }).catch(()=>{});
   document.getElementById('btn-cli-resumo-editar').onclick = () => { fecharModal('modal-cli-resumo'); abrirModalCliente(id); };
@@ -2372,6 +2378,7 @@ async function verVenda(id) {
     const vendas = await api('GET', `/api/vendas?limit=500`);
     const v = vendas.find(x => x.id === id);
     if (!v) return;
+    _vendaAtual = v;
     const itens = v.itens || [];
     const pgtos = v.pgto_itens || [];
     document.getElementById('modal-venda-det-body').innerHTML = `
@@ -2413,6 +2420,18 @@ async function cancelarVenda(id) {
     toast('Venda cancelada!');
     carregarVendas();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function reimprimirRomaneio() {
+  if (!_vendaAtual) { toast('Nenhuma venda carregada', 'warn'); return; }
+  const cliNome = _vendaAtual.cliente_nome || '';
+  abrirRomaneio(_vendaAtual, cliNome);
+}
+
+function abrirRomaneioHistorico(idx, cliNome) {
+  const v = (window._historicoCompras || [])[idx];
+  if (!v) { toast('Venda não encontrada', 'warn'); return; }
+  abrirRomaneio(v, cliNome);
 }
 
 // ===== RELATÓRIOS =====
