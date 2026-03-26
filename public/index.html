@@ -3092,18 +3092,18 @@ async function abrirRomaneio(v, cliNome) {
 
   // Monta linhas dos itens
   const linhasItens = itens.map(i => {
-    const primeiraPalavra = (i.nome || '').split(' ')[0];
     const precoUnit = i.preco || 0;
-    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : 0;
-    const totalItem = (pct > 0 ? precoDesc : precoUnit) * i.qty;
-    return '<tr>' +
-      '<td style="padding:3px 6px;white-space:nowrap">' + (i.cod || '') + '</td>' +
-      '<td style="padding:3px 6px;white-space:nowrap">' + primeiraPalavra + '</td>' +
-      '<td style="padding:3px 6px;white-space:nowrap;text-align:center">' + i.qty + '</td>' +
-      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + fmtMoeda(precoUnit) + '</td>' +
-      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + (pct > 0 ? fmtMoeda(precoDesc) : '') + '</td>' +
-      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + fmtMoeda(totalItem) + '</td>' +
-    '</tr>';
+    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
+    const totalItem = precoDesc * i.qty;
+    return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
+      '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px">' +
+        '<span>Qtd: ' + i.qty + '</span>' +
+        '<span>Unit: ' + fmtMoeda(precoUnit) + '</span>' +
+        (pct > 0 ? '<span>Desc: ' + fmtMoeda(precoDesc) + '</span>' : '') +
+        '<span><b>Total: ' + fmtMoeda(totalItem) + '</b></span>' +
+      '</div>' +
+    '</div>';
   }).join('');
 
   // Monta seção de cheques — um por linha com número e data de compensação
@@ -3143,17 +3143,7 @@ async function abrirRomaneio(v, cliNome) {
       '<div><b>Vendedor:</b> ' + (vendedorNome || '—') + '</div>' +
       (nomeDesconto ? '<div><b>Desconto:</b> ' + nomeDesconto + '</div>' : '') +
     '</div>' +
-    '<table style="width:100%;font-family:monospace;font-size:11px;border-collapse:collapse;margin-bottom:8px">' +
-      '<thead><tr style="border-bottom:1px solid #ccc">' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:left">Cód</th>' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:left">Produto</th>' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:center">Qtd</th>' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Unit</th>' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Desc</th>' +
-        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Total</th>' +
-      '</tr></thead>' +
-      '<tbody>' + linhasItens + '</tbody>' +
-    '</table>' +
+    '<div style="font-family:monospace;font-size:11px;margin-bottom:8px">' + linhasItens + '</div>' +
     '<div style="font-family:monospace;font-size:12px;border-top:1px dashed #000;padding-top:6px">' +
       '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span style="white-space:nowrap">' + fmtMoeda(sub) + '</span></div>' +
       (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span style="white-space:nowrap">-' + fmtMoeda(desc) + '</span></div>' : '') +
