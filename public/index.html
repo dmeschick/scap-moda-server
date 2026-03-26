@@ -3035,6 +3035,25 @@ function abrirRomaneio(v, cliNome) {
   const desc = v.desc || 0;
   const tot = v.tot || 0;
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
+  const vendedor = v.vendedorNome || v.vendedor_nome || '—';
+  const pgtos = v.pgtoItens || v.pgto_itens || [];
+
+  // Seção de cheques pré-datados
+  const chequeItens = pgtos.filter(p => p.tipo === 'cheque_pre');
+  let chequesHtml = '';
+  if (chequeItens.length) {
+    const linhas = chequeItens.flatMap(p => (p.cheques || []).map((ch, i) => {
+      const num = ch.num ? 'Nº ' + ch.num : 'Cheque ' + (i+1);
+      const comp = ch.comp ? new Date(ch.comp + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      return `<div style="display:flex;justify-content:space-between"><span>${num}</span><span>Comp: ${comp} — ${fmtMoeda(p.vlParcela)}</span></div>`;
+    }));
+    if (linhas.length) {
+      chequesHtml = `<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:6px;padding-top:6px">
+        <b>Cheques pré-datados:</b>${linhas.join('')}
+      </div>`;
+    }
+  }
+
   document.getElementById('romaneio-body').innerHTML = `
     <div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">
       <div style="font-weight:bold;font-size:14px">SCAP MODA FEMININA</div>
@@ -3046,7 +3065,7 @@ function abrirRomaneio(v, cliNome) {
     </div>
     <div style="font-family:monospace;font-size:12px;margin-bottom:8px">
       <div><b>Cliente:</b> ${cliNome}</div>
-      <div><b>Vendedor:</b> ${v.vendedorNome||'—'}</div>
+      <div><b>Vendedor:</b> ${vendedor}</div>
     </div>
     <table style="width:100%;font-family:monospace;font-size:11px;border-collapse:collapse;margin-bottom:8px">
       <thead><tr style="border-bottom:1px solid #ccc"><th style="text-align:left">Produto</th><th>Qtd</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
@@ -3062,6 +3081,7 @@ function abrirRomaneio(v, cliNome) {
       <div style="margin-top:6px"><b>Pagamento:</b> ${v.pag}</div>
       ${v.obs?`<div><b>Obs:</b> ${v.obs}</div>`:''}
     </div>
+    ${chequesHtml}
     <div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:8px;padding-top:6px;text-align:center">
       Obrigada pela preferência! 🌸
     </div>
