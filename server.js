@@ -186,6 +186,14 @@ async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_ponto_func ON ponto(funcionario_id);
     CREATE INDEX IF NOT EXISTS idx_ponto_data ON ponto(data);
     ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS foto TEXT;
+    CREATE TABLE IF NOT EXISTS metas_comissao (
+      id TEXT PRIMARY KEY,
+      mes TEXT NOT NULL UNIQUE,
+      faixa2 NUMERIC(10,2) NOT NULL,
+      faixa3 NUMERIC(10,2) NOT NULL,
+      faixa4 NUMERIC(10,2) NOT NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS contas_pagar (
       id TEXT PRIMARY KEY,
       descricao TEXT NOT NULL,
