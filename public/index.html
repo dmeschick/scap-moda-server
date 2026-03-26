@@ -737,6 +737,14 @@ tr:hover td{background:var(--bg)}
             <div id="lista-descontos"></div>
           </div>
         </div>
+        <div class="card" style="margin-top:16px;max-width:800px">
+          <div class="card-title">Texto para romaneio</div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Mensagem no rodapé do romaneio</label>
+            <textarea id="config-romaneio-texto" placeholder="Ex: Obrigada pela preferência! Volte sempre 🌸" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);resize:vertical;min-height:80px"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="salvarTextoRomaneio()">Salvar</button>
+        </div>
       </div>
 
     </div><!-- /content -->
@@ -2557,6 +2565,22 @@ async function carregarConfiguracoes() {
   await carregarDescontosGlobal();
   renderListaCats();
   renderListaDescontos();
+  carregarTextoRomaneio();
+}
+
+async function carregarTextoRomaneio() {
+  try {
+    const r = await api('GET', '/api/config/romaneio_texto');
+    document.getElementById('config-romaneio-texto').value = r.valor || 'Obrigada pela preferência! 🌸';
+  } catch(e) {}
+}
+
+async function salvarTextoRomaneio() {
+  const valor = document.getElementById('config-romaneio-texto').value.trim();
+  try {
+    await api('POST', '/api/config/romaneio_texto', { valor });
+    toast('Texto salvo!');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 function renderListaCats() {
