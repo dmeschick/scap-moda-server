@@ -2693,13 +2693,14 @@ async function initPDV() {
 function filtrarPDV() {
   const q = (document.getElementById('pdv-search')?.value||'').toLowerCase();
   const cat = document.getElementById('pdv-cat')?.value||'';
+  const grid = document.getElementById('pdv-prod-grid');
+  const empty = document.getElementById('pdv-empty');
+  if (!q && !cat) { grid.innerHTML = ''; empty.style.display = 'none'; return; }
   let prods = todosProds.filter(p => {
     const mq = !q || p.nome.toLowerCase().includes(q) || p.cod.toLowerCase().includes(q);
     const mc = !cat || p.cat === cat;
     return mq && mc;
   });
-  const grid = document.getElementById('pdv-prod-grid');
-  const empty = document.getElementById('pdv-empty');
   if (!prods.length) {
     grid.innerHTML = ''; empty.style.display = 'block'; return;
   }
