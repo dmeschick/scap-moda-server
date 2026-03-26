@@ -3054,67 +3054,107 @@ async function finalizarVenda() {
   } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); }
 }
 
-function abrirRomaneio(v, cliNome) {
-  const sub = v.sub || v.subtotal || 0;
-  const desc = v.desc || v.desconto || 0;
+async function abrirRomaneio(v, cliNome) {
+  const sub = v.sub || 0;
+  const desc = v.desc || 0;
   const tot = v.tot || 0;
   const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
-  const vendedor = v.vendedorNome || v.vendedor_nome || '—';
-  // Normaliza pgtoItens independente da origem (PDV camelCase ou API snake_case)
-  const pgtos = (v.pgtoItens || v.pgto_itens || []).map(p => ({
-    ...p,
-    vlParcela: p.vlParcela || p.vl_parcela || p.valor,
-    cheques: p.cheques || p.cheques_json || []
-  }));
 
-  // Seção de cheques pré-datados
-  const chequeItens = pgtos.filter(p => p.tipo === 'cheque_pre');
-  let chequesHtml = '';
-  if (chequeItens.length) {
-    const linhas = chequeItens.flatMap(p => (p.cheques || []).map((ch, i) => {
-      const num = ch.num ? 'Nº ' + ch.num : 'Cheque ' + (i+1);
-      const comp = ch.comp ? new Date(ch.comp + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-      return `<div style="display:flex;justify-content:space-between"><span>${num}</span><span>Comp: ${comp} — ${fmtMoeda(p.vlParcela)}</span></div>`;
-    }));
-    if (linhas.length) {
-      chequesHtml = `<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:6px;padding-top:6px">
-        <b>Cheques pré-datados:</b>${linhas.join('')}
-      </div>`;
-    }
+  // Busca texto do romaneio
+  let textoRodape = 'Obrigada pela preferência! 🌸';
+  try {
+    const cfg = await api('GET', '/api/config/romaneio_texto');
+    if (cfg.valor) textoRodape = cfg.valor;
+  } catch(e) {}
+
+  // Busca nome do vendedor se não vier
+  let vendedorNome = v.vendedorNome || v.vendedor_nome || '';
+  if (!vendedorNome && (v.vendedorId || v.vendedor_id)) {
+    try {
+      const funcs = await api('GET', '/api/funcionarios');
+      const f = funcs.find(x => x.id === (v.vendedorId || v.vendedor_id));
+      if (f) vendedorNome = f.nome;
+    } catch(e) {}
   }
 
-  document.getElementById('romaneio-body').innerHTML = `
-    <div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">
-      <div style="font-weight:bold;font-size:14px">SCAP MODA FEMININA</div>
-      <div>Petrópolis - RJ</div>
-    </div>
-    <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:8px 0;text-align:center;font-family:monospace">
-      <div style="font-weight:bold">ROMANEIO DE VENDA</div>
-      <div style="font-size:11px">${v.num} — ${new Date(v.data).toLocaleString('pt-BR')}</div>
-    </div>
-    <div style="font-family:monospace;font-size:12px;margin-bottom:8px">
-      <div><b>Cliente:</b> ${cliNome}</div>
-      <div><b>Vendedor:</b> ${vendedor}</div>
-    </div>
-    <table style="width:100%;font-family:monospace;font-size:11px;border-collapse:collapse;margin-bottom:8px">
-      <thead><tr style="border-bottom:1px solid #ccc"><th style="text-align:left">Produto</th><th>Qtd</th><th style="text-align:right">Unit</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody>${(v.itens||[]).map(i => {
-        const precoDesc = pct>0 ? Math.round(i.preco*(1-pct/100)*100)/100 : i.preco;
-        return `<tr><td>${i.nome}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fmtMoeda(precoDesc)}</td><td style="text-align:right">${fmtMoeda(precoDesc*i.qty)}</td></tr>`;
-      }).join('')}</tbody>
-    </table>
-    <div style="font-family:monospace;font-size:12px;border-top:1px dashed #000;padding-top:6px">
-      <div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>${fmtMoeda(sub)}</span></div>
-      ${desc>0?`<div style="display:flex;justify-content:space-between"><span>Desconto (${pct}%):</span><span>-${fmtMoeda(desc)}</span></div>`:''}
-      <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span>TOTAL:</span><span>${fmtMoeda(tot)}</span></div>
-      <div style="margin-top:6px"><b>Pagamento:</b> ${v.pag}</div>
-      ${v.obs?`<div><b>Obs:</b> ${v.obs}</div>`:''}
-    </div>
-    ${chequesHtml}
-    <div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:8px;padding-top:6px;text-align:center">
-      Obrigada pela preferência! 🌸
-    </div>
-  `;
+  // Nome do desconto
+  let nomeDesconto = '';
+  if (pct > 0) {
+    const d = descontos.find(x => x.pct === pct);
+    nomeDesconto = d ? d.nome + ' (' + pct + '%)' : pct + '%';
+  }
+
+  // Itens
+  const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
+
+  // Cheques pré-datados
+  const pgtoItens = v.pgtoItens || v.pgto_itens || [];
+  const cheques = pgtoItens.filter(p => p.tipo === 'cheque_pre');
+
+  // Monta linhas dos itens
+  const linhasItens = itens.map(i => {
+    const primeiraPalavra = (i.nome || '').split(' ')[0];
+    const precoUnit = i.preco || 0;
+    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
+    const totalItem = precoDesc * i.qty;
+    return '<tr>' +
+      '<td style="padding:2px 4px">' + (i.cod || '') + '</td>' +
+      '<td style="padding:2px 4px">' + primeiraPalavra + '</td>' +
+      '<td style="padding:2px 4px;text-align:center">' + i.qty + '</td>' +
+      '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(precoUnit) + '</td>' +
+      (pct > 0 ? '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(precoDesc) + '</td>' : '<td></td>') +
+      '<td style="padding:2px 4px;text-align:right">' + fmtMoeda(totalItem) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  // Monta seção de cheques
+  let secaoCheques = '';
+  if (cheques.length) {
+    secaoCheques = '<div style="border-top:1px dashed #000;padding-top:6px;margin-top:6px;font-family:monospace;font-size:11px">';
+    cheques.forEach((c, idx) => {
+      const det = c.detalhe || '';
+      secaoCheques += '<div>Cheque ' + (idx+1) + ': ' + det + '</div>';
+    });
+    secaoCheques += '</div>';
+  }
+
+  document.getElementById('romaneio-body').innerHTML =
+    '<div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">' +
+      '<div style="font-weight:bold;font-size:14px">SCAP MODA FEMININA</div>' +
+      '<div>Petrópolis - RJ</div>' +
+    '</div>' +
+    '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:8px 0;text-align:center;font-family:monospace">' +
+      '<div style="font-weight:bold">ROMANEIO DE VENDA</div>' +
+      '<div style="font-size:11px">' + (v.num||'') + ' — ' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
+    '</div>' +
+    '<div style="font-family:monospace;font-size:12px;margin-bottom:8px">' +
+      '<div><b>Cliente:</b> ' + (cliNome || v.cliente_nome || 'Consumidor final') + '</div>' +
+      '<div><b>Vendedor:</b> ' + (vendedorNome || '—') + '</div>' +
+      (nomeDesconto ? '<div><b>Desconto:</b> ' + nomeDesconto + '</div>' : '') +
+    '</div>' +
+    '<table style="width:100%;font-family:monospace;font-size:11px;border-collapse:collapse;margin-bottom:8px">' +
+      '<thead><tr style="border-bottom:1px solid #ccc">' +
+        '<th style="text-align:left;padding:2px 4px">Cód</th>' +
+        '<th style="text-align:left;padding:2px 4px">Produto</th>' +
+        '<th style="text-align:center;padding:2px 4px">Qtd</th>' +
+        '<th style="text-align:right;padding:2px 4px">Unit</th>' +
+        '<th style="text-align:right;padding:2px 4px">Desc</th>' +
+        '<th style="text-align:right;padding:2px 4px">Total</th>' +
+      '</tr></thead>' +
+      '<tbody>' + linhasItens + '</tbody>' +
+    '</table>' +
+    '<div style="font-family:monospace;font-size:12px;border-top:1px dashed #000;padding-top:6px">' +
+      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px;border-top:1px solid #000;margin-top:4px;padding-top:4px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>' +
+      '<div style="margin-top:6px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
+      (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
+    '</div>' +
+    secaoCheques +
+    '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:8px;padding-top:6px;text-align:center">' +
+      textoRodape +
+    '</div>';
+
   abrirModal('modal-romaneio');
 }
 
