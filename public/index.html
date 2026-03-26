@@ -1246,8 +1246,8 @@ async function carregarDashboard() {
     document.getElementById('dash-cards').innerHTML = `
       <div class="metric-card"><div class="icon">💰</div><div class="label">Vendas hoje</div><div class="value">${fmtMoeda(r.faturamento||0)}</div><div class="sub">${r.total_vendas||0} venda(s)</div></div>
       <div class="metric-card"><div class="icon">🎫</div><div class="label">Ticket médio</div><div class="value">${fmtMoeda(r.ticket_medio||0)}</div></div>
-      <div class="metric-card"><div class="icon">🏪</div><div class="label">Presencial</div><div class="value">${r.presencial||0}</div><div class="sub">vendas</div></div>
-      <div class="metric-card"><div class="icon">🌐</div><div class="label">Online</div><div class="value">${r.online||0}</div><div class="sub">vendas</div></div>
+      <div class="metric-card"><div class="icon">🏪</div><div class="label">Presencial</div><div class="value">${fmtMoeda(r.valor_presencial||0)}</div><div class="sub">${r.presencial||0} venda(s)</div></div>
+      <div class="metric-card"><div class="icon">🌐</div><div class="label">Online</div><div class="value">${fmtMoeda(r.valor_online||0)}</div><div class="sub">${r.online||0} venda(s)</div></div>
     `;
     document.getElementById('dash-vendas').innerHTML = vendas.length
       ? vendas.map(v => `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td><strong>${fmtMoeda(v.tot)}</strong></td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`).join('')
