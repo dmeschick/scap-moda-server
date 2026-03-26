@@ -965,7 +965,7 @@ tr:hover td{background:var(--bg)}
 
 <!-- Modal Romaneio -->
 <div class="modal-backdrop" id="modal-romaneio">
-  <div class="modal" style="max-width:380px">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header"><h3>Romaneio</h3><button class="modal-close" onclick="fecharModal('modal-romaneio')">×</button></div>
     <div class="modal-body" id="romaneio-body"></div>
     <div class="modal-footer">
@@ -3171,9 +3171,28 @@ async function abrirRomaneio(v, cliNome) {
 
 function imprimirRomaneio() {
   const conteudo = document.getElementById('romaneio-body').innerHTML;
-  const j = window.open('','_blank','width=320,height=600');
+  const j = window.open('', '_blank', 'width=320,height=600');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
-  j.document.write(`<html><head><title>Romaneio</title><style>body{margin:0;padding:8px;font-family:monospace}@media print{body{margin:0;padding:0}}</style></head><body>${conteudo}<script>window.onload=function(){window.print();window.close()}<\/script></body></html>`);
+  j.document.write(`<!DOCTYPE html><html><head><title>Romaneio</title><style>
+    @page {
+      size: 80mm auto;
+      margin: 4mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: monospace;
+      font-size: 11px;
+      width: 72mm;
+      color: #000;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    td, th { padding: 2px 4px; white-space: nowrap; }
+    @media print {
+      body { margin: 0; padding: 0; }
+    }
+  </style></head><body>${conteudo}<script>window.onload=function(){window.print();window.close()}<\/script></body></html>`);
   j.document.close();
 }
 
