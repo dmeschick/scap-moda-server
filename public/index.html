@@ -3097,12 +3097,12 @@ async function abrirRomaneio(v, cliNome) {
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : 0;
     const totalItem = (pct > 0 ? precoDesc : precoUnit) * i.qty;
     return '<tr>' +
-      '<td style="padding:2px 4px">' + (i.cod || '') + '</td>' +
-      '<td style="padding:2px 4px">' + primeiraPalavra + '</td>' +
-      '<td style="padding:2px 4px;text-align:center">' + i.qty + '</td>' +
-      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + fmtMoeda(precoUnit) + '</td>' +
-      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + (pct > 0 ? fmtMoeda(precoDesc) : '') + '</td>' +
-      '<td style="padding:2px 4px;text-align:right;white-space:nowrap">' + fmtMoeda(totalItem) + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap">' + (i.cod || '') + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap">' + primeiraPalavra + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap;text-align:center">' + i.qty + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + fmtMoeda(precoUnit) + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + (pct > 0 ? fmtMoeda(precoDesc) : '') + '</td>' +
+      '<td style="padding:3px 6px;white-space:nowrap;text-align:right">' + fmtMoeda(totalItem) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -3143,14 +3143,14 @@ async function abrirRomaneio(v, cliNome) {
       '<div><b>Vendedor:</b> ' + (vendedorNome || '—') + '</div>' +
       (nomeDesconto ? '<div><b>Desconto:</b> ' + nomeDesconto + '</div>' : '') +
     '</div>' +
-    '<table style="table-layout:fixed;width:100%;font-family:monospace;font-size:10px;border-collapse:collapse;margin-bottom:8px">' +
+    '<table style="width:100%;font-family:monospace;font-size:11px;border-collapse:collapse;margin-bottom:8px">' +
       '<thead><tr style="border-bottom:1px solid #ccc">' +
-        '<th style="text-align:left;padding:2px 4px">Cód</th>' +
-        '<th style="text-align:left;padding:2px 4px">Produto</th>' +
-        '<th style="text-align:center;padding:2px 4px">Qtd</th>' +
-        '<th style="text-align:right;padding:2px 4px">Unit</th>' +
-        '<th style="text-align:right;padding:2px 4px">Desc</th>' +
-        '<th style="text-align:right;padding:2px 4px">Total</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:left">Cód</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:left">Produto</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:center">Qtd</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Unit</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Desc</th>' +
+        '<th style="padding:3px 6px;white-space:nowrap;text-align:right">Total</th>' +
       '</tr></thead>' +
       '<tbody>' + linhasItens + '</tbody>' +
     '</table>' +
