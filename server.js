@@ -451,7 +451,7 @@ app.post('/api/clientes', auth, async (req, res) => {
 });
 app.delete('/api/clientes/:id', auth, async (req, res) => {
   try {
-    await pool.query("UPDATE clientes SET status='inativo' WHERE id=$1", [req.params.id]);
+    await pool.query("DELETE FROM clientes WHERE id=$1", [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
