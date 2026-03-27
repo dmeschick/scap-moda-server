@@ -1134,26 +1134,6 @@ const agendarBackupDiario = () => {
   }, msAte23h);
 };
 
-// ROTA TEMPORÁRIA — remover após execução do reset
-app.post('/api/admin/reset-vendas', auth, async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM venda_pagamentos');
-    await client.query('DELETE FROM venda_itens');
-    await client.query('DELETE FROM vendas');
-    await client.query('DELETE FROM cheques');
-    await client.query('DELETE FROM caixa_movimentos');
-    await client.query('DELETE FROM caixa');
-    await client.query('UPDATE produtos SET est=0');
-    await client.query('UPDATE clientes SET total_compras=0, ult_compra=NULL');
-    await client.query('COMMIT');
-    res.json({ ok: true });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    res.status(500).json({ erro: err.message });
-  } finally { client.release(); }
-});
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
