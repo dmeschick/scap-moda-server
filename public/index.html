@@ -1285,7 +1285,7 @@ async function carregarDashboard() {
     document.getElementById('dash-vendas').innerHTML = vendas.length
       ? vendas.map(v => `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td><strong>${fmtMoeda(v.tot)}</strong></td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`).join('')
       : '<tr><td colspan="4"><div class="empty-state" style="padding:20px"><p>Sem vendas</p></div></td></tr>';
-    // Aniversariantes de hoje
+    // Aniversariantes do mês
     try {
       const clis = await api('GET', '/api/clientes');
       const hoje = new Date();
@@ -1293,20 +1293,22 @@ async function carregarDashboard() {
       const diaHoje = hoje.getDate();
       const aniv = clis.filter(c => {
         if (!c.nasc) return false;
-        const d = nascDate(c.nasc);
-        return d.getMonth() + 1 === mesHoje && d.getDate() === diaHoje;
-      });
+        return nascDate(c.nasc).getMonth() + 1 === mesHoje;
+      }).sort((a, b) => nascDate(a.nasc).getDate() - nascDate(b.nasc).getDate());
       const anivBanner = document.getElementById('aniversariantes-banner');
       if (aniv.length) {
         anivBanner.style.display = 'block';
         anivBanner.className = 'card';
         anivBanner.style.marginBottom = '16px';
-        anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes de hoje</div>
+        anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">` +
           aniv.map(c => {
-            return `<div style="display:flex;align-items:center;gap:8px;background:var(--amber-light);border-radius:var(--radius);padding:8px 12px;border:1px solid var(--amber)">
+            const dia = nascDate(c.nasc).getDate();
+            const isHoje = dia === diaHoje;
+            return `<div style="display:flex;align-items:center;gap:8px;background:${isHoje?'var(--amber-light)':'var(--bg)'};border-radius:var(--radius);padding:8px 12px;border:1px solid ${isHoje?'var(--amber)':'var(--border)'}">
               <div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-              <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]} 🎉</div>
+              <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]}${isHoje?' 🎉':''}</div>
+              <div style="font-size:11px;color:var(--text2)">dia ${dia}</div>
               ${c.tel?`<div style="font-size:11px;color:var(--text2)">${c.tel}</div>`:''}</div>
             </div>`;
           }).join('') + '</div>';
