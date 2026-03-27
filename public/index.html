@@ -1843,6 +1843,9 @@ async function abrirModalCliente(id) {
       _clientesCache = clis;
       const c = clis.find(x => x.id === id);
       if (!c) return;
+      console.log('dados do cliente:', c);
+      console.log('criado_em:', c.criado_em);
+      console.log('grupo visível:', document.getElementById('cli-cadastro-group')?.style.display);
       document.getElementById('cli-id').value = c.id;
       setTipoCli(c.tipo||'PF');
       document.getElementById('cli-nome').value = c.nome||'';
