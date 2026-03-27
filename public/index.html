@@ -1340,7 +1340,7 @@ async function carregarProdutos() {
       const estBadge = est === 'ok' ? 'badge-green' : est === 'baixo' ? 'badge-amber' : 'badge-red';
       const estLabel = est === 'ok' ? 'Normal' : est === 'baixo' ? 'Baixo' : 'Zerado';
       return `<tr>
-        <td><input type="checkbox" class="prod-check" value="${p.id}" data-nome="${(p.nome||'').replace(/"/g,'')}" data-cod="${p.cod||''}" data-colecao="${(p.colecao||'').replace(/"/g,'')}"></td>
+        <td><input type="checkbox" class="prod-check" value="${p.id}" data-nome="${(p.nome||'').replace(/"/g,'')}" data-cod="${p.cod||''}" data-colecao="${(p.colecao||'').replace(/"/g,'')}" data-preco="${p.venda||0}"></td>
         <td><code style="font-size:12px">${p.cod}</code></td>
         <td><strong>${p.nome}</strong>${p.cor ? `<div style="font-size:11px;color:var(--text2)">${p.cor}</div>` : ''}</td>
         <td><span class="badge badge-pink">${p.cat||'—'}</span></td>
@@ -1352,7 +1352,7 @@ async function carregarProdutos() {
           <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}','${p.nome.replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
-        <td><button class="btn btn-sm" onclick="abrirModalEtiqueta('${p.id}','${(p.nome||'').replace(/'/g,"\\'")}','${p.cod||''}','${(p.colecao||'').replace(/'/g,"\\'")}')">🏷️</button></td>
+        <td><button class="btn btn-sm" onclick="abrirModalEtiqueta('${p.id}','${(p.nome||'').replace(/'/g,"\\'")}','${p.cod||''}','${(p.colecao||'').replace(/'/g,"\\'")}','${p.venda||0}')">🏷️</button></td>
       </tr>`;
     }).join('');
     document.querySelectorAll('.prod-check').forEach(cb => {
@@ -3603,8 +3603,8 @@ function limparSelecaoEtiquetas() {
   atualizarBarraEtiquetas();
 }
 
-function abrirModalEtiqueta(id, nome, cod, colecao) {
-  _etiquetaAtual = { id, nome, cod, colecao };
+function abrirModalEtiqueta(id, nome, cod, colecao, preco) {
+  _etiquetaAtual = { id, nome, cod, colecao, preco };
   document.getElementById('etiq-id').value = id;
   document.getElementById('etiq-produto-nome').textContent = nome + ' · ' + cod;
   document.getElementById('etiq-qtd').value = 1;
@@ -3628,10 +3628,11 @@ function abrirModalEtiquetaLote() {
     const nome = cb.dataset.nome;
     const cod = cb.dataset.cod;
     const colecao = cb.dataset.colecao;
+    const preco = cb.dataset.preco || '0';
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">' +
       '<div style="flex:1"><div style="font-weight:600;font-size:13px">' + nome + '</div>' +
       '<div style="font-size:11px;color:var(--text2)">' + cod + '</div></div>' +
-      '<input type="number" value="1" min="1" max="999" data-id="' + id + '" data-nome="' + nome + '" data-cod="' + cod + '" data-colecao="' + colecao + '" class="etiq-lote-qtd" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);text-align:center">' +
+      '<input type="number" value="1" min="1" max="999" data-id="' + id + '" data-nome="' + nome + '" data-cod="' + cod + '" data-colecao="' + colecao + '" data-preco="' + preco + '" class="etiq-lote-qtd" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);text-align:center">' +
       '<span style="font-size:11px;color:var(--text2)">etiq.</span>' +
     '</div>';
   }).join('');
@@ -3645,6 +3646,7 @@ function imprimirEtiquetasLote() {
     nome: input.dataset.nome,
     cod: input.dataset.cod,
     colecao: input.dataset.colecao,
+    preco: input.dataset.preco || '0',
     qtd: parseInt(input.value) || 1
   }));
   fecharModal('modal-etiqueta-lote');
@@ -3662,23 +3664,30 @@ function gerarImpressaoEtiquetas(itens) {
   const j = window.open('', '_blank', 'width=400,height=400');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
 
+  function precoInvertido(preco) {
+    const str = (parseFloat(preco) || 0).toFixed(2).replace('.', '');
+    return str.split('').reverse().join('');
+  }
+
   function renderEtiqueta(item, idx) {
     const colecao = item.colecao || '';
     const nome = item.nome || '';
     const cod = item.cod || '';
+    const preco = item.preco || '';
+    const codLinha = cod + (preco ? precoInvertido(preco) : '');
     return '<div class="etiqueta">' +
       '<div class="espaco-fabrica"></div>' +
       '<div class="parte-cima">' +
         (colecao ? '<div class="colecao">' + colecao + '</div>' : '') +
         '<div class="nome">' + nome + '</div>' +
         '<svg class="barcode" id="bc-top-' + idx + '" data-cod="' + cod + '"></svg>' +
-        '<div class="codigo">' + cod + '</div>' +
+        '<div class="codigo">' + codLinha + '</div>' +
       '</div>' +
       '<div class="picote"></div>' +
       '<div class="parte-baixo">' +
         '<div class="nome">' + nome + '</div>' +
         '<svg class="barcode" id="bc-bot-' + idx + '" data-cod="' + cod + '"></svg>' +
-        '<div class="codigo">' + cod + '</div>' +
+        '<div class="codigo">' + codLinha + '</div>' +
       '</div>' +
     '</div>';
   }
@@ -3703,13 +3712,13 @@ function gerarImpressaoEtiquetas(itens) {
       body { width: 90mm; font-family: Arial, sans-serif; }
       .faixa { width: 90mm; height: 75mm; page-break-after: always; display: flex; flex-direction: row; }
       .etiqueta { width: 45mm; height: 75mm; display: flex; flex-direction: column; }
-      .espaco-fabrica { height: 35mm; }
+      .espaco-fabrica { height: 33mm; }
       .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
       .picote { height: 0; border-top: 1px dashed #aaa; margin: 0 2mm; }
       .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
-      .colecao { font-size: 6pt; font-weight: bold; }
-      .nome { font-size: 5pt; }
-      .codigo { font-size: 6pt; letter-spacing: 1px; }
+      .colecao { font-size: 8pt; font-weight: bold; }
+      .nome { font-size: 7pt; }
+      .codigo { font-size: 8pt; letter-spacing: 1px; }
       .barcode { max-width: 41mm; height: 7mm; }
       @media print { body { margin: 0; } .faixa { page-break-after: always; } }
     </style>
