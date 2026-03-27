@@ -3046,25 +3046,38 @@ function renderPgtoLista() {
 }
 
 async function finalizarVenda() {
-  if (!carrinho.length) { toast('Carrinho vazio', 'warn'); return; }
+  if (_finalizandoVenda) return;
+  _finalizandoVenda = true;
+  const btn = document.querySelector('[onclick="finalizarVenda()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
   // Cheque pré-datado exige cliente cadastrado
   const temChequePre = pgtoItens.some(p => p.tipo === 'cheque_pre');
+  if (!carrinho.length) {
+    _finalizandoVenda = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    toast('Carrinho vazio', 'warn'); return;
+  }
   if (temChequePre && !document.getElementById('pdv-cliente').value) {
-    toast('Cheque pré-datado exige cliente cadastrado', 'warn');
-    return;
+    _finalizandoVenda = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    toast('Cheque pré-datado exige cliente cadastrado', 'warn'); return;
   }
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
   const desc = Math.round(sub*(descPct/100)*100)/100;
   const tot = sub - desc;
-  if (tot > 0 && !pgtoItens.length) { toast('Adicione uma forma de pagamento', 'warn'); return; }
+  if (tot > 0 && !pgtoItens.length) {
+    _finalizandoVenda = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    toast('Adicione uma forma de pagamento', 'warn'); return;
+  }
   if (tot > 0) {
     const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
-    if (pago < tot - 0.01) { toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return; }
+    if (pago < tot - 0.01) {
+      _finalizandoVenda = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+      toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return;
+    }
   }
-  if (_finalizandoVenda) return;
-  _finalizandoVenda = true;
-  const btn = event?.target || document.querySelector('[onclick="finalizarVenda()"]');
-  if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
   const cliId = document.getElementById('pdv-cliente').value;
   const vendId = document.getElementById('pdv-vendedor').value;
   const obs = document.getElementById('pdv-obs').value;
