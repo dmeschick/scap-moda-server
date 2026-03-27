@@ -1855,7 +1855,7 @@ async function abrirModalCliente(id) {
       document.getElementById('cli-tam').value = c.tam||'';
       document.getElementById('cli-obs').value = c.obs||'';
       if (c.criado_em) {
-        document.getElementById('cli-cadastro').value = fmtData(c.criado_em);
+        document.getElementById('cli-cadastro').value = new Date(c.criado_em).toLocaleDateString('pt-BR');
         document.getElementById('cli-cadastro-group').style.display = '';
       }
       enderecosTemp = (c.enderecos||[]).map(e => ({...e}));
