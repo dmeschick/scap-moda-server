@@ -3684,15 +3684,15 @@ function gerarImpressaoEtiquetas(itens) {
     <title>Etiquetas</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
     <style>
-      @page { size: 45mm 75mm; margin: 0; }
+      @page { size: 90mm 75mm; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { width: 45mm; font-family: Arial, sans-serif; }
-      .etiqueta { width: 45mm; height: 75mm; page-break-after: always; display: flex; flex-direction: column; }
+      body { width: 90mm; font-family: Arial, sans-serif; }
+      .etiqueta { width: 90mm; height: 75mm; page-break-after: always; display: flex; flex-direction: column; justify-content: flex-end; }
       .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; overflow: hidden; }
       .picote { height: 0; border-top: 1px dashed #999; margin: 0 2mm; }
       .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; overflow: hidden; }
-      .colecao { font-size: 7pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 41mm; margin-bottom: 1mm; }
-      .barcode { max-width: 41mm; height: 10mm; }
+      .colecao { font-size: 7pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 86mm; margin-bottom: 1mm; }
+      .barcode { max-width: 86mm; height: 10mm; }
       .codigo { font-size: 7pt; text-align: center; letter-spacing: 1px; margin-top: 1mm; }
       @media print { body { margin: 0; } .etiqueta { page-break-after: always; } }
     </style>
