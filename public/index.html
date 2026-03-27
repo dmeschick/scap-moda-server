@@ -2055,8 +2055,18 @@ async function carregarFuncionarios() {
       <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="excluirFuncionario('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
       </div></td>
     </tr>`).join('');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirFuncionario(id, nome) {
+  if (!confirm(`Excluir permanentemente "${nome}"?`)) return;
+  try {
+    await api('DELETE', `/api/funcionarios/${id}`);
+    toast('Funcionário excluído');
+    carregarFuncionarios();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
