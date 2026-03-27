@@ -500,8 +500,10 @@ tr:hover td{background:var(--bg)}
       <!-- VENDAS -->
       <div class="page" id="page-vendas">
         <div class="search-bar">
-          <div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:11px;font-weight:600;color:var(--text2)">DE</label><input type="date" id="venda-de"></div>
-          <div style="display:flex;flex-direction:column;gap:2px"><label style="font-size:11px;font-weight:600;color:var(--text2)">ATÉ</label><input type="date" id="venda-ate"></div>
+          <label style="font-size:11px;font-weight:600;color:var(--text2)">DE</label>
+          <input type="date" id="venda-de">
+          <label style="font-size:11px;font-weight:600;color:var(--text2)">ATÉ</label>
+          <input type="date" id="venda-ate">
           <select id="venda-status"><option value="">Todos os status</option><option value="pago">Pago</option><option value="cancelada">Cancelada</option></select>
           <button class="btn" onclick="carregarVendas()">Filtrar</button>
           <button class="btn" onclick="limparFiltroVendas()">Limpar</button>
