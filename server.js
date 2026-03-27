@@ -137,6 +137,7 @@ async function initDB() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_vendas_data ON vendas(data);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num);
     CREATE TABLE IF NOT EXISTS venda_itens (
       id SERIAL PRIMARY KEY,
       venda_id VARCHAR(50) REFERENCES vendas(id) ON DELETE CASCADE,
@@ -476,9 +477,14 @@ app.post('/api/vendas', auth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const v = req.body;
-    await client.query(`INSERT INTO vendas (id,num,data,cliente_id,cliente_nome,vendedor_id,vendedor_nome,canal,subtotal,desconto,credito,tot,pag,obs,tipo,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+    const insertResult = await client.query(`INSERT INTO vendas (id,num,data,cliente_id,cliente_nome,vendedor_id,vendedor_nome,canal,subtotal,desconto,credito,tot,pag,obs,tipo,status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      ON CONFLICT (id) DO NOTHING RETURNING id`,
       [v.id,v.num,v.data,v.clienteId,v.clienteNome,v.vendedorId,v.vendedorNome,v.canal,v.sub||v.subtotal,v.desc||v.desconto||0,v.credito||0,v.tot,v.pag,v.obs,v.tipo||'venda',v.status||'pago']);
+    if (insertResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.json({ ok: true, duplicata: true });
+    }
     for (const item of (v.itens||[])) {
       await client.query('INSERT INTO venda_itens (venda_id,produto_id,nome,cod,preco,qty,tipo) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [v.id,item.id,item.nome,item.cod,item.preco,item.qty,item.tipo||'novo']);

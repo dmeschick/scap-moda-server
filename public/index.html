@@ -3078,6 +3078,7 @@ async function finalizarVenda() {
       toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return;
     }
   }
+  const vendaId = uid();
   const cliId = document.getElementById('pdv-cliente').value;
   const vendId = document.getElementById('pdv-vendedor').value;
   const obs = document.getElementById('pdv-obs').value;
@@ -3102,7 +3103,7 @@ async function finalizarVenda() {
     num = '#' + String(n+1).padStart(4,'0');
   } catch(e) {}
   const venda = {
-    id: uid(), num,
+    id: vendaId, num,
     data: new Date().toISOString(),
     clienteId: cliId, clienteNome: cliNome,
     vendedorId: vendId, vendedorNome: vendNome,
