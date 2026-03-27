@@ -3662,7 +3662,7 @@ function gerarImpressaoEtiquetas(itens) {
   const j = window.open('', '_blank', 'width=400,height=400');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
 
-  const etiquetasHTML = todasEtiquetas.map((item, idx) => {
+  function renderEtiqueta(item, idx) {
     const colecao = item.colecao || '';
     const nome = item.nome || '';
     const cod = item.cod || '';
@@ -3681,6 +3681,17 @@ function gerarImpressaoEtiquetas(itens) {
         '<div class="codigo">' + cod + '</div>' +
       '</div>' +
     '</div>';
+  }
+
+  const pares = [];
+  for (let i = 0; i < todasEtiquetas.length; i += 2) {
+    pares.push({ esq: todasEtiquetas[i], dir: todasEtiquetas[i + 1] || null });
+  }
+
+  const etiquetasHTML = pares.map((par, pi) => {
+    const esq = renderEtiqueta(par.esq, pi * 2);
+    const dir = par.dir ? renderEtiqueta(par.dir, pi * 2 + 1) : '<div class="etiqueta"></div>';
+    return '<div class="faixa">' + esq + dir + '</div>';
   }).join('');
 
   j.document.write(`<!DOCTYPE html><html><head>
@@ -3690,16 +3701,17 @@ function gerarImpressaoEtiquetas(itens) {
       @page { size: 90mm 75mm; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body { width: 90mm; font-family: Arial, sans-serif; }
-      .etiqueta { width: 90mm; height: 75mm; page-break-after: always; display: flex; flex-direction: column; }
+      .faixa { width: 90mm; height: 75mm; page-break-after: always; display: flex; flex-direction: row; }
+      .etiqueta { width: 45mm; height: 75mm; display: flex; flex-direction: column; }
       .espaco-fabrica { height: 35mm; }
-      .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 3mm; overflow: hidden; }
-      .picote { height: 0; border-top: 1px dashed #aaa; margin: 0 3mm; }
-      .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 3mm; overflow: hidden; }
-      .colecao { font-size: 7pt; font-weight: bold; }
-      .nome { font-size: 6pt; }
-      .codigo { font-size: 7pt; letter-spacing: 1px; }
-      .barcode { max-width: 84mm; height: 8mm; }
-      @media print { body { margin: 0; } .etiqueta { page-break-after: always; } }
+      .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
+      .picote { height: 0; border-top: 1px dashed #aaa; margin: 0 2mm; }
+      .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
+      .colecao { font-size: 6pt; font-weight: bold; }
+      .nome { font-size: 5pt; }
+      .codigo { font-size: 6pt; letter-spacing: 1px; }
+      .barcode { max-width: 41mm; height: 7mm; }
+      @media print { body { margin: 0; } .faixa { page-break-after: always; } }
     </style>
   </head><body>
     ${etiquetasHTML}
