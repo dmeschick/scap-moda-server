@@ -860,6 +860,10 @@ tr:hover td{background:var(--bg)}
           <div class="form-group"><label>Instagram</label><input id="cli-ig" placeholder="@usuario"></div>
           <div class="form-group"><label>Tamanho preferido</label><input id="cli-tam" placeholder="M, 40..."></div>
           <div class="form-group full"><label>Observações</label><textarea id="cli-obs"></textarea></div>
+          <div class="form-group" id="cli-cadastro-group" style="display:none">
+            <label>Data de cadastro</label>
+            <input id="cli-cadastro" readonly style="background:var(--bg)">
+          </div>
         </div>
       </div>
       <!-- Endereços -->
@@ -1850,6 +1854,10 @@ async function abrirModalCliente(id) {
       document.getElementById('cli-ig').value = c.ig||'';
       document.getElementById('cli-tam').value = c.tam||'';
       document.getElementById('cli-obs').value = c.obs||'';
+      if (c.criado_em) {
+        document.getElementById('cli-cadastro').value = fmtData(c.criado_em);
+        document.getElementById('cli-cadastro-group').style.display = '';
+      }
       enderecosTemp = (c.enderecos||[]).map(e => ({...e}));
     } catch(e) { return; }
   } else {
@@ -1858,6 +1866,8 @@ async function abrirModalCliente(id) {
       const el = document.getElementById('cli-' + k);
       if (el) el.value = '';
     });
+    document.getElementById('cli-cadastro-group').style.display = 'none';
+    document.getElementById('cli-cadastro').value = '';
   }
   abrirModal('modal-cliente');
 }
