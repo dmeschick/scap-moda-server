@@ -410,7 +410,7 @@ app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
 app.get('/api/clientes', auth, async (req, res) => {
   try {
     const { q } = req.query;
-    let where = ['1=1'];
+    let where = ["c.status != 'inativo'"];
     let params = [];
     if (q) { where.push(`(LOWER(c.nome) LIKE $1 OR c.cpf LIKE $1 OR c.tel LIKE $1)`); params.push('%'+q.toLowerCase()+'%'); }
     const sql = `
