@@ -1419,6 +1419,8 @@ async function salvarProduto() {
   const venda = parseFloat(document.getElementById('prod-venda').value)||0;
   if (!nome) { toast('Informe o nome do produto', 'warn'); return; }
   if (!cat) { toast('Selecione a categoria', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarProduto()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const isNovo = !document.getElementById('prod-id').value;
   const id = document.getElementById('prod-id').value || uid();
   // Sufixos corretos por categoria
@@ -1477,7 +1479,8 @@ async function salvarProduto() {
     } else {
       fecharModal('modal-produto');
     }
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 async function excluirProduto(id, nome) {
@@ -1861,6 +1864,8 @@ async function abrirModalCliente(id) {
 async function salvarCliente() {
   const nome = document.getElementById('cli-nome').value.trim();
   if (!nome) { toast('Informe o nome', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarCliente()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const cli = {
     id: document.getElementById('cli-id').value || uid(),
     nome, tipo: document.getElementById('cli-tipo').value,
@@ -1880,7 +1885,8 @@ async function salvarCliente() {
     fecharModal('modal-cliente');
     toast('Cliente salvo!');
     carregarClientes();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 async function excluirCliente(id, nome) {
@@ -1952,6 +1958,8 @@ async function abrirModalFornecedor(id) {
 async function salvarFornecedor() {
   const nome = document.getElementById('forn-nome').value.trim();
   if (!nome) { toast('Informe o nome', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarFornecedor()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const forn = {
     id: document.getElementById('forn-id').value || uid(),
     nome,
@@ -1971,7 +1979,8 @@ async function salvarFornecedor() {
     fecharModal('modal-fornecedor');
     toast('Fornecedor salvo!');
     carregarFornecedores();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 async function excluirFornecedor(id, nome) {
@@ -2095,6 +2104,8 @@ function removerFotoFunc() {
 async function salvarFuncionario() {
   const nome = document.getElementById('func-nome').value.trim();
   if (!nome) { toast('Informe o nome', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarFuncionario()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const func = {
     id: document.getElementById('func-id').value || uid(),
     nome,
@@ -2118,7 +2129,8 @@ async function salvarFuncionario() {
     fecharModal('modal-funcionario');
     toast('Funcionário salvo!');
     carregarFuncionarios();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 async function salvarSenhaFunc() {
@@ -3048,6 +3060,8 @@ async function finalizarVenda() {
     const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
     if (pago < tot - 0.01) { toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return; }
   }
+  const btn = event?.target || document.querySelector('[onclick="finalizarVenda()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
   const cliId = document.getElementById('pdv-cliente').value;
   const vendId = document.getElementById('pdv-vendedor').value;
   const obs = document.getElementById('pdv-obs').value;
@@ -3106,7 +3120,8 @@ async function finalizarVenda() {
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
     abrirRomaneio(venda, cliNome);
     limparCarrinho();
-  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; } }
 }
 
 async function abrirRomaneio(v, cliNome) {
@@ -3646,6 +3661,8 @@ async function salvarConta() {
   if (!cat) { toast('Selecione a categoria', 'warn'); return; }
   if (!valor) { toast('Informe o valor', 'warn'); return; }
   if (!venc) { toast('Informe o vencimento', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarConta()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const conta = {
     id: document.getElementById('conta-id').value || uid(),
     descricao: desc, categoria: cat, valor, vencimento: venc,
@@ -3658,7 +3675,8 @@ async function salvarConta() {
     fecharModal('modal-conta');
     toast('Conta salva!');
     carregarContas();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 function abrirModalPagar(id, valor) {
@@ -3671,6 +3689,8 @@ function abrirModalPagar(id, valor) {
 
 async function confirmarPagamento() {
   const id = document.getElementById('pagar-conta-id').value;
+  const btn = event?.target || document.querySelector('[onclick="confirmarPagamento()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Confirmando...'; }
   try {
     await api('PATCH', '/api/financeiro/contas-pagar/' + id + '/pagar', {
       dataPagamento: document.getElementById('pagar-data').value,
@@ -3680,7 +3700,8 @@ async function confirmarPagamento() {
     fecharModal('modal-pagar-conta');
     toast('Pagamento registrado!');
     carregarContas();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; } }
 }
 
 async function excluirConta(id) {
@@ -3752,6 +3773,8 @@ async function salvarCheque() {
   if (!valor) { toast('Informe o valor', 'warn'); return; }
   if (!data) { toast('Informe a data do cheque', 'warn'); return; }
   if (!comp) { toast('Informe a data de compensação', 'warn'); return; }
+  const btn = event?.target || document.querySelector('[onclick="salvarCheque()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   try {
     await api('POST', '/api/financeiro/cheques', {
       id: document.getElementById('cheque-id').value,
@@ -3765,7 +3788,8 @@ async function salvarCheque() {
     fecharModal('modal-cheque');
     toast('Cheque salvo!');
     carregarCheques();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
 
 async function compensarCheque(id) {
@@ -3846,6 +3870,8 @@ function renderCaixa(caixa) {
 
 async function abrirCaixa() {
   const val = parseFloat(document.getElementById('caixa-abertura-val').value)||0;
+  const btn = event?.target || document.querySelector('[onclick="abrirCaixa()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Abrindo...'; }
   try {
     await api('POST', '/api/financeiro/caixa/abrir', {
       id: uid(),
@@ -3854,7 +3880,8 @@ async function abrirCaixa() {
     });
     toast('Caixa aberto!');
     carregarCaixa();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Abrir Caixa'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Abrir Caixa'; } }
 }
 
 async function fecharCaixa() {
@@ -3865,6 +3892,8 @@ async function fecharCaixa() {
   const saldo = difEl._saldo || 0;
   const dif = contado - saldo;
   if (!confirm('Confirmar fechamento do caixa?')) return;
+  const btn = event?.target || document.querySelector('[onclick="fecharCaixa()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Fechando...'; }
   try {
     await api('POST', '/api/financeiro/caixa/fechar', {
       id: _caixaAtual.id,
@@ -3874,7 +3903,8 @@ async function fecharCaixa() {
     });
     toast('Caixa fechado!');
     carregarCaixa();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = 'Fechar Caixa'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Fechar Caixa'; } }
 }
 
 function abrirModalMovimento(tipo) {
