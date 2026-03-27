@@ -137,7 +137,6 @@ async function initDB() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_vendas_data ON vendas(data);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num);
     CREATE TABLE IF NOT EXISTS venda_itens (
       id SERIAL PRIMARY KEY,
       venda_id VARCHAR(50) REFERENCES vendas(id) ON DELETE CASCADE,
@@ -250,6 +249,13 @@ async function initDB() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
   `);
+  // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
+  await pool.query(`
+    DELETE FROM vendas WHERE id NOT IN (
+      SELECT DISTINCT ON (num) id FROM vendas ORDER BY num, data ASC
+    )
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num)`);
   console.log('Banco inicializado!');
 }
 
