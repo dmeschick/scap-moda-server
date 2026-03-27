@@ -399,9 +399,14 @@ tr:hover td{background:var(--bg)}
           <select id="filtro-cat-prod" onchange="carregarProdutos()"><option value="">Todas categorias</option></select>
           <button class="btn btn-primary" onclick="abrirModalProduto()">+ Novo Produto</button>
         </div>
+        <div id="etiqueta-barra" style="display:none;background:var(--pink-light);border:1px solid var(--pink);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="etiqueta-selecionados" style="font-size:13px;font-weight:600;color:var(--pink-dark)">0 produtos selecionados</span>
+          <button class="btn btn-sm btn-primary" onclick="abrirModalEtiquetaLote()">🏷️ Imprimir etiquetas selecionadas</button>
+          <button class="btn btn-sm" onclick="limparSelecaoEtiquetas()">Limpar seleção</button>
+        </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Código</th><th>Produto</th><th>Categoria</th><th class="col-hide-mobile">Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="check-todos-prod" onchange="toggleTodosProdutos(this)"></th><th>Código</th><th>Produto</th><th>Categoria</th><th class="col-hide-mobile">Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th><th>Etiqueta</th></tr></thead>
             <tbody id="tabela-produtos"></tbody>
           </table>
         </div>
@@ -1335,6 +1340,7 @@ async function carregarProdutos() {
       const estBadge = est === 'ok' ? 'badge-green' : est === 'baixo' ? 'badge-amber' : 'badge-red';
       const estLabel = est === 'ok' ? 'Normal' : est === 'baixo' ? 'Baixo' : 'Zerado';
       return `<tr>
+        <td><input type="checkbox" class="prod-check" value="${p.id}" data-nome="${(p.nome||'').replace(/"/g,'')}" data-cod="${p.cod||''}" data-colecao="${(p.colecao||'').replace(/"/g,'')}"></td>
         <td><code style="font-size:12px">${p.cod}</code></td>
         <td><strong>${p.nome}</strong>${p.cor ? `<div style="font-size:11px;color:var(--text2)">${p.cor}</div>` : ''}</td>
         <td><span class="badge badge-pink">${p.cat||'—'}</span></td>
@@ -1346,8 +1352,12 @@ async function carregarProdutos() {
           <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}','${p.nome.replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
+        <td><button class="btn btn-sm" onclick="abrirModalEtiqueta('${p.id}','${(p.nome||'').replace(/'/g,"\\'")}','${p.cod||''}','${(p.colecao||'').replace(/'/g,"\\'")}')">🏷️</button></td>
       </tr>`;
     }).join('');
+    document.querySelectorAll('.prod-check').forEach(cb => {
+      cb.addEventListener('change', atualizarBarraEtiquetas);
+    });
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
@@ -3566,6 +3576,145 @@ async function calcularComissoes() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
+// ===== ETIQUETAS =====
+let _etiquetaAtual = null;
+
+function toggleTodosProdutos(cb) {
+  document.querySelectorAll('.prod-check').forEach(c => c.checked = cb.checked);
+  atualizarBarraEtiquetas();
+}
+
+function atualizarBarraEtiquetas() {
+  const selecionados = document.querySelectorAll('.prod-check:checked');
+  const barra = document.getElementById('etiqueta-barra');
+  const span = document.getElementById('etiqueta-selecionados');
+  if (selecionados.length > 0) {
+    barra.style.display = 'flex';
+    span.textContent = selecionados.length + ' produto(s) selecionado(s)';
+  } else {
+    barra.style.display = 'none';
+  }
+}
+
+function limparSelecaoEtiquetas() {
+  document.querySelectorAll('.prod-check').forEach(c => c.checked = false);
+  const cb = document.getElementById('check-todos-prod');
+  if (cb) cb.checked = false;
+  atualizarBarraEtiquetas();
+}
+
+function abrirModalEtiqueta(id, nome, cod, colecao) {
+  _etiquetaAtual = { id, nome, cod, colecao };
+  document.getElementById('etiq-id').value = id;
+  document.getElementById('etiq-produto-nome').textContent = nome + ' · ' + cod;
+  document.getElementById('etiq-qtd').value = 1;
+  abrirModal('modal-etiqueta');
+}
+
+function imprimirEtiquetaIndividual() {
+  const qtd = parseInt(document.getElementById('etiq-qtd').value) || 1;
+  if (!_etiquetaAtual) return;
+  const itens = [{ ..._etiquetaAtual, qtd }];
+  fecharModal('modal-etiqueta');
+  gerarImpressaoEtiquetas(itens);
+}
+
+function abrirModalEtiquetaLote() {
+  const selecionados = document.querySelectorAll('.prod-check:checked');
+  if (!selecionados.length) { toast('Selecione ao menos um produto', 'warn'); return; }
+  const lista = document.getElementById('etiqueta-lote-lista');
+  lista.innerHTML = Array.from(selecionados).map(cb => {
+    const id = cb.value;
+    const nome = cb.dataset.nome;
+    const cod = cb.dataset.cod;
+    const colecao = cb.dataset.colecao;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="flex:1"><div style="font-weight:600;font-size:13px">' + nome + '</div>' +
+      '<div style="font-size:11px;color:var(--text2)">' + cod + '</div></div>' +
+      '<input type="number" value="1" min="1" max="999" data-id="' + id + '" data-nome="' + nome + '" data-cod="' + cod + '" data-colecao="' + colecao + '" class="etiq-lote-qtd" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);text-align:center">' +
+      '<span style="font-size:11px;color:var(--text2)">etiq.</span>' +
+    '</div>';
+  }).join('');
+  abrirModal('modal-etiqueta-lote');
+}
+
+function imprimirEtiquetasLote() {
+  const inputs = document.querySelectorAll('.etiq-lote-qtd');
+  const itens = Array.from(inputs).map(input => ({
+    id: input.dataset.id,
+    nome: input.dataset.nome,
+    cod: input.dataset.cod,
+    colecao: input.dataset.colecao,
+    qtd: parseInt(input.value) || 1
+  }));
+  fecharModal('modal-etiqueta-lote');
+  gerarImpressaoEtiquetas(itens);
+}
+
+function gerarImpressaoEtiquetas(itens) {
+  let todasEtiquetas = [];
+  itens.forEach(item => {
+    for (let i = 0; i < item.qtd; i++) {
+      todasEtiquetas.push(item);
+    }
+  });
+
+  const j = window.open('', '_blank', 'width=200,height=600');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+
+  const etiquetasHTML = todasEtiquetas.map((item, idx) => {
+    const colecao = item.colecao || '';
+    const cod = item.cod || '';
+    return '<div class="etiqueta" id="etiq-' + idx + '">' +
+      '<div class="parte-cima">' +
+        (colecao ? '<div class="colecao">' + colecao + '</div>' : '') +
+        '<svg class="barcode" id="bc-top-' + idx + '" data-cod="' + cod + '"></svg>' +
+        '<div class="codigo">' + cod + '</div>' +
+      '</div>' +
+      '<div class="picote"></div>' +
+      '<div class="parte-baixo">' +
+        (colecao ? '<div class="colecao">' + colecao + '</div>' : '') +
+        '<svg class="barcode" id="bc-bot-' + idx + '" data-cod="' + cod + '"></svg>' +
+        '<div class="codigo">' + cod + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  j.document.write(`<!DOCTYPE html><html><head>
+    <title>Etiquetas</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+    <style>
+      @page { size: 45mm 75mm; margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 45mm; font-family: Arial, sans-serif; }
+      .etiqueta { width: 45mm; height: 75mm; page-break-after: always; display: flex; flex-direction: column; }
+      .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; overflow: hidden; }
+      .picote { height: 0; border-top: 1px dashed #999; margin: 0 2mm; }
+      .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1mm 2mm; overflow: hidden; }
+      .colecao { font-size: 7pt; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 41mm; margin-bottom: 1mm; }
+      .barcode { max-width: 41mm; height: 10mm; }
+      .codigo { font-size: 7pt; text-align: center; letter-spacing: 1px; margin-top: 1mm; }
+      @media print { body { margin: 0; } .etiqueta { page-break-after: always; } }
+    </style>
+  </head><body>
+    ${etiquetasHTML}
+    <script>
+      window.onload = function() {
+        document.querySelectorAll('.barcode').forEach(function(svg) {
+          const cod = svg.getAttribute('data-cod');
+          if (cod) {
+            try {
+              JsBarcode(svg, cod, { format: 'CODE128', width: 1.5, height: 30, displayValue: false, margin: 0 });
+            } catch(e) {}
+          }
+        });
+        setTimeout(function() { window.print(); window.close(); }, 800);
+      };
+    <\/script>
+  </body></html>`);
+  j.document.close();
+}
+
 // ===== INIT =====
 ajustarMobile();
 
@@ -4139,6 +4288,38 @@ async function carregarProjecao() {
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-movimento')">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarMovimento()">Lançar</button>
+    </div>
+  </div>
+</div>
+<!-- Modal Etiqueta -->
+<div class="modal-backdrop" id="modal-etiqueta">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h3>Imprimir Etiqueta</h3><button class="modal-close" onclick="fecharModal('modal-etiqueta')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="etiq-id">
+      <div id="etiq-produto-nome" style="font-weight:700;margin-bottom:12px;font-size:15px"></div>
+      <div class="form-group">
+        <label>Quantidade de etiquetas</label>
+        <input type="number" id="etiq-qtd" value="1" min="1" max="999" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-etiqueta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="imprimirEtiquetaIndividual()">🖨️ Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Etiqueta Lote -->
+<div class="modal-backdrop" id="modal-etiqueta-lote">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header"><h3>Imprimir Etiquetas em Lote</h3><button class="modal-close" onclick="fecharModal('modal-etiqueta-lote')">×</button></div>
+    <div class="modal-body">
+      <div id="etiqueta-lote-lista"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-etiqueta-lote')">Cancelar</button>
+      <button class="btn btn-primary" onclick="imprimirEtiquetasLote()">🖨️ Imprimir todas</button>
     </div>
   </div>
 </div>
