@@ -256,6 +256,8 @@ async function initDB() {
     )
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num)`);
+  // Adiciona colunas que podem não existir em bancos criados antes dessas definições
+  await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   console.log('Banco inicializado!');
 }
 
