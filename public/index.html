@@ -2750,6 +2750,7 @@ let pgtoItens = [];
 let canal = 'presencial';
 let descPct = 0;
 let todosProds = [];
+let _finalizandoVenda = false;
 
 async function initPDV() {
   carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0;
@@ -3060,6 +3061,8 @@ async function finalizarVenda() {
     const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
     if (pago < tot - 0.01) { toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return; }
   }
+  if (_finalizandoVenda) return;
+  _finalizandoVenda = true;
   const btn = event?.target || document.querySelector('[onclick="finalizarVenda()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
   const cliId = document.getElementById('pdv-cliente').value;
@@ -3121,7 +3124,8 @@ async function finalizarVenda() {
     abrirRomaneio(venda, cliNome);
     limparCarrinho();
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
-  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; } }
+    _finalizandoVenda = false;
+  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; } _finalizandoVenda = false; }
 }
 
 async function abrirRomaneio(v, cliNome) {
