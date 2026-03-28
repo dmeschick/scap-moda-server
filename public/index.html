@@ -3195,10 +3195,17 @@ async function finalizarVenda() {
   if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
   // Cheque pré-datado exige cliente cadastrado
   const temChequePre = pgtoItens.some(p => p.tipo === 'cheque_pre');
-  if (!carrinho.length) {
+  if (!carrinho.length && !carrinhoTroca.length) {
     _finalizandoVenda = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
     toast('Carrinho vazio', 'warn'); return;
+  }
+  if (!carrinho.length && carrinhoTroca.length) {
+    if (!document.getElementById('pdv-cliente').value) {
+      _finalizandoVenda = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+      toast('Selecione o cliente para registrar a devolução', 'warn'); return;
+    }
   }
   if (temChequePre && !document.getElementById('pdv-cliente').value) {
     _finalizandoVenda = false;
