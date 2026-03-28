@@ -3200,17 +3200,20 @@ async function finalizarVenda() {
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
   const desc = Math.round(sub*(descPct/100)*100)/100;
   const tot = sub - desc;
-  if (tot > 0 && !pgtoItens.length) {
+  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
+  const totFinal = Math.max(0, tot - totalDev - credUsado);
+  if (totFinal > 0.01 && !pgtoItens.length) {
     _finalizandoVenda = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
     toast('Adicione uma forma de pagamento', 'warn'); return;
   }
-  if (tot > 0) {
+  if (totFinal > 0.01) {
     const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
-    if (pago < tot - 0.01) {
+    if (pago < totFinal - 0.01) {
       _finalizandoVenda = false;
       if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
-      toast(`Falta ${fmtMoeda(tot-pago)} para cobrir o total`, 'warn'); return;
+      toast('Falta ' + fmtMoeda(totFinal-pago) + ' para cobrir o total', 'warn'); return;
     }
   }
   const vendaId = uid();
@@ -3242,11 +3245,6 @@ async function finalizarVenda() {
     ...carrinho.map(i => ({...i, tipo:'novo'})),
     ...carrinhoTroca.map(i => ({...i, tipo:'devolvido'}))
   ];
-
-  // Ajusta total considerando devoluções e crédito
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
-  const totFinal = Math.max(0, tot - totalDev - credUsado);
 
   // Se gerou crédito (devoluções > novos), registrar crédito
   const creditoGerado = Math.max(0, totalDev + credUsado - tot);
