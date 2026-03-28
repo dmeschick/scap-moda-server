@@ -3989,9 +3989,18 @@ function toggleModoTroca() {
   const sec = document.getElementById('troca-section');
   const btn = document.getElementById('btn-modo-troca');
   const aberto = sec.style.display !== 'none';
-  sec.style.display = aberto ? 'none' : 'block';
-  btn.textContent = aberto ? '🔄 Adicionar devolução' : '✕ Fechar devolução';
-  if (!aberto) document.getElementById('troca-busca').focus();
+  if (aberto) {
+    carrinhoTroca = [];
+    document.getElementById('troca-itens').innerHTML = '';
+    document.getElementById('troca-resumo').style.display = 'none';
+    sec.style.display = 'none';
+    btn.textContent = '🔄 Adicionar devolução';
+    renderCarrinho();
+  } else {
+    sec.style.display = 'block';
+    btn.textContent = '✕ Fechar devolução';
+    document.getElementById('troca-busca').focus();
+  }
 }
 
 function trocaKeyDown(e) {
