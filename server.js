@@ -425,7 +425,12 @@ app.get('/api/clientes', auth, async (req, res) => {
     let params = [];
     if (q) { where.push(`(LOWER(c.nome) LIKE $1 OR c.cpf LIKE $1 OR c.tel LIKE $1)`); params.push('%'+q.toLowerCase()+'%'); }
     const sql = `
-      SELECT c.*, 
+      SELECT c.*,
+        COALESCE((
+          SELECT SUM(valor - valor_usado)
+          FROM creditos_clientes
+          WHERE cliente_id=c.id AND status='ativo'
+        ), 0) as saldo_credito,
         COALESCE(json_agg(e.* ORDER BY e.principal DESC) FILTER (WHERE e.id IS NOT NULL), '[]') as enderecos
       FROM clientes c
       LEFT JOIN enderecos_cliente e ON e.cliente_id=c.id

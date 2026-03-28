@@ -464,7 +464,7 @@ tr:hover td{background:var(--bg)}
         <div id="aniversariantes-banner-cli" style="display:none"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Telefone</th><th class="col-hide-mobile">CPF/CNPJ</th><th>Cidade</th><th class="col-hide-mobile">Total compras</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Telefone</th><th class="col-hide-mobile">CPF/CNPJ</th><th>Cidade</th><th class="col-hide-mobile">Total compras</th><th class="col-hide-mobile">Crédito</th><th>Ações</th></tr></thead>
             <tbody id="tabela-clientes"></tbody>
           </table>
         </div>
@@ -1826,7 +1826,7 @@ async function carregarClientes() {
     const mesAtual = new Date().getMonth() + 1;
     if (aniv === 'mes') clis = clis.filter(c => c.nasc && nascDate(c.nasc).getMonth()+1 === mesAtual);
     const tb = document.getElementById('tabela-clientes');
-    if (!clis.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
+    if (!clis.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:24px"><div class="icon">👥</div><p>Nenhuma cliente</p></div></td></tr>'; return; }
     renderMobileCardsClientes(clis);
     tb.innerHTML = clis.map(c => {
       const endPrincipal = (c.enderecos||[]).find(e=>e.principal) || (c.enderecos||[])[0];
@@ -1841,6 +1841,7 @@ async function carregarClientes() {
         <td style="font-size:12px">${c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—')}</td>
         <td style="font-size:12px;color:var(--text2)">${endStr}</td>
         <td><strong>${fmtMoeda(c.total_compras)}</strong></td>
+        <td class="col-hide-mobile">${c.saldo_credito > 0 ? `<span class="badge badge-green">💳 ${fmtMoeda(c.saldo_credito)}</span>` : '—'}</td>
         <td><div class="action-btns" onclick="event.stopPropagation()">
           <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
