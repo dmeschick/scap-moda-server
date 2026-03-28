@@ -357,6 +357,21 @@ tr:hover td{background:var(--bg)}
             </div>
             <select id="pdv-cliente" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:6px"><option value="">— Cliente (opcional) —</option></select>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+              <button id="btn-modo-troca" class="btn btn-sm" onclick="toggleModoTroca()" style="flex:1;justify-content:center">
+                🔄 Adicionar devolução
+              </button>
+            </div>
+            <div id="troca-section" style="display:none;margin-bottom:10px">
+              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">ITENS DEVOLVIDOS</div>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <input type="text" id="troca-busca" placeholder="Código ou nome do produto..."
+                  style="flex:1;padding:7px;border:1px solid var(--red);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+                  onkeydown="trocaKeyDown(event)">
+              </div>
+              <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px"></div>
+              <div style="font-size:12px;color:var(--text2);margin-top:6px">Digite o código e pressione Enter para adicionar item devolvido</div>
+            </div>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
             <!-- Totais -->
             <div id="cart-totais" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
@@ -364,6 +379,26 @@ tr:hover td{background:var(--bg)}
               <!-- Desconto -->
               <div style="display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap" id="desc-btns"></div>
               <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span id="cart-tot" style="color:var(--pink-dark)">R$ 0,00</span></div>
+              <div id="credito-cliente-info" style="display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:8px 10px;margin:8px 0;font-size:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span style="color:var(--green);font-weight:600">💳 Crédito disponível</span>
+                  <span id="credito-valor-disp" style="font-weight:700;color:var(--green)">R$ 0,00</span>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+                  <input type="checkbox" id="usar-credito" onchange="toggleUsarCredito()">
+                  <label for="usar-credito" style="font-size:12px">Usar crédito nesta compra</label>
+                </div>
+              </div>
+              <div id="troca-resumo" style="display:none;padding:8px 0;border-top:1px solid var(--border);margin-top:8px">
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red);margin-bottom:4px">
+                  <span>Devoluções</span>
+                  <span id="troca-valor-dev">-R$ 0,00</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--green)" id="troca-saldo-info">
+                  <span id="troca-saldo-label">Diferença a pagar</span>
+                  <span id="troca-saldo-valor">R$ 0,00</span>
+                </div>
+              </div>
               <!-- Canal -->
               <div style="display:flex;gap:6px;margin:10px 0">
                 <button id="btn-presencial" class="btn btn-primary" style="flex:1;justify-content:center" onclick="setCanal('presencial')">🏪 Presencial</button>
@@ -2798,6 +2833,9 @@ async function initPDV() {
     const clis = await api('GET', '/api/clientes');
     document.getElementById('pdv-cliente').innerHTML = '<option value="">— Cliente (opcional) —</option>' +
       clis.filter(c=>c.status==='ativo').map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    document.getElementById('pdv-cliente').addEventListener('change', function() {
+      verificarCreditoCliente(this.value);
+    });
   } catch(e) {}
   // Popula select de vendedores
   try {
@@ -3140,14 +3178,28 @@ async function finalizarVenda() {
     const n = ultVendas.length ? parseInt(ultVendas[0].num?.replace('#',''))||0 : 0;
     num = '#' + String(n+1).padStart(4,'0');
   } catch(e) {}
+  // Combina itens novos e devolvidos
+  const todosItens = [
+    ...carrinho.map(i => ({...i, tipo:'novo'})),
+    ...carrinhoTroca.map(i => ({...i, tipo:'devolvido'}))
+  ];
+
+  // Ajusta total considerando devoluções e crédito
+  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
+  const totFinal = Math.max(0, tot - totalDev - credUsado);
+
+  // Se gerou crédito (devoluções > novos), registrar crédito
+  const creditoGerado = Math.max(0, totalDev + credUsado - tot);
+
   const venda = {
     id: vendaId, num,
     data: new Date().toISOString(),
     clienteId: cliId, clienteNome: cliNome,
     vendedorId: vendId, vendedorNome: vendNome,
-    canal, sub, desc, credito: 0, tot, pag: pagLabel, obs,
+    canal, sub, desc, credito: credUsado, tot: totFinal, pag: pagLabel, obs,
     tipo: 'venda', status: 'pago',
-    itens: carrinho.map(i => ({...i, tipo:'novo'})),
+    itens: todosItens,
     pgtoItens: pgtoItens.map(p => ({...p})),
     devolvidos: []
   };
@@ -3171,6 +3223,23 @@ async function finalizarVenda() {
       }
     }
     toast('Venda finalizada! ✅');
+    if (creditoGerado > 0.01 && cliId) {
+      await api('POST', '/api/creditos', {
+        id: uid(),
+        clienteId: cliId,
+        clienteNome: cliNome,
+        valor: creditoGerado,
+        motivo: 'Troca — saldo a favor',
+        vendaId: venda.id
+      }).catch(() => {});
+      imprimirNotinhaCredito(cliNome, creditoGerado);
+    }
+    if (usarCredito && credUsado > 0.01) {
+      for (const cid of creditosIds) {
+        await api('PATCH', '/api/creditos/' + cid + '/usar', { valorUsado: credUsado }).catch(() => {});
+        break;
+      }
+    }
     // Recarrega produtos para atualizar estoque
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
     abrirRomaneio(venda, cliNome);
@@ -3752,6 +3821,148 @@ function gerarImpressaoEtiquetas(itens) {
   </body></html>`);
   j.document.close();
 }
+
+// ===== TROCAS =====
+let carrinhoTroca = [];
+let creditoClienteId = null;
+let creditoDisponivel = 0;
+let creditosIds = [];
+let usarCredito = false;
+
+function toggleModoTroca() {
+  const sec = document.getElementById('troca-section');
+  const btn = document.getElementById('btn-modo-troca');
+  const aberto = sec.style.display !== 'none';
+  sec.style.display = aberto ? 'none' : 'block';
+  btn.textContent = aberto ? '🔄 Adicionar devolução' : '✕ Fechar devolução';
+  if (!aberto) document.getElementById('troca-busca').focus();
+}
+
+function trocaKeyDown(e) {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  const prod = todosProds.find(p => p.cod.toLowerCase() === q.toLowerCase() || p.nome.toLowerCase() === q.toLowerCase());
+  if (!prod) { toast('Produto não encontrado: ' + q, 'warn'); return; }
+  adicionarItemTroca(prod);
+  e.target.value = '';
+}
+
+function adicionarItemTroca(prod) {
+  const idx = carrinhoTroca.findIndex(x => x.id === prod.id);
+  if (idx > -1) { carrinhoTroca[idx].qty++; }
+  else { carrinhoTroca.push({ id: prod.id, nome: prod.nome, cod: prod.cod, preco: prod.venda, qty: 1, tipo: 'devolvido' }); }
+  renderTroca();
+  renderCarrinho();
+}
+
+function renderTroca() {
+  const el = document.getElementById('troca-itens');
+  const resumo = document.getElementById('troca-resumo');
+  if (!carrinhoTroca.length) {
+    el.innerHTML = '';
+    resumo.style.display = 'none';
+    return;
+  }
+  el.innerHTML = carrinhoTroca.map((item, i) =>
+    '<div style="display:flex;align-items:center;gap:8px;background:var(--red-light);border-radius:var(--radius);padding:6px 8px">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:12px;font-weight:600;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + item.nome + '</div>' +
+        '<div style="font-size:11px;color:var(--text2)">' + fmtMoeda(item.preco) + ' × ' + item.qty + ' = ' + fmtMoeda(item.preco * item.qty) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:4px">' +
+        '<button onclick="alterarQtyTroca(' + i + ',-1)" style="width:22px;height:22px;border:1px solid var(--red);border-radius:4px;background:var(--bg);font-size:14px;cursor:pointer">−</button>' +
+        '<span style="min-width:20px;text-align:center;font-size:13px;font-weight:600">' + item.qty + '</span>' +
+        '<button onclick="alterarQtyTroca(' + i + ',1)" style="width:22px;height:22px;border:1px solid var(--red);border-radius:4px;background:var(--bg);font-size:14px;cursor:pointer">+</button>' +
+      '</div>' +
+    '</div>'
+  ).join('');
+
+  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  document.getElementById('troca-valor-dev').textContent = '-' + fmtMoeda(totalDev);
+  resumo.style.display = 'block';
+  atualizarSaldoTroca();
+}
+
+function alterarQtyTroca(idx, delta) {
+  carrinhoTroca[idx].qty += delta;
+  if (carrinhoTroca[idx].qty <= 0) carrinhoTroca.splice(idx, 1);
+  renderTroca();
+  renderCarrinho();
+}
+
+function atualizarSaldoTroca() {
+  const sub = carrinho.reduce((a,i) => a + i.preco * i.qty, 0);
+  const desc = Math.round(sub * (descPct/100) * 100) / 100;
+  const totalNovos = sub - desc;
+  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  const credUsado = usarCredito ? Math.min(creditoDisponivel, totalNovos) : 0;
+  const saldo = totalNovos - totalDev - credUsado;
+
+  const labelEl = document.getElementById('troca-saldo-label');
+  const valorEl = document.getElementById('troca-saldo-valor');
+
+  if (saldo > 0.01) {
+    labelEl.textContent = 'Diferença a pagar';
+    valorEl.style.color = 'var(--pink-dark)';
+    valorEl.textContent = fmtMoeda(saldo);
+  } else if (saldo < -0.01) {
+    labelEl.textContent = 'Crédito gerado';
+    valorEl.style.color = 'var(--green)';
+    valorEl.textContent = fmtMoeda(Math.abs(saldo));
+  } else {
+    labelEl.textContent = 'Troca exata';
+    valorEl.style.color = 'var(--text2)';
+    valorEl.textContent = 'R$ 0,00';
+  }
+}
+
+async function verificarCreditoCliente(cliId) {
+  creditoClienteId = null;
+  creditoDisponivel = 0;
+  creditosIds = [];
+  usarCredito = false;
+  const infoEl = document.getElementById('credito-cliente-info');
+  const checkEl = document.getElementById('usar-credito');
+  if (!cliId) { infoEl.style.display = 'none'; return; }
+  try {
+    const r = await api('GET', '/api/creditos/' + cliId);
+    if (r.total > 0) {
+      creditoClienteId = cliId;
+      creditoDisponivel = r.total;
+      creditosIds = r.creditos.map(c => c.id);
+      document.getElementById('credito-valor-disp').textContent = fmtMoeda(r.total);
+      infoEl.style.display = 'block';
+      if (checkEl) checkEl.checked = false;
+    } else {
+      infoEl.style.display = 'none';
+    }
+  } catch(e) { infoEl.style.display = 'none'; }
+}
+
+function toggleUsarCredito() {
+  usarCredito = document.getElementById('usar-credito').checked;
+  atualizarSaldoTroca();
+  renderCarrinho();
+}
+
+const _limparCarrinhoOriginal = limparCarrinho;
+limparCarrinho = function() {
+  carrinhoTroca = [];
+  creditoClienteId = null;
+  creditoDisponivel = 0;
+  creditosIds = [];
+  usarCredito = false;
+  const sec = document.getElementById('troca-section');
+  if (sec) sec.style.display = 'none';
+  const btn = document.getElementById('btn-modo-troca');
+  if (btn) btn.textContent = '🔄 Adicionar devolução';
+  const infoEl = document.getElementById('credito-cliente-info');
+  if (infoEl) infoEl.style.display = 'none';
+  const resumo = document.getElementById('troca-resumo');
+  if (resumo) resumo.style.display = 'none';
+  _limparCarrinhoOriginal();
+};
 
 // ===== INIT =====
 ajustarMobile();
