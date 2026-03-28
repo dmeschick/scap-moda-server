@@ -2993,25 +2993,31 @@ function renderCarrinho() {
   const tot = sub - desc;
   const items = document.getElementById('cart-items');
   const totais = document.getElementById('cart-totais');
-  if (!carrinho.length) {
+  if (!carrinho.length && !carrinhoTroca.length) {
     items.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
     totais.style.display = 'none';
     return;
   }
-  items.innerHTML = carrinho.map((item,i) => {
-    const precoDesc = descPct > 0 ? Math.round(item.preco*(1-descPct/100)*100)/100 : item.preco;
-    return `<div class="cart-item">
-      <div class="info">
-        <div class="n">${item.nome}</div>
-        <div class="p">${descPct>0?`<span style="text-decoration:line-through;color:var(--text3)">${fmtMoeda(item.preco)}</span> `:''}${fmtMoeda(precoDesc)} × ${item.qty} = ${fmtMoeda(precoDesc*item.qty)}</div>
-      </div>
-      <div class="qty-ctrl">
-        <button onclick="alterarQty(${i},-1)">−</button>
-        <span>${item.qty}</span>
-        <button onclick="alterarQty(${i},1)">+</button>
-      </div>
-    </div>`;
-  }).join('');
+  if (!carrinho.length && carrinhoTroca.length) {
+    items.innerHTML = '<div class="empty-state" style="padding:12px"><p style="font-size:13px;color:var(--text2)">Somente devoluções</p></div>';
+    totais.style.display = 'block';
+  }
+  if (carrinho.length) {
+    items.innerHTML = carrinho.map((item,i) => {
+      const precoDesc = descPct > 0 ? Math.round(item.preco*(1-descPct/100)*100)/100 : item.preco;
+      return `<div class="cart-item">
+        <div class="info">
+          <div class="n">${item.nome}</div>
+          <div class="p">${descPct>0?`<span style="text-decoration:line-through;color:var(--text3)">${fmtMoeda(item.preco)}</span> `:''}${fmtMoeda(precoDesc)} × ${item.qty} = ${fmtMoeda(precoDesc*item.qty)}</div>
+        </div>
+        <div class="qty-ctrl">
+          <button onclick="alterarQty(${i},-1)">−</button>
+          <span>${item.qty}</span>
+          <button onclick="alterarQty(${i},1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
   totais.style.display = 'block';
   document.getElementById('cart-sub').textContent = fmtMoeda(sub);
   document.getElementById('cart-tot').textContent = fmtMoeda(tot);
