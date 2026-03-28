@@ -3003,7 +3003,10 @@ function renderCarrinho() {
     totais.style.display = 'block';
   }
   if (carrinho.length) {
-    items.innerHTML = carrinho.map((item,i) => {
+    const tituloCompras = carrinhoTroca.length > 0
+      ? '<div style="font-size:12px;font-weight:600;color:var(--pink-dark);margin-bottom:6px">COMPRAS</div>'
+      : '';
+    items.innerHTML = tituloCompras + carrinho.map((item,i) => {
       const precoDesc = descPct > 0 ? Math.round(item.preco*(1-descPct/100)*100)/100 : item.preco;
       return `<div class="cart-item">
         <div class="info">
