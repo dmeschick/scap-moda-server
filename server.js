@@ -248,6 +248,17 @@ async function initDB() {
       referencia_tipo TEXT,
       criado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS creditos_clientes (
+      id TEXT PRIMARY KEY,
+      cliente_id TEXT NOT NULL,
+      cliente_nome TEXT,
+      valor NUMERIC(10,2) NOT NULL,
+      valor_usado NUMERIC(10,2) DEFAULT 0,
+      motivo TEXT,
+      venda_id TEXT,
+      status TEXT DEFAULT 'ativo',
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
@@ -452,6 +463,43 @@ app.post('/api/clientes', auth, async (req, res) => {
 app.delete('/api/clientes/:id', auth, async (req, res) => {
   try {
     await pool.query("DELETE FROM clientes WHERE id=$1", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// CRÉDITOS DE CLIENTES
+app.get('/api/creditos/:clienteId', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT * FROM creditos_clientes WHERE cliente_id=$1 AND status='ativo' ORDER BY criado_em DESC`,
+      [req.params.clienteId]
+    );
+    const total = r.rows.reduce((a, c) => a + parseFloat(c.valor) - parseFloat(c.valor_usado), 0);
+    res.json({ creditos: r.rows, total: Math.round(total * 100) / 100 });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/creditos', auth, async (req, res) => {
+  try {
+    const { id, clienteId, clienteNome, valor, motivo, vendaId } = req.body;
+    await pool.query(
+      `INSERT INTO creditos_clientes (id, cliente_id, cliente_nome, valor, motivo, venda_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, clienteId, clienteNome, valor, motivo||'Troca', vendaId||null]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.patch('/api/creditos/:id/usar', auth, async (req, res) => {
+  try {
+    const { valorUsado } = req.body;
+    await pool.query(
+      `UPDATE creditos_clientes SET valor_usado=valor_usado+$1,
+       status=CASE WHEN valor_usado+$1 >= valor THEN 'usado' ELSE 'ativo' END
+       WHERE id=$2`,
+      [valorUsado, req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
