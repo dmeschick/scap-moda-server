@@ -3015,6 +3015,7 @@ function renderCarrinho() {
   totais.style.display = 'block';
   document.getElementById('cart-sub').textContent = fmtMoeda(sub);
   document.getElementById('cart-tot').textContent = fmtMoeda(tot);
+  atualizarSaldoTroca();
 }
 
 function alterarQty(idx, delta) {
@@ -4071,6 +4072,10 @@ function atualizarSaldoTroca() {
 
   const labelEl = document.getElementById('troca-saldo-label');
   const valorEl = document.getElementById('troca-saldo-valor');
+  const resumo = document.getElementById('troca-resumo');
+
+  if (!carrinhoTroca.length) { resumo.style.display = 'none'; return; }
+  resumo.style.display = 'block';
 
   if (saldo > 0.01) {
     labelEl.textContent = 'Diferença a pagar';
