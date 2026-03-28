@@ -788,6 +788,14 @@ tr:hover td{background:var(--bg)}
           <button class="btn btn-primary" onclick="salvarTextoRomaneio()">Salvar</button>
         </div>
         <div class="card" style="margin-top:16px;max-width:800px">
+          <div class="card-title">Texto para notinha de crédito</div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Mensagem na notinha de crédito</label>
+            <textarea id="config-credito-texto" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);resize:vertical;min-height:60px"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="salvarTextoCredito()">Salvar</button>
+        </div>
+        <div class="card" style="margin-top:16px;max-width:800px">
           <div class="card-title">Backup de dados</div>
           <div style="margin-bottom:16px">
             <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
@@ -1011,7 +1019,40 @@ tr:hover td{background:var(--bg)}
     <div class="modal-body" id="modal-cli-resumo-body"></div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-cli-resumo')">Fechar</button>
+      <button class="btn btn-sm" id="btn-cli-dev-correio">📦 Devolução por correio</button>
       <button class="btn btn-primary" id="btn-cli-resumo-editar">Editar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Devolução Correio -->
+<div class="modal-backdrop" id="modal-dev-correio">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><h3>Registrar Devolução por Correio</h3><button class="modal-close" onclick="fecharModal('modal-dev-correio')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="dev-cli-id">
+      <div id="dev-cli-nome" style="font-weight:700;margin-bottom:12px"></div>
+      <div id="dev-itens-lista" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <input type="text" id="dev-busca-prod" placeholder="Código do produto..."
+          style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+          onkeydown="devCorreioKeyDown(event)">
+        <button class="btn btn-sm" onclick="devCorreioKeyDown({key:'Enter',target:document.getElementById('dev-busca-prod')})">Adicionar</button>
+      </div>
+      <div class="form-group">
+        <label>Valor total do crédito (R$)</label>
+        <input type="number" id="dev-valor-credito" step="0.01" min="0"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label>Observação</label>
+        <input type="text" id="dev-obs" placeholder="Ex: Correios rastreio XYZ"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-dev-correio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarDevCorreio()">💳 Gerar crédito e imprimir</button>
     </div>
   </div>
 </div>
@@ -1866,6 +1907,7 @@ function verCliente(id) {
       </div>`).join('');
   }).catch(()=>{});
   document.getElementById('btn-cli-resumo-editar').onclick = () => { fecharModal('modal-cli-resumo'); abrirModalCliente(id); };
+  document.getElementById('btn-cli-dev-correio').onclick = () => { fecharModal('modal-cli-resumo'); abrirDevCorreio(c.id, c.nome); };
   abrirModal('modal-cli-resumo');
 }
 
@@ -2671,6 +2713,7 @@ async function carregarConfiguracoes() {
   renderListaCats();
   renderListaDescontos();
   carregarTextoRomaneio();
+  carregarTextoCredito();
   carregarEmailBackup();
 }
 
@@ -2706,6 +2749,21 @@ async function enviarBackupAgora() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
   btn.disabled = false;
   btn.textContent = '📧 Enviar agora';
+}
+
+async function carregarTextoCredito() {
+  try {
+    const r = await api('GET', '/api/config/texto_credito');
+    document.getElementById('config-credito-texto').value = r.valor || 'Você pode usar esse crédito até o final dessa coleção!';
+  } catch(e) {}
+}
+
+async function salvarTextoCredito() {
+  const valor = document.getElementById('config-credito-texto').value.trim();
+  try {
+    await api('POST', '/api/config/texto_credito', { valor });
+    toast('Texto salvo!');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 async function carregarTextoRomaneio() {
@@ -3818,6 +3876,103 @@ function gerarImpressaoEtiquetas(itens) {
         setTimeout(function() { window.print(); window.close(); }, 800);
       };
     <\/script>
+  </body></html>`);
+  j.document.close();
+}
+
+// ===== DEVOLUÇÃO POR CORREIO =====
+let devCorreioItens = [];
+
+function abrirDevCorreio(cliId, cliNome) {
+  devCorreioItens = [];
+  document.getElementById('dev-cli-id').value = cliId;
+  document.getElementById('dev-cli-nome').textContent = cliNome;
+  document.getElementById('dev-valor-credito').value = '';
+  document.getElementById('dev-obs').value = '';
+  document.getElementById('dev-itens-lista').innerHTML = '';
+  abrirModal('modal-dev-correio');
+}
+
+function devCorreioKeyDown(e) {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  const prod = todosProds.find(p => p.cod.toLowerCase() === q.toLowerCase());
+  if (!prod) { toast('Produto não encontrado', 'warn'); return; }
+  const idx = devCorreioItens.findIndex(x => x.id === prod.id);
+  if (idx > -1) { devCorreioItens[idx].qty++; }
+  else { devCorreioItens.push({ id: prod.id, nome: prod.nome, cod: prod.cod, preco: prod.venda, qty: 1 }); }
+  e.target.value = '';
+  renderDevCorreioItens();
+}
+
+function renderDevCorreioItens() {
+  const el = document.getElementById('dev-itens-lista');
+  if (!devCorreioItens.length) { el.innerHTML = ''; return; }
+  const total = devCorreioItens.reduce((a, i) => a + i.preco * i.qty, 0);
+  el.innerHTML = devCorreioItens.map(i =>
+    '<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">' +
+      '<span>' + i.nome + ' × ' + i.qty + '</span>' +
+      '<span>' + fmtMoeda(i.preco * i.qty) + '</span>' +
+    '</div>'
+  ).join('') +
+  '<div style="display:flex;justify-content:space-between;font-weight:700;padding:6px 0">' +
+    '<span>Total</span><span>' + fmtMoeda(total) + '</span>' +
+  '</div>';
+  document.getElementById('dev-valor-credito').value = total.toFixed(2);
+}
+
+async function salvarDevCorreio() {
+  const cliId = document.getElementById('dev-cli-id').value;
+  const cliNome = document.getElementById('dev-cli-nome').textContent;
+  const valor = parseFloat(document.getElementById('dev-valor-credito').value)||0;
+  const obs = document.getElementById('dev-obs').value;
+  if (!valor) { toast('Informe o valor do crédito', 'warn'); return; }
+  try {
+    for (const item of devCorreioItens) {
+      await api('PATCH', '/api/produtos/' + item.id + '/estoque', { delta: item.qty }).catch(() => {});
+    }
+    await api('POST', '/api/creditos', {
+      id: uid(), clienteId: cliId, clienteNome: cliNome,
+      valor, motivo: 'Devolução por correio' + (obs ? ' — ' + obs : '')
+    });
+    fecharModal('modal-dev-correio');
+    toast('Crédito registrado!');
+    imprimirNotinhaCredito(cliNome, valor);
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function imprimirNotinhaCredito(cliNome, valor) {
+  let textoCredito = 'Você pode usar esse crédito até o final dessa coleção!';
+  try {
+    const cfg = await api('GET', '/api/config/texto_credito');
+    if (cfg.valor) textoCredito = cfg.valor;
+  } catch(e) {}
+
+  const j = window.open('', '_blank', 'width=302,height=400');
+  if (!j) return;
+  j.document.write(`<!DOCTYPE html><html><head><title>Crédito</title><style>
+    @page { size: 80mm auto; margin: 3mm 4mm; }
+    body { margin:0;padding:0;width:72mm;font-family:'Courier New',monospace;font-size:10px;line-height:1.4; }
+    * { box-sizing:border-box;font-size:10px !important; }
+    @media print { body { margin:0;padding:0; } }
+  </style></head><body>
+    <div style="text-align:center;margin-bottom:6px">
+      <div style="font-weight:bold;font-size:12px !important">SCAP MODA FEMININA</div>
+      <div>Petrópolis - RJ</div>
+    </div>
+    <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:6px 0;text-align:center">
+      <div style="font-weight:bold">CRÉDITO DE TROCA</div>
+      <div>${new Date().toLocaleDateString('pt-BR')}</div>
+    </div>
+    <div style="margin-bottom:6px">
+      <div><b>Cliente:</b> ${cliNome}</div>
+      <div style="font-size:14px !important;font-weight:bold;margin-top:4px">Valor: ${fmtMoeda(valor)}</div>
+    </div>
+    <div style="border-top:1px dashed #000;padding-top:6px;text-align:center;font-style:italic">
+      ${textoCredito}
+    </div>
+    <script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script>
   </body></html>`);
   j.document.close();
 }
