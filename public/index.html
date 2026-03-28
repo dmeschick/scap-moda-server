@@ -4051,21 +4051,26 @@ function renderTroca() {
     resumo.style.display = 'none';
     return;
   }
-  el.innerHTML = carrinhoTroca.map((item, i) =>
-    '<div style="display:flex;align-items:center;gap:8px;background:var(--red-light);border-radius:var(--radius);padding:6px 8px">' +
+  el.innerHTML = carrinhoTroca.map((item, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(item.preco * (1 - descPct/100) * 100) / 100 : item.preco;
+    const totalItem = precoComDesc * item.qty;
+    return '<div style="display:flex;align-items:center;gap:8px;background:var(--red-light);border-radius:var(--radius);padding:6px 8px">' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:12px;font-weight:600;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + item.nome + '</div>' +
-        '<div style="font-size:11px;color:var(--text2)">' + fmtMoeda(item.preco) + ' × ' + item.qty + ' = ' + fmtMoeda(item.preco * item.qty) + '</div>' +
+        '<div style="font-size:11px;color:var(--text2)">' + (descPct > 0 ? '<span style="text-decoration:line-through;color:var(--text3)">' + fmtMoeda(item.preco) + '</span> ' : '') + fmtMoeda(precoComDesc) + ' × ' + item.qty + ' = ' + fmtMoeda(totalItem) + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:4px">' +
         '<button onclick="alterarQtyTroca(' + i + ',-1)" style="width:22px;height:22px;border:1px solid var(--red);border-radius:4px;background:var(--bg);font-size:14px;cursor:pointer">−</button>' +
         '<span style="min-width:20px;text-align:center;font-size:13px;font-weight:600">' + item.qty + '</span>' +
         '<button onclick="alterarQtyTroca(' + i + ',1)" style="width:22px;height:22px;border:1px solid var(--red);border-radius:4px;background:var(--bg);font-size:14px;cursor:pointer">+</button>' +
       '</div>' +
-    '</div>'
-  ).join('');
+    '</div>';
+  }).join('');
 
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  const totalDev = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
+    return a + precoComDesc * i.qty;
+  }, 0);
   document.getElementById('troca-valor-dev').textContent = '-' + fmtMoeda(totalDev);
   resumo.style.display = 'block';
   atualizarSaldoTroca();
