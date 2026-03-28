@@ -544,7 +544,9 @@ app.post('/api/vendas', auth, async (req, res) => {
     for (const item of (v.itens||[])) {
       await client.query('INSERT INTO venda_itens (venda_id,produto_id,nome,cod,preco,qty,tipo) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [v.id,item.id,item.nome,item.cod,item.preco,item.qty,item.tipo||'novo']);
-      if (item.tipo !== 'devolvido') {
+      if (item.tipo === 'devolvido') {
+        await client.query('UPDATE produtos SET est=est+$1,atualizado_em=NOW() WHERE id=$2', [item.qty, item.id]);
+      } else {
         await client.query('UPDATE produtos SET est=GREATEST(0,est-$1),atualizado_em=NOW() WHERE id=$2', [item.qty, item.id]);
       }
     }
