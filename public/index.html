@@ -361,10 +361,8 @@ tr:hover td{background:var(--bg)}
             <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             <!-- Totais -->
             <div id="cart-totais" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
-              <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Subtotal</span><span id="cart-sub">R$ 0,00</span></div>
-              <div style="display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap" id="desc-btns"></div>
-              <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span id="cart-tot" style="color:var(--pink-dark)">R$ 0,00</span></div>
-              <div id="credito-cliente-info" style="display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:8px 10px;margin:8px 0;font-size:12px">
+              <div style="display:flex;gap:6px;align-items:center;margin:0 0 8px;flex-wrap:wrap" id="desc-btns"></div>
+              <div id="credito-cliente-info" style="display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:8px 10px;margin:0 0 8px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                   <span style="color:var(--green);font-weight:600">💳 Crédito disponível</span>
                   <span id="credito-valor-disp" style="font-weight:700;color:var(--green)">R$ 0,00</span>
@@ -374,16 +372,7 @@ tr:hover td{background:var(--bg)}
                   <label for="usar-credito" style="font-size:12px">Usar crédito nesta compra</label>
                 </div>
               </div>
-              <div id="troca-resumo" style="display:none;padding:8px 0;border-top:1px solid var(--border);margin-top:8px">
-                <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red);margin-bottom:4px">
-                  <span>Devoluções</span>
-                  <span id="troca-valor-dev">-R$ 0,00</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--green)" id="troca-saldo-info">
-                  <span id="troca-saldo-label">Diferença a pagar</span>
-                  <span id="troca-saldo-valor">R$ 0,00</span>
-                </div>
-              </div>
+              <div id="cart-totais-valores"></div>
             </div>
           </div>
           <!-- Coluna 3 — Pagamento e finalização -->
@@ -3018,9 +3007,30 @@ function renderCarrinho() {
     }).join('');
   }
   totais.style.display = 'block';
-  document.getElementById('cart-sub').textContent = fmtMoeda(sub);
-  document.getElementById('cart-tot').textContent = fmtMoeda(tot);
-  atualizarSaldoTroca();
+
+  const totalDev = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
+    return a + precoComDesc * i.qty;
+  }, 0);
+  const aPagar = Math.max(0, tot - totalDev);
+  const creditoGerado = Math.max(0, totalDev - tot);
+
+  let totaisHTML = '';
+  if (carrinhoTroca.length) {
+    totaisHTML =
+      '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Compras</span><span>' + fmtMoeda(sub) + '</span></div>' +
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Desconto (' + descPct + '%)</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red);margin-bottom:8px"><span>Devoluções</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;border-top:2px solid var(--border);padding-top:8px">' +
+        '<span style="color:' + (creditoGerado > 0 ? 'var(--green)' : 'var(--text1)') + '">' + (creditoGerado > 0 ? 'CRÉDITO GERADO' : 'A PAGAR') + '</span>' +
+        '<span style="color:' + (creditoGerado > 0 ? 'var(--green)' : 'var(--pink-dark)') + '">' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
+      '</div>';
+  } else {
+    totaisHTML =
+      '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Subtotal</span><span>' + fmtMoeda(sub) + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--pink-dark)">' + fmtMoeda(tot) + '</span></div>';
+  }
+  document.getElementById('cart-totais-valores').innerHTML = totaisHTML;
 }
 
 function alterarQty(idx, delta) {
@@ -4053,12 +4063,7 @@ function adicionarItemTroca(prod) {
 
 function renderTroca() {
   const el = document.getElementById('troca-itens');
-  const resumo = document.getElementById('troca-resumo');
-  if (!carrinhoTroca.length) {
-    el.innerHTML = '';
-    resumo.style.display = 'none';
-    return;
-  }
+  if (!carrinhoTroca.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">ITENS DEVOLVIDOS</div>' +
     carrinhoTroca.map((item, i) => {
     const precoComDesc = descPct > 0 ? Math.round(item.preco * (1 - descPct/100) * 100) / 100 : item.preco;
@@ -4075,14 +4080,6 @@ function renderTroca() {
       '</div>' +
     '</div>';
   }).join('');
-
-  const totalDev = carrinhoTroca.reduce((a, i) => {
-    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
-    return a + precoComDesc * i.qty;
-  }, 0);
-  document.getElementById('troca-valor-dev').textContent = '-' + fmtMoeda(totalDev);
-  resumo.style.display = 'block';
-  atualizarSaldoTroca();
 }
 
 function alterarQtyTroca(idx, delta) {
@@ -4093,35 +4090,7 @@ function alterarQtyTroca(idx, delta) {
 }
 
 function atualizarSaldoTroca() {
-  const sub = carrinho.reduce((a,i) => a + i.preco * i.qty, 0);
-  const desc = Math.round(sub * (descPct/100) * 100) / 100;
-  const totalNovos = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => {
-    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
-    return a + precoComDesc * i.qty;
-  }, 0);
-  const saldo = totalNovos - totalDev;
-
-  const labelEl = document.getElementById('troca-saldo-label');
-  const valorEl = document.getElementById('troca-saldo-valor');
-  const resumo = document.getElementById('troca-resumo');
-
-  if (!carrinhoTroca.length) { resumo.style.display = 'none'; return; }
-  resumo.style.display = 'block';
-
-  if (saldo > 0.01) {
-    labelEl.textContent = 'Diferença a pagar';
-    valorEl.style.color = 'var(--pink-dark)';
-    valorEl.textContent = fmtMoeda(saldo);
-  } else if (saldo < -0.01) {
-    labelEl.textContent = 'Crédito gerado';
-    valorEl.style.color = 'var(--green)';
-    valorEl.textContent = fmtMoeda(Math.abs(saldo));
-  } else {
-    labelEl.textContent = 'Troca exata';
-    valorEl.style.color = 'var(--text2)';
-    valorEl.textContent = 'R$ 0,00';
-  }
+  renderCarrinho();
 }
 
 async function verificarCreditoCliente(cliId) {
@@ -4169,8 +4138,6 @@ limparCarrinho = function() {
   }
   const infoEl = document.getElementById('credito-cliente-info');
   if (infoEl) infoEl.style.display = 'none';
-  const resumo = document.getElementById('troca-resumo');
-  if (resumo) resumo.style.display = 'none';
   _limparCarrinhoOriginal();
 };
 
