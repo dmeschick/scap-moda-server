@@ -3372,7 +3372,9 @@ async function finalizarVenda() {
     }
     // Recarrega produtos para atualizar estoque
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
-    abrirRomaneio(venda, cliNome);
+    if (carrinho.length > 0) {
+      abrirRomaneio(venda, cliNome);
+    }
     limparCarrinho();
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
     _finalizandoVenda = false;
