@@ -4150,21 +4150,24 @@ function toggleUsarCredito() {
 
 const _limparCarrinhoOriginal = limparCarrinho;
 limparCarrinho = function() {
+  // Limpar troca
   carrinhoTroca = [];
+  modoTroca = false;
+  const btnDev = document.getElementById('btn-modo-dev');
+  if (btnDev) { btnDev.style.background = ''; btnDev.style.color = 'var(--red)'; btnDev.textContent = '🔄 Devolução'; }
+  const trocaItensEl = document.getElementById('troca-itens');
+  if (trocaItensEl) trocaItensEl.innerHTML = '';
+  const pdvSearch = document.getElementById('pdv-search');
+  if (pdvSearch) { pdvSearch.style.borderColor = ''; pdvSearch.placeholder = '🔍 Código ou nome do produto...'; }
+  // Limpar crédito
   creditoClienteId = null;
   creditoDisponivel = 0;
   creditosIds = [];
   usarCredito = false;
-  if (modoTroca) {
-    modoTroca = false;
-    const btn = document.getElementById('btn-modo-dev');
-    if (btn) { btn.style.background = ''; btn.style.color = 'var(--red)'; }
-    const search = document.getElementById('pdv-search');
-    if (search) { search.style.borderColor = ''; search.placeholder = '🔍 Código ou nome do produto...'; }
-  }
   const infoEl = document.getElementById('credito-cliente-info');
   if (infoEl) infoEl.style.display = 'none';
   _limparCarrinhoOriginal();
+  renderTroca();
 };
 
 // ===== INIT =====
