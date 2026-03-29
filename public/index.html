@@ -143,7 +143,7 @@ tr:hover td{background:var(--bg)}
 .tab:hover{color:var(--pink)}
 
 /* ===== PDV ===== */
-.pdv-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.pdv-grid{display:grid;grid-template-columns:1fr 300px 300px;gap:16px;align-items:start}
 .pdv-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
 .cart-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .cart-item:last-child{border-bottom:none}
@@ -201,9 +201,8 @@ tr:hover td{background:var(--bg)}
   /* ---- PDV ---- */
   .pdv-grid{grid-template-columns:1fr;gap:10px}
   .pdv-panel{padding:10px}
-  /* Carrinho vira modal-like na parte inferior */
-  .pdv-cart-panel{position:fixed;bottom:0;left:0;right:0;z-index:50;max-height:55vh;overflow-y:auto;border-radius:16px 16px 0 0;border:1px solid var(--border);box-shadow:0 -4px 20px rgba(0,0,0,.12)}
-  .pdv-search-panel{padding-bottom:calc(55vh + 8px)}
+  .pdv-cart-panel,.pdv-pgto-panel{position:static}
+  .pdv-search-panel{padding-bottom:0}
 
   /* ---- BOTÕES ---- */
   .btn{font-size:12px;padding:7px 10px}
@@ -340,7 +339,7 @@ tr:hover td{background:var(--bg)}
       <div class="page" id="page-pdv">
         <div id="pdv-abas" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
         <div class="pdv-grid">
-          <!-- Coluna de produtos -->
+          <!-- Coluna 1 — Pesquisa de produtos -->
           <div class="pdv-panel pdv-search-panel">
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
               <input type="text" id="pdv-search" placeholder="🔍 Código ou nome do produto..." style="flex:1;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font)" oninput="filtrarPDV()" onkeydown="pdvKeyDown(event)">
@@ -351,19 +350,18 @@ tr:hover td{background:var(--bg)}
             <div id="pdv-prod-grid" class="prod-grid"></div>
             <div id="pdv-empty" class="empty-state" style="display:none"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>
           </div>
-          <!-- Carrinho -->
+          <!-- Coluna 2 — Carrinho -->
           <div class="pdv-panel pdv-cart-panel" style="position:sticky;top:0">
             <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
-              🛍 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
+              🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
             </div>
             <select id="pdv-cliente" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:6px"><option value="">— Cliente (opcional) —</option></select>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
-            <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
+            <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             <!-- Totais -->
             <div id="cart-totais" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
               <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Subtotal</span><span id="cart-sub">R$ 0,00</span></div>
-              <!-- Desconto -->
               <div style="display:flex;gap:6px;align-items:center;margin:8px 0;flex-wrap:wrap" id="desc-btns"></div>
               <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span id="cart-tot" style="color:var(--pink-dark)">R$ 0,00</span></div>
               <div id="credito-cliente-info" style="display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:8px 10px;margin:8px 0;font-size:12px">
@@ -386,30 +384,34 @@ tr:hover td{background:var(--bg)}
                   <span id="troca-saldo-valor">R$ 0,00</span>
                 </div>
               </div>
-              <!-- Canal -->
-              <div style="display:flex;gap:6px;margin:10px 0">
-                <button id="btn-presencial" class="btn btn-primary" style="flex:1;justify-content:center" onclick="setCanal('presencial')">🏪 Presencial</button>
-                <button id="btn-online" class="btn" style="flex:1;justify-content:center" onclick="setCanal('online')">🌐 Online</button>
-              </div>
-              <!-- Pagamento -->
-              <div id="pgto-section">
-                <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">PAGAMENTO</div>
-                <select id="pgto-tipo" onchange="mostrarCampoPgto()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-                  <option value="">Selecionar forma...</option>
-                  <option value="dinheiro">💵 Dinheiro</option>
-                  <option value="pix">📱 PIX</option>
-                  <option value="debito">💳 Débito</option>
-                  <option value="credito">💳 Crédito</option>
-                  <option value="cheque">📝 Cheque à vista</option>
-                  <option value="cheque_pre">📅 Cheque pré-datado</option>
-                </select>
-                <div id="pgto-campo" style="margin-top:6px"></div>
-                <div id="pgto-lista" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
-              </div>
-              <input type="text" id="pdv-obs" placeholder="Observação (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:8px">
-              <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:14px;font-weight:700;justify-content:center" onclick="finalizarVenda()">✓ Finalizar Venda</button>
-              <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center" onclick="limparCarrinho()">Limpar carrinho</button>
             </div>
+          </div>
+          <!-- Coluna 3 — Pagamento e finalização -->
+          <div class="pdv-panel pdv-pgto-panel" style="position:sticky;top:0">
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px">💳 Pagamento</div>
+            <!-- Canal -->
+            <div style="display:flex;gap:6px;margin-bottom:12px">
+              <button id="btn-presencial" class="btn btn-primary" style="flex:1;justify-content:center" onclick="setCanal('presencial')">🏪 Presencial</button>
+              <button id="btn-online" class="btn" style="flex:1;justify-content:center" onclick="setCanal('online')">🌐 Online</button>
+            </div>
+            <!-- Pagamento -->
+            <div id="pgto-section">
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">FORMA DE PAGAMENTO</div>
+              <select id="pgto-tipo" onchange="mostrarCampoPgto()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+                <option value="">Selecionar forma...</option>
+                <option value="dinheiro">💵 Dinheiro</option>
+                <option value="pix">📱 PIX</option>
+                <option value="debito">💳 Débito</option>
+                <option value="credito">💳 Crédito</option>
+                <option value="cheque">📝 Cheque à vista</option>
+                <option value="cheque_pre">📅 Cheque pré-datado</option>
+              </select>
+              <div id="pgto-campo" style="margin-top:6px"></div>
+              <div id="pgto-lista" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
+            </div>
+            <input type="text" id="pdv-obs" placeholder="Observação (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:12px">
+            <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:12px;font-size:14px;font-weight:700;justify-content:center" onclick="finalizarVenda()">✓ Finalizar Venda</button>
+            <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center" onclick="limparCarrinho()">Limpar carrinho</button>
           </div>
         </div>
       </div>
