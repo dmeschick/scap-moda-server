@@ -3437,8 +3437,9 @@ async function abrirRomaneio(v, cliNome) {
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
     return a + precoDesc * i.qty;
   }, 0);
-  const aPagar = Math.max(0, tot - totalDev);
-  const creditoGerado = Math.max(0, totalDev - tot);
+  const totBase = sub - desc; // total após desconto, antes das devoluções
+  const aPagar = Math.max(0, totBase - totalDev);
+  const creditoGerado = Math.max(0, totalDev - totBase);
 
   // Monta seção de cheques — um por linha com número e data de compensação
   let secaoCheques = '';
