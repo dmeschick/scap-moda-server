@@ -613,10 +613,12 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
   try {
     const { mes } = req.query;
     const [resumo, porDia, porVendedor, topProdutos] = await Promise.all([
-      pool.query(`SELECT COUNT(*) as total_vendas,SUM(tot) as faturamento,AVG(tot) as ticket_medio,
+      pool.query(`SELECT COUNT(*) as total_vendas,
+        COALESCE(SUM(tot + COALESCE(credito_gerado,0)),0) as faturamento,
+        AVG(tot + COALESCE(credito_gerado,0)) as ticket_medio,
         COUNT(*) FILTER (WHERE canal='presencial') as presencial,COUNT(*) FILTER (WHERE canal='online') as online,
-        COALESCE(SUM(CASE WHEN canal='presencial' AND status='pago' THEN tot END),0) as valor_presencial,
-        COALESCE(SUM(CASE WHEN canal='online' AND status='pago' THEN tot END),0) as valor_online
+        COALESCE(SUM(CASE WHEN canal='presencial' AND status='pago' THEN tot + COALESCE(credito_gerado,0) END),0) as valor_presencial,
+        COALESCE(SUM(CASE WHEN canal='online' AND status='pago' THEN tot + COALESCE(credito_gerado,0) END),0) as valor_online
         FROM vendas WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada'`, [mes]),
       pool.query(`SELECT DATE(data) as dia,SUM(tot) as total,COUNT(*) as qtd FROM vendas
         WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' GROUP BY DATE(data) ORDER BY dia`, [mes]),
