@@ -4015,14 +4015,10 @@ function toggleModoTroca() {
     search.placeholder = '🔄 Código ou nome — modo DEVOLUÇÃO';
     search.focus();
   } else {
-    carrinhoTroca = [];
-    document.getElementById('troca-itens').innerHTML = '';
-    document.getElementById('troca-resumo').style.display = 'none';
     btn.style.background = '';
     btn.style.color = 'var(--red)';
     search.style.borderColor = '';
     search.placeholder = '🔍 Código ou nome do produto...';
-    renderCarrinho();
   }
 }
 
@@ -4061,7 +4057,8 @@ function renderTroca() {
     resumo.style.display = 'none';
     return;
   }
-  el.innerHTML = carrinhoTroca.map((item, i) => {
+  el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">ITENS DEVOLVIDOS</div>' +
+    carrinhoTroca.map((item, i) => {
     const precoComDesc = descPct > 0 ? Math.round(item.preco * (1 - descPct/100) * 100) / 100 : item.preco;
     const totalItem = precoComDesc * item.qty;
     return '<div style="display:flex;align-items:center;gap:8px;background:var(--red-light);border-radius:var(--radius);padding:6px 8px">' +
