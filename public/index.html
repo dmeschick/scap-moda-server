@@ -2521,60 +2521,8 @@ async function verVenda(id) {
     const v = vendas.find(x => x.id === id);
     if (!v) return;
     _vendaAtual = v;
-    const itens = v.itens || [];
-    const pgtos = v.pgto_itens || [];
-    const itensComprados = itens.filter(i => i.tipo !== 'devolvido');
-    const itensDevolvidos = itens.filter(i => i.tipo === 'devolvido');
-    const sub = Number(v.sub || v.subtotal) || 0;
-    const desc = Number(v.desc || v.desconto) || 0;
-    const pct = sub > 0 ? Math.round(desc/sub*100) : Number(v.descPct || v.desc_pct) || 0;
-    const totalDev = itensDevolvidos.reduce((a, i) => {
-      const precoDesc = pct > 0 ? Math.round((Number(i.preco)||0) * (1 - pct/100) * 100) / 100 : (Number(i.preco)||0);
-      return a + precoDesc * i.qty;
-    }, 0);
-    const totBase = sub - desc;
-    const aPagar = Math.max(0, totBase - totalDev);
-    const creditoGerado = Math.max(0, totalDev - totBase);
-    const mostrarPagamento = creditoGerado === 0;
-    const secaoDevolvidos = itensDevolvidos.length
-      ? `<table style="margin-bottom:14px"><thead><tr><th colspan="4" style="text-align:left;color:var(--text2)">ITENS DEVOLVIDOS</th></tr><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead><tbody>${itensDevolvidos.map(i=>`<tr style="color:var(--red)"><td>${i.nome}</td><td>${i.qty}</td><td>${fmtMoeda(i.preco)}</td><td>-${fmtMoeda(i.preco*i.qty)}</td></tr>`).join('')}</tbody></table>`
-      : '';
-    const blocoTotais = itensDevolvidos.length
-      ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)"><span>Compras:</span><span>${fmtMoeda(sub)}</span></div>
-         ${desc > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)"><span>Desconto (${pct}%):</span><span>-${fmtMoeda(desc)}</span></div>` : ''}
-         <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red)"><span>Devoluções:</span><span>-${fmtMoeda(totalDev)}</span></div>
-         <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;border-top:2px solid var(--border);padding-top:8px;margin-top:6px">
-           <span style="color:${creditoGerado > 0 ? 'var(--green)' : 'var(--text1)'}">${creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:'}</span>
-           <span style="color:${creditoGerado > 0 ? 'var(--green)' : 'var(--pink-dark)'}">${fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar)}</span>
-         </div>`
-      : `<div style="color:var(--text2);font-size:13px">Subtotal: ${fmtMoeda(sub)}</div>
-         ${desc > 0 ? `<div style="color:var(--text2);font-size:13px">Desconto: -${fmtMoeda(desc)}</div>` : ''}
-         <div style="font-size:18px;font-weight:700;color:var(--pink-dark);margin-top:6px">Total: ${fmtMoeda(v.tot)}</div>`;
-    document.getElementById('modal-venda-det-body').innerHTML = `
-      <div style="display:flex;justify-content:space-between;margin-bottom:14px">
-        <div><div style="font-size:18px;font-weight:700">${v.num}</div>
-        <div style="font-size:12px;color:var(--text2)">${new Date(v.data).toLocaleString('pt-BR')}</div></div>
-        <span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:13px">
-        <div><div style="font-size:11px;font-weight:700;color:var(--text2)">CLIENTE</div>${v.cliente_nome||'Consumidor final'}</div>
-        <div><div style="font-size:11px;font-weight:700;color:var(--text2)">VENDEDOR</div>${v.vendedor_nome||'—'}</div>
-        <div><div style="font-size:11px;font-weight:700;color:var(--text2)">CANAL</div>${v.canal==='online'?'🌐 Online':'🏪 Presencial'}</div>
-        ${mostrarPagamento ? `<div><div style="font-size:11px;font-weight:700;color:var(--text2)">PAGAMENTO</div>${v.pag}</div>` : ''}
-      </div>
-      <table style="margin-bottom:14px"><thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-      <tbody>${itensComprados.map(i=>`<tr><td>${i.nome}</td><td>${i.qty}</td><td>${fmtMoeda(i.preco)}</td><td>${fmtMoeda(i.preco*i.qty)}</td></tr>`).join('')}</tbody></table>
-      ${secaoDevolvidos}
-      <div style="text-align:right;font-size:13px">${blocoTotais}</div>
-    `;
-    const btnCancelar = document.getElementById('btn-cancelar-venda');
-    if (v.status === 'cancelada') {
-      btnCancelar.style.display = 'none';
-    } else {
-      btnCancelar.style.display = '';
-      btnCancelar.onclick = () => cancelarVenda(id);
-    }
-    abrirModal('modal-venda-det');
+    _creditoGeradoAtual = Number(v.credito_gerado) || 0;
+    abrirRomaneio(v, v.cliente_nome || '');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
