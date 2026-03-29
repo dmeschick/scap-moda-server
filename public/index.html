@@ -3492,7 +3492,7 @@ async function abrirRomaneio(v, cliNome) {
           (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
-      '<div style="margin-top:4px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
+      (creditoGerado > 0 ? '' : '<div style="margin-top:4px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>') +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
     secaoCheques +
