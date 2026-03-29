@@ -3362,7 +3362,6 @@ async function finalizarVenda() {
         motivo: 'Troca — saldo a favor',
         vendaId: venda.id
       }).catch(() => {});
-      imprimirNotinhaCredito(cliNome, creditoGerado);
     }
     if (usarCredito && credUsado > 0.01) {
       for (const cid of creditosIds) {
@@ -3374,6 +3373,9 @@ async function finalizarVenda() {
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
     if (carrinho.length > 0) {
       abrirRomaneio(venda, cliNome);
+    }
+    if (creditoGerado > 0.01) {
+      imprimirNotinhaCredito(cliNome, creditoGerado);
     }
     limparCarrinho();
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
