@@ -3403,23 +3403,25 @@ async function abrirRomaneio(v, cliNome) {
 
   // Monta seção de itens devolvidos
   const itensDevolvidos = (v.itens || []).filter(i => i.tipo === 'devolvido');
+  const linhasDevolvidos = itensDevolvidos.map(i => {
+    const precoUnit = Number(i.preco) || 0;
+    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
+    const totalItem = precoDesc * i.qty;
+    return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
+      '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
+      '<div style="display:flex;margin-top:2px">' +
+        '<span style="width:30px">' + i.qty + '</span>' +
+        '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
+        (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
+        '<span style="flex:1;text-align:right">-' + fmtMoeda(totalItem) + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
   const secaoDevolvidos = itensDevolvidos.length
     ? '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;padding-top:6px;margin-top:6px">' +
       '<div style="font-weight:bold;margin-bottom:4px">ITENS DEVOLVIDOS:</div>' +
-      itensDevolvidos.map(i => {
-        const precoDesc = pct > 0 ? Math.round(i.preco * (1 - pct/100) * 100) / 100 : i.preco;
-        return '<div style="display:flex;justify-content:space-between">' +
-          '<span>' + (i.cod||'') + ' ' + (i.nome||'') + ' x' + i.qty + '</span>' +
-          '<span>-' + fmtMoeda(precoDesc * i.qty) + '</span>' +
-        '</div>';
-      }).join('') +
-      '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:4px;padding-top:4px">' +
-        '<span>Total devoluções:</span>' +
-        '<span>-' + fmtMoeda(itensDevolvidos.reduce((a,i) => {
-          const precoDesc = pct > 0 ? Math.round(i.preco * (1 - pct/100) * 100) / 100 : i.preco;
-          return a + precoDesc * i.qty;
-        }, 0)) + '</span>' +
-      '</div>' +
+      cabecalhoItens +
+      linhasDevolvidos +
     '</div>'
     : '';
 
