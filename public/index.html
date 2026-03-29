@@ -3425,6 +3425,14 @@ async function abrirRomaneio(v, cliNome) {
     '</div>'
     : '';
 
+  const totalDev = itensDevolvidos.reduce((a, i) => {
+    const precoUnit = Number(i.preco) || 0;
+    const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
+    return a + precoDesc * i.qty;
+  }, 0);
+  const aPagar = Math.max(0, tot - totalDev);
+  const creditoGerado = Math.max(0, totalDev - tot);
+
   // Monta seção de cheques — um por linha com número e data de compensação
   let secaoCheques = '';
   if (chequesPgto.length) {
@@ -3465,9 +3473,18 @@ async function abrirRomaneio(v, cliNome) {
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
-      '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-      (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
-      '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>' +
+      (itensDevolvidos.length
+        ? '<div style="display:flex;justify-content:space-between"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          '<div style="display:flex;justify-content:space-between"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
+            '<span>' + (creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:') + '</span>' +
+            '<span>' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
+          '</div>'
+        : '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
+      ) +
       '<div style="margin-top:4px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>' +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
