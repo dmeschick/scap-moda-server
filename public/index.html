@@ -3275,7 +3275,10 @@ async function finalizarVenda() {
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
   const desc = Math.round(sub*(descPct/100)*100)/100;
   const tot = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
+  const totalDev = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
+    return a + precoComDesc * i.qty;
+  }, 0);
   const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
   const totFinal = Math.max(0, tot - totalDev - credUsado);
   if (totFinal > 0.01 && !pgtoItens.length) {
@@ -3307,14 +3310,14 @@ async function finalizarVenda() {
     const funcs = await api('GET', '/api/funcionarios');
     vendNome = funcs.find(f => f.id === vendId)?.nome || '';
   } catch(e) {}
-  const creditoGerado = Math.max(0, totalDev - tot);
+  const creditoGerado = Math.max(0, totalDev + credUsado - tot);
   const pagLabel = carrinhoTroca.length
     ? (creditoGerado > 0.01
         ? 'Troca — Crédito gerado'
         : Math.abs(totalDev - tot) < 0.01
           ? 'Troca exata'
           : 'Troca — ' + (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto'))
-    : (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
+    : (tot <= 0 ? 'Gratuito' : pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
   // Número da venda
   let num = '#0001';
   try {
@@ -3328,8 +3331,6 @@ async function finalizarVenda() {
     ...carrinhoTroca.map(i => ({...i, tipo:'devolvido'}))
   ];
 
-  // Se gerou crédito (devoluções > novos), registrar crédito
-  const creditoGeradoFinal = Math.max(0, totalDev + credUsado - tot);
 
   const venda = {
     id: vendaId, num,
@@ -3362,16 +3363,16 @@ async function finalizarVenda() {
       }
     }
     toast('Venda finalizada! ✅');
-    if (creditoGeradoFinal > 0.01 && cliId) {
+    if (creditoGerado > 0.01 && cliId) {
       await api('POST', '/api/creditos', {
         id: uid(),
         clienteId: cliId,
         clienteNome: cliNome,
-        valor: creditoGeradoFinal,
+        valor: creditoGerado,
         motivo: 'Troca — saldo a favor',
         vendaId: venda.id
       }).catch(() => {});
-      imprimirNotinhaCredito(cliNome, creditoGeradoFinal);
+      imprimirNotinhaCredito(cliNome, creditoGerado);
     }
     if (usarCredito && credUsado > 0.01) {
       for (const cid of creditosIds) {
