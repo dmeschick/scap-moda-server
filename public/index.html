@@ -2493,10 +2493,12 @@ async function carregarVendas() {
         const p = _pct > 0 ? Math.round((Number(i.preco)||0)*(1-_pct/100)*100)/100 : (Number(i.preco)||0);
         return a + p * i.qty;
       }, 0);
-      const _credGerado = Math.max(0, _totalDev - (_sub - _desc));
+      const _totBase = _sub - _desc;
+      const _aPagar = _devs.length ? Math.max(0, _totBase - _totalDev) : Number(v.tot) || 0;
+      const _credGerado = _devs.length ? Math.max(0, _totalDev - _totBase) : 0;
       const totalCell = _credGerado > 0
         ? `<span style="color:var(--green);font-weight:700">Crédito ${fmtMoeda(_credGerado)}</span>`
-        : `<strong>${fmtMoeda(v.tot)}</strong>`;
+        : `<strong>${fmtMoeda(_aPagar)}</strong>`;
       return `<tr>
       <td><strong>${v.num}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
@@ -3706,10 +3708,12 @@ function renderMobileCardsVendas(vendas) {
       const p = _pct > 0 ? Math.round((Number(i.preco)||0)*(1-_pct/100)*100)/100 : (Number(i.preco)||0);
       return a + p * i.qty;
     }, 0);
-    const _credGerado = Math.max(0, _totalDev - (_sub - _desc));
+    const _totBase = _sub - _desc;
+    const _aPagar = _devs.length ? Math.max(0, _totBase - _totalDev) : Number(v.tot) || 0;
+    const _credGerado = _devs.length ? Math.max(0, _totalDev - _totBase) : 0;
     const totalStr = _credGerado > 0
       ? '<span style="color:var(--green)">Crédito ' + fmtMoeda(_credGerado) + '</span>'
-      : fmtMoeda(v.tot);
+      : fmtMoeda(_aPagar);
     return '<div class="m-card">' +
       '<div class="m-card-header"><div>' +
         '<div class="m-card-title">' + (v.num||'') + ' · ' + (v.cliente_nome||'Consumidor final') + '</div>' +
