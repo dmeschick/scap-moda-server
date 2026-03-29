@@ -3058,6 +3058,8 @@ function setDesconto(pct, btn) {
   document.querySelectorAll('#desc-btns .btn').forEach(b => b.classList.remove('btn-primary'));
   btn.classList.add('btn-primary');
   renderCarrinho();
+  renderTroca();
+  atualizarSaldoTroca();
 }
 
 function setCanal(c) {
