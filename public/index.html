@@ -2515,6 +2515,12 @@ async function verVenda(id) {
     _vendaAtual = v;
     const itens = v.itens || [];
     const pgtos = v.pgto_itens || [];
+    const itensComprados = itens.filter(i => i.tipo !== 'devolvido');
+    const itensDevolvidos = itens.filter(i => i.tipo === 'devolvido');
+    const mostrarPagamento = !(v.pag === 'Crédito' || (v.tot === 0 && itensDevolvidos.length > 0));
+    const secaoDevolvidos = itensDevolvidos.length
+      ? `<table style="margin-bottom:14px"><thead><tr><th colspan="4" style="text-align:left;color:var(--text2)">ITENS DEVOLVIDOS</th></tr><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead><tbody>${itensDevolvidos.map(i=>`<tr style="color:var(--red)"><td>${i.nome}</td><td>${i.qty}</td><td>${fmtMoeda(i.preco)}</td><td>-${fmtMoeda(i.preco*i.qty)}</td></tr>`).join('')}</tbody></table>`
+      : '';
     document.getElementById('modal-venda-det-body').innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:14px">
         <div><div style="font-size:18px;font-weight:700">${v.num}</div>
@@ -2525,10 +2531,11 @@ async function verVenda(id) {
         <div><div style="font-size:11px;font-weight:700;color:var(--text2)">CLIENTE</div>${v.cliente_nome||'Consumidor final'}</div>
         <div><div style="font-size:11px;font-weight:700;color:var(--text2)">VENDEDOR</div>${v.vendedor_nome||'—'}</div>
         <div><div style="font-size:11px;font-weight:700;color:var(--text2)">CANAL</div>${v.canal==='online'?'🌐 Online':'🏪 Presencial'}</div>
-        <div><div style="font-size:11px;font-weight:700;color:var(--text2)">PAGAMENTO</div>${v.pag}</div>
+        ${mostrarPagamento ? `<div><div style="font-size:11px;font-weight:700;color:var(--text2)">PAGAMENTO</div>${v.pag}</div>` : ''}
       </div>
       <table style="margin-bottom:14px"><thead><tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr></thead>
-      <tbody>${itens.filter(i=>i.tipo!=='devolvido').map(i=>`<tr><td>${i.nome}</td><td>${i.qty}</td><td>${fmtMoeda(i.preco)}</td><td>${fmtMoeda(i.preco*i.qty)}</td></tr>`).join('')}</tbody></table>
+      <tbody>${itensComprados.map(i=>`<tr><td>${i.nome}</td><td>${i.qty}</td><td>${fmtMoeda(i.preco)}</td><td>${fmtMoeda(i.preco*i.qty)}</td></tr>`).join('')}</tbody></table>
+      ${secaoDevolvidos}
       <div style="text-align:right;font-size:13px">
         <div style="color:var(--text2)">Subtotal: ${fmtMoeda(v.sub)}</div>
         ${v.desc>0?`<div style="color:var(--text2)">Desconto: -${fmtMoeda(v.desc)}</div>`:''}
