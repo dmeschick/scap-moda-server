@@ -1055,6 +1055,7 @@ tr:hover td{background:var(--bg)}
     <div class="modal-body" id="romaneio-body"></div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-romaneio')">Fechar</button>
+      <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Notinha de crédito</button>
       <button class="btn btn-primary" onclick="imprimirRomaneio()">🖨 Imprimir</button>
     </div>
   </div>
@@ -1628,6 +1629,7 @@ function mascaraCEST(el) {
 let enderecosTemp = [];
 let _clientesCache = [];
 let _vendaAtual = null;
+let _creditoGeradoAtual = 0;
 
 function verCliente(id) {
   const c = _clientesCache.find(x => x.id === id);
@@ -2525,7 +2527,7 @@ async function verVenda(id) {
     const itensDevolvidos = itens.filter(i => i.tipo === 'devolvido');
     const sub = Number(v.sub || v.subtotal) || 0;
     const desc = Number(v.desc || v.desconto) || 0;
-    const pct = sub > 0 ? Math.round(desc/sub*100) : 0;
+    const pct = sub > 0 ? Math.round(desc/sub*100) : Number(v.descPct || v.desc_pct) || 0;
     const totalDev = itensDevolvidos.reduce((a, i) => {
       const precoDesc = pct > 0 ? Math.round((Number(i.preco)||0) * (1 - pct/100) * 100) / 100 : (Number(i.preco)||0);
       return a + precoDesc * i.qty;
@@ -3327,7 +3329,7 @@ async function finalizarVenda() {
     data: new Date().toISOString(),
     clienteId: cliId, clienteNome: cliNome,
     vendedorId: vendId, vendedorNome: vendNome,
-    canal, sub, desc, credito: credUsado, tot: totFinal, creditoGerado, pag: pagLabel, obs,
+    canal, sub, desc, descPct, credito: credUsado, tot: totFinal, creditoGerado, pag: pagLabel, obs,
     tipo: 'venda', status: 'pago',
     itens: todosItens,
     pgtoItens: pgtoItens.map(p => ({...p})),
@@ -3371,10 +3373,8 @@ async function finalizarVenda() {
     }
     // Recarrega produtos para atualizar estoque
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
+    _creditoGeradoAtual = creditoGerado;
     abrirRomaneio(venda, cliNome);
-    if (creditoGerado > 0.01) {
-      imprimirNotinhaCredito(cliNome, creditoGerado);
-    }
     limparCarrinho();
     if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
     _finalizandoVenda = false;
@@ -3391,7 +3391,7 @@ async function abrirRomaneio(v, cliNome) {
   if (pct === 0 && sub === 0) {
     // Só devolução: infere desconto pelo descPct global (ainda setado no PDV)
     const itensDevolvidos = (v.itens || []).filter(i => i.tipo === 'devolvido');
-    if (itensDevolvidos.length > 0) pct = descPct || 0;
+    if (itensDevolvidos.length > 0) pct = Number(v.descPct || v.desc_pct) || descPct || 0;
   }
 
   // Busca texto do romaneio
@@ -3539,6 +3539,11 @@ async function abrirRomaneio(v, cliNome) {
       textoRodape +
     '</div>';
 
+  const btnNotinha = document.getElementById('btn-imprimir-notinha-credito');
+  if (btnNotinha) {
+    btnNotinha.style.display = _creditoGeradoAtual > 0.01 ? '' : 'none';
+    btnNotinha.onclick = () => imprimirNotinhaCredito(cliNome, _creditoGeradoAtual);
+  }
   abrirModal('modal-romaneio');
 }
 
