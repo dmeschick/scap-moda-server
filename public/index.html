@@ -3093,11 +3093,14 @@ function mostrarCampoPgto() {
   const tipo = document.getElementById('pgto-tipo').value;
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
   const desc = Math.round(sub*(descPct/100)*100)/100;
-  const tot = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
-  const totFinal = Math.max(0, tot - totalDev - credUsado);
-  const restante = totFinal - pgtoItens.reduce((a,p) => a+p.valor, 0);
+  const totalNovos = sub - desc;
+  const totalDev = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
+    return a + precoComDesc * i.qty;
+  }, 0);
+  const credUsado = usarCredito ? Math.min(creditoDisponivel, totalNovos) : 0;
+  const aPagar = Math.max(0, totalNovos - totalDev - credUsado);
+  const restante = aPagar - pgtoItens.reduce((a,p) => a+p.valor, 0);
   const campo = document.getElementById('pgto-campo');
   if (!tipo) { campo.innerHTML = ''; return; }
 
