@@ -4094,9 +4094,11 @@ function atualizarSaldoTroca() {
   const sub = carrinho.reduce((a,i) => a + i.preco * i.qty, 0);
   const desc = Math.round(sub * (descPct/100) * 100) / 100;
   const totalNovos = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, totalNovos) : 0;
-  const saldo = totalNovos - totalDev - credUsado;
+  const totalDev = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
+    return a + precoComDesc * i.qty;
+  }, 0);
+  const saldo = totalNovos - totalDev;
 
   const labelEl = document.getElementById('troca-saldo-label');
   const valorEl = document.getElementById('troca-saldo-valor');
