@@ -3401,6 +3401,28 @@ async function abrirRomaneio(v, cliNome) {
     '</div>';
   }).join('');
 
+  // Monta seção de itens devolvidos
+  const itensDevolvidos = (v.itens || []).filter(i => i.tipo === 'devolvido');
+  const secaoDevolvidos = itensDevolvidos.length
+    ? '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;padding-top:6px;margin-top:6px">' +
+      '<div style="font-weight:bold;margin-bottom:4px">ITENS DEVOLVIDOS:</div>' +
+      itensDevolvidos.map(i => {
+        const precoDesc = pct > 0 ? Math.round(i.preco * (1 - pct/100) * 100) / 100 : i.preco;
+        return '<div style="display:flex;justify-content:space-between">' +
+          '<span>' + (i.cod||'') + ' ' + (i.nome||'') + ' x' + i.qty + '</span>' +
+          '<span>-' + fmtMoeda(precoDesc * i.qty) + '</span>' +
+        '</div>';
+      }).join('') +
+      '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:4px;padding-top:4px">' +
+        '<span>Total devoluções:</span>' +
+        '<span>-' + fmtMoeda(itensDevolvidos.reduce((a,i) => {
+          const precoDesc = pct > 0 ? Math.round(i.preco * (1 - pct/100) * 100) / 100 : i.preco;
+          return a + precoDesc * i.qty;
+        }, 0)) + '</span>' +
+      '</div>' +
+    '</div>'
+    : '';
+
   // Monta seção de cheques — um por linha com número e data de compensação
   let secaoCheques = '';
   if (chequesPgto.length) {
@@ -3439,6 +3461,7 @@ async function abrirRomaneio(v, cliNome) {
       (nomeDesconto ? '<div><b>Desconto:</b> ' + nomeDesconto + '</div>' : '') +
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
+    secaoDevolvidos +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
       (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
