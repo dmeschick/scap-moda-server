@@ -345,6 +345,7 @@ tr:hover td{background:var(--bg)}
             <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
               <input type="text" id="pdv-search" placeholder="🔍 Código ou nome do produto..." style="flex:1;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font)" oninput="filtrarPDV()" onkeydown="pdvKeyDown(event)">
               <select id="pdv-cat" onchange="filtrarPDV()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas categorias</option></select>
+              <button id="btn-modo-dev" class="btn btn-sm" onclick="toggleModoTroca()" style="white-space:nowrap;border-color:var(--red);color:var(--red)">🔄 Devolução</button>
             </div>
             <div id="pdv-produto-info" style="display:none;background:var(--bg2);border:2px solid var(--pink);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px"></div>
             <div id="pdv-prod-grid" class="prod-grid"></div>
@@ -357,21 +358,7 @@ tr:hover td{background:var(--bg)}
             </div>
             <select id="pdv-cliente" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:6px"><option value="">— Cliente (opcional) —</option></select>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
-            <div style="display:flex;gap:6px;margin-bottom:10px">
-              <button id="btn-modo-troca" class="btn btn-sm" onclick="toggleModoTroca()" style="flex:1;justify-content:center">
-                🔄 Adicionar devolução
-              </button>
-            </div>
-            <div id="troca-section" style="display:none;margin-bottom:10px">
-              <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:6px">ITENS DEVOLVIDOS</div>
-              <div style="display:flex;gap:6px;margin-bottom:6px">
-                <input type="text" id="troca-busca" placeholder="Código ou nome do produto..."
-                  style="flex:1;padding:7px;border:1px solid var(--red);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
-                  onkeydown="trocaKeyDown(event)">
-              </div>
-              <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px"></div>
-              <div style="font-size:12px;color:var(--text2);margin-top:6px">Digite o código e pressione Enter para adicionar item devolvido</div>
-            </div>
+            <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
             <!-- Totais -->
             <div id="cart-totais" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
@@ -2933,7 +2920,7 @@ function filtrarPDV() {
   }
   empty.style.display = 'none';
   grid.innerHTML = prods.slice(0,40).map(p => `
-    <div class="prod-card" onclick="adicionarAoCarrinho('${p.id}')">
+    <div class="prod-card" onclick="adicionarAoCarrinhoOuTroca('${p.id}')">
       <div style="font-size:11px;color:var(--pink-dark);font-weight:600">${p.cat||''}</div>
       <div style="font-weight:600;font-size:13px;margin:2px 0;line-height:1.3">${p.nome}</div>
       <div style="font-size:11px;color:var(--text2)">${p.cod}</div>
@@ -2943,11 +2930,18 @@ function filtrarPDV() {
 }
 
 function pdvKeyDown(e) {
-  if (e.key === 'Enter') {
-    const q = e.target.value.trim();
-    const prod = todosProds.find(p => p.cod.toLowerCase() === q.toLowerCase());
-    if (prod) { adicionarAoCarrinho(prod.id); e.target.value = ''; filtrarPDV(); }
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  const prod = todosProds.find(p => p.cod.toLowerCase() === q.toLowerCase());
+  if (!prod) { toast('Produto não encontrado: ' + q, 'warn'); return; }
+  if (modoTroca) {
+    adicionarItemTroca(prod);
+  } else {
+    adicionarAoCarrinho(prod.id);
   }
+  e.target.value = '';
+  filtrarPDV();
 }
 
 function adicionarAoCarrinho(id) {
@@ -4004,26 +3998,40 @@ async function imprimirNotinhaCredito(cliNome, valor) {
 
 // ===== TROCAS =====
 let carrinhoTroca = [];
+let modoTroca = false;
 let creditoClienteId = null;
 let creditoDisponivel = 0;
 let creditosIds = [];
 let usarCredito = false;
 
 function toggleModoTroca() {
-  const sec = document.getElementById('troca-section');
-  const btn = document.getElementById('btn-modo-troca');
-  const aberto = sec.style.display !== 'none';
-  if (aberto) {
+  const btn = document.getElementById('btn-modo-dev');
+  const search = document.getElementById('pdv-search');
+  modoTroca = !modoTroca;
+  if (modoTroca) {
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+    search.style.borderColor = 'var(--red)';
+    search.placeholder = '🔄 Código ou nome — modo DEVOLUÇÃO';
+    search.focus();
+  } else {
     carrinhoTroca = [];
     document.getElementById('troca-itens').innerHTML = '';
     document.getElementById('troca-resumo').style.display = 'none';
-    sec.style.display = 'none';
-    btn.textContent = '🔄 Adicionar devolução';
+    btn.style.background = '';
+    btn.style.color = 'var(--red)';
+    search.style.borderColor = '';
+    search.placeholder = '🔍 Código ou nome do produto...';
     renderCarrinho();
+  }
+}
+
+function adicionarAoCarrinhoOuTroca(id) {
+  if (modoTroca) {
+    const prod = todosProds.find(x => x.id === id);
+    if (prod) adicionarItemTroca(prod);
   } else {
-    sec.style.display = 'block';
-    btn.textContent = '✕ Fechar devolução';
-    document.getElementById('troca-busca').focus();
+    adicionarAoCarrinho(id);
   }
 }
 
@@ -4151,10 +4159,13 @@ limparCarrinho = function() {
   creditoDisponivel = 0;
   creditosIds = [];
   usarCredito = false;
-  const sec = document.getElementById('troca-section');
-  if (sec) sec.style.display = 'none';
-  const btn = document.getElementById('btn-modo-troca');
-  if (btn) btn.textContent = '🔄 Adicionar devolução';
+  if (modoTroca) {
+    modoTroca = false;
+    const btn = document.getElementById('btn-modo-dev');
+    if (btn) { btn.style.background = ''; btn.style.color = 'var(--red)'; }
+    const search = document.getElementById('pdv-search');
+    if (search) { search.style.borderColor = ''; search.placeholder = '🔍 Código ou nome do produto...'; }
+  }
   const infoEl = document.getElementById('credito-cliente-info');
   if (infoEl) infoEl.style.display = 'none';
   const resumo = document.getElementById('troca-resumo');
