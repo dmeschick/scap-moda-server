@@ -3307,7 +3307,14 @@ async function finalizarVenda() {
     const funcs = await api('GET', '/api/funcionarios');
     vendNome = funcs.find(f => f.id === vendId)?.nome || '';
   } catch(e) {}
-  const pagLabel = tot <= 0 ? 'Troca' : pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto';
+  const creditoGerado = Math.max(0, totalDev - tot);
+  const pagLabel = carrinhoTroca.length
+    ? (creditoGerado > 0.01
+        ? 'Troca — Crédito gerado'
+        : Math.abs(totalDev - tot) < 0.01
+          ? 'Troca exata'
+          : 'Troca — ' + (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto'))
+    : (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
   // Número da venda
   let num = '#0001';
   try {
@@ -3322,7 +3329,7 @@ async function finalizarVenda() {
   ];
 
   // Se gerou crédito (devoluções > novos), registrar crédito
-  const creditoGerado = Math.max(0, totalDev + credUsado - tot);
+  const creditoGeradoFinal = Math.max(0, totalDev + credUsado - tot);
 
   const venda = {
     id: vendaId, num,
@@ -3355,16 +3362,16 @@ async function finalizarVenda() {
       }
     }
     toast('Venda finalizada! ✅');
-    if (creditoGerado > 0.01 && cliId) {
+    if (creditoGeradoFinal > 0.01 && cliId) {
       await api('POST', '/api/creditos', {
         id: uid(),
         clienteId: cliId,
         clienteNome: cliNome,
-        valor: creditoGerado,
+        valor: creditoGeradoFinal,
         motivo: 'Troca — saldo a favor',
         vendaId: venda.id
       }).catch(() => {});
-      imprimirNotinhaCredito(cliNome, creditoGerado);
+      imprimirNotinhaCredito(cliNome, creditoGeradoFinal);
     }
     if (usarCredito && credUsado > 0.01) {
       for (const cid of creditosIds) {
