@@ -2484,19 +2484,33 @@ async function carregarVendas() {
     const tb = document.getElementById('tabela-vendas');
     if (!vendas.length) { tb.innerHTML = '<tr><td colspan="9"><div class="empty-state" style="padding:24px"><div class="icon">🧾</div><p>Nenhuma venda</p></div></td></tr>'; return; }
     renderMobileCardsVendas(vendas);
-    tb.innerHTML = vendas.map(v => `<tr>
+    tb.innerHTML = vendas.map(v => {
+      const _sub = Number(v.sub) || 0;
+      const _desc = Number(v.desc) || 0;
+      const _pct = _sub > 0 ? Math.round(_desc/_sub*100) : 0;
+      const _devs = (v.itens||[]).filter(i => i.tipo === 'devolvido');
+      const _totalDev = _devs.reduce((a, i) => {
+        const p = _pct > 0 ? Math.round((Number(i.preco)||0)*(1-_pct/100)*100)/100 : (Number(i.preco)||0);
+        return a + p * i.qty;
+      }, 0);
+      const _credGerado = Math.max(0, _totalDev - (_sub - _desc));
+      const totalCell = _credGerado > 0
+        ? `<span style="color:var(--green);font-weight:700">Crédito ${fmtMoeda(_credGerado)}</span>`
+        : `<strong>${fmtMoeda(v.tot)}</strong>`;
+      return `<tr>
       <td><strong>${v.num}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
       <td>${v.cliente_nome||'Consumidor final'}</td>
       <td style="font-size:12px">${v.vendedor_nome||'—'}</td>
       <td>${v.canal==='online'?'<span class="badge badge-blue">🌐 Online</span>':'<span class="badge badge-green">🏪 Presencial</span>'}</td>
-      <td><strong>${fmtMoeda(v.tot)}</strong></td>
+      <td>${totalCell}</td>
       <td style="font-size:12px">${v.pag}</td>
       <td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="verVenda('${v.id}')">Ver</button>
       </div></td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
@@ -3684,11 +3698,23 @@ function renderMobileCardsVendas(vendas) {
   el.innerHTML = vendas.map(v => {
     const canal = v.canal === 'online' ? '🌐 Online' : '🏪 Presencial';
     const stBadge = v.status === 'pago' ? 'badge-green' : 'badge-red';
+    const _sub = Number(v.sub) || 0;
+    const _desc = Number(v.desc) || 0;
+    const _pct = _sub > 0 ? Math.round(_desc/_sub*100) : 0;
+    const _devs = (v.itens||[]).filter(i => i.tipo === 'devolvido');
+    const _totalDev = _devs.reduce((a, i) => {
+      const p = _pct > 0 ? Math.round((Number(i.preco)||0)*(1-_pct/100)*100)/100 : (Number(i.preco)||0);
+      return a + p * i.qty;
+    }, 0);
+    const _credGerado = Math.max(0, _totalDev - (_sub - _desc));
+    const totalStr = _credGerado > 0
+      ? '<span style="color:var(--green)">Crédito ' + fmtMoeda(_credGerado) + '</span>'
+      : fmtMoeda(v.tot);
     return '<div class="m-card">' +
       '<div class="m-card-header"><div>' +
         '<div class="m-card-title">' + (v.num||'') + ' · ' + (v.cliente_nome||'Consumidor final') + '</div>' +
         '<div class="m-card-sub">' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
-      '</div><strong style="font-size:16px;color:var(--pink-dark)">' + fmtMoeda(v.tot) + '</strong></div>' +
+      '</div><strong style="font-size:16px">' + totalStr + '</strong></div>' +
       '<div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">' + (v.pag||'') + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">' + canal + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + v.status + '</span></span></div>' +
