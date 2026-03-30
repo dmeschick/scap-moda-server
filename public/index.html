@@ -1882,7 +1882,9 @@ function verCliente(id) {
           <div style="font-size:11px;color:var(--text2)">${(v.itens||[]).map(i=>i.nome).join(', ').slice(0,60)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <strong style="color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>
+          ${Number(v.credito_gerado) > 0
+            ? `<strong style="color:var(--green)">Crédito: ${fmtMoeda(v.credito_gerado)}</strong>`
+            : `<strong style="color:var(--pink-dark)">${fmtMoeda(v.tot)}</strong>`}
           <button class="btn btn-sm" onclick="abrirRomaneioHistorico(${idx},'${c.nome.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Reimprimir romaneio">🖨️</button>
         </div>
       </div>`).join('');
