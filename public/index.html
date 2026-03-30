@@ -3227,12 +3227,11 @@ async function finalizarVenda() {
           ? 'Troca exata'
           : 'Troca — ' + (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto'))
     : (tot <= 0 ? 'Gratuito' : pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
-  // Número da venda
+  // Número da venda — gerado pelo servidor
   let num = '#0001';
   try {
-    const ultVendas = await api('GET', '/api/vendas?limit=1');
-    const n = ultVendas.length ? parseInt(ultVendas[0].num?.replace('#',''))||0 : 0;
-    num = '#' + String(n+1).padStart(4,'0');
+    const r = await api('POST', '/api/vendas/proximo-numero', {});
+    num = r.num;
   } catch(e) {}
   // Combina itens novos e devolvidos
   const todosItens = [
