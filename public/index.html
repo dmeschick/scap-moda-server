@@ -1345,7 +1345,13 @@ async function carregarDashboard() {
       <div class="metric-card"><div class="icon">🌐</div><div class="label">Online</div><div class="value">${fmtMoeda(r.valor_online||0)}</div><div class="sub">${r.online||0} venda(s)</div></div>
     `;
     document.getElementById('dash-vendas').innerHTML = vendas.length
-      ? vendas.map(v => `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td><strong>${fmtMoeda(v.tot)}</strong></td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`).join('')
+      ? vendas.map(v => {
+          const _cred = Number(v.credito_gerado) || 0;
+          const valorCell = _cred > 0
+            ? `<strong style="color:var(--green)">Crédito: ${fmtMoeda(_cred)}</strong>`
+            : `<strong>${fmtMoeda(v.tot)}</strong>`;
+          return `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td>${valorCell}</td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`;
+        }).join('')
       : '<tr><td colspan="4"><div class="empty-state" style="padding:20px"><p>Sem vendas</p></div></td></tr>';
     // Aniversariantes do mês
     try {
