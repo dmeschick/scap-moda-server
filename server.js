@@ -1206,6 +1206,120 @@ const agendarBackupDiario = () => {
 
 
 
+// RELATÓRIO DIÁRIO
+app.get('/api/relatorios/diario', auth, async (req, res) => {
+  try {
+    const { data } = req.query;
+    if (!data) return res.status(400).json({ erro: 'Informe a data' });
+
+    // Vendas do dia (exceto canceladas)
+    const vendas = await pool.query(
+      `SELECT v.*,
+        f.nome as vendedor_nome_join
+       FROM vendas v
+       LEFT JOIN funcionarios f ON f.id = v.vendedor_id
+       WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
+         AND v.status != 'cancelada'`,
+      [data]
+    );
+
+    // Itens vendidos do dia
+    const itens = await pool.query(
+      `SELECT vi.*, p.custo, p.nome as produto_nome
+       FROM venda_itens vi
+       JOIN vendas v ON v.id = vi.venda_id
+       LEFT JOIN produtos p ON p.id = vi.produto_id
+       WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
+         AND v.status != 'cancelada'`,
+      [data]
+    );
+
+    // Pagamentos do dia
+    const pagamentos = await pool.query(
+      `SELECT vp.*
+       FROM venda_pagamentos vp
+       JOIN vendas v ON v.id = vp.venda_id
+       WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
+         AND v.status != 'cancelada'`,
+      [data]
+    );
+
+    // --- Cálculos ---
+
+    // Total geral da loja
+    const totalLoja = vendas.rows.reduce((a, v) => a + parseFloat(v.tot || 0) + parseFloat(v.credito_gerado || 0), 0);
+
+    // Por vendedor
+    const porVendedor = {};
+    vendas.rows.forEach(v => {
+      const nome = v.vendedor_nome_join || v.vendedor_nome || 'Sem vendedor';
+      if (!porVendedor[nome]) porVendedor[nome] = { nome, total: 0, pecas: 0 };
+      porVendedor[nome].total += parseFloat(v.tot || 0) + parseFloat(v.credito_gerado || 0);
+    });
+
+    // Peças por vendedor (itens novos)
+    itens.rows.filter(i => i.tipo !== 'devolvido').forEach(i => {
+      // Busca o vendedor da venda
+      const venda = vendas.rows.find(v => v.id === i.venda_id);
+      const nome = venda?.vendedor_nome_join || venda?.vendedor_nome || 'Sem vendedor';
+      if (porVendedor[nome]) porVendedor[nome].pecas += parseInt(i.qty || 0);
+    });
+
+    // Por forma de pagamento (agrupado por tipo e parcelas)
+    const porPagamento = {};
+    pagamentos.rows.forEach(p => {
+      let chave = p.tipo;
+      if (p.tipo === 'credito') {
+        chave = p.parcelas > 1 ? 'credito_' + p.parcelas + 'x' : 'credito_1x';
+      }
+      if (!porPagamento[chave]) porPagamento[chave] = { tipo: p.tipo, parcelas: p.parcelas || 1, total: 0, label: '' };
+      porPagamento[chave].total += parseFloat(p.valor || 0);
+    });
+
+    // Labels de pagamento
+    const labels = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'Débito', cheque: 'Cheque à vista', cheque_pre: 'Cheque pré-datado', credito_1x: 'Crédito à vista' };
+    Object.keys(porPagamento).forEach(k => {
+      if (k.startsWith('credito_') && k !== 'credito_1x') {
+        const parc = k.replace('credito_', '').replace('x', '');
+        porPagamento[k].label = 'Crédito ' + parc + 'x';
+      } else {
+        porPagamento[k].label = labels[k] || k;
+      }
+    });
+
+    // Total de peças vendidas (itens novos)
+    const totalPecasVendidas = itens.rows
+      .filter(i => i.tipo !== 'devolvido')
+      .reduce((a, i) => a + parseInt(i.qty || 0), 0);
+
+    // Total de peças trocadas (itens devolvidos)
+    const totalPecasTrocadas = itens.rows
+      .filter(i => i.tipo === 'devolvido')
+      .reduce((a, i) => a + parseInt(i.qty || 0), 0);
+
+    // CMV — custo das mercadorias vendidas
+    const cmv = itens.rows
+      .filter(i => i.tipo !== 'devolvido')
+      .reduce((a, i) => a + (parseFloat(i.custo || 0) * parseInt(i.qty || 0)), 0);
+
+    // Margem bruta
+    const margemBruta = totalLoja > 0 ? ((totalLoja - cmv) / totalLoja * 100) : 0;
+
+    res.json({
+      data,
+      totalLoja: Math.round(totalLoja * 100) / 100,
+      porVendedor: Object.values(porVendedor).sort((a, b) => b.total - a.total),
+      porPagamento: Object.values(porPagamento).sort((a, b) => b.total - a.total),
+      totalPecasVendidas,
+      totalPecasTrocadas,
+      cmv: Math.round(cmv * 100) / 100,
+      margemBruta: Math.round(margemBruta * 100) / 100,
+      qtdVendas: vendas.rows.length
+    });
+
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // VENDAS — Gerar próximo número
 app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
   try {
