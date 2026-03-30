@@ -3330,14 +3330,13 @@ async function finalizarVenda() {
 }
 
 async function abrirRomaneio(v, cliNome) {
-  // Itens primeiro — necessário para calcular subtotal quando v.sub vier nulo da API
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
-  const sub = Number(v.sub || v.subtotal) || itens.reduce((a, i) => a + (Number(i.preco)||0) * (i.qty||1), 0);
-  const desc = Number(v.desc || v.desconto) || 0;
+  const sub = v.sub || v.subtotal || 0;
+  const desc = v.desc || v.desconto || 0;
   const tot = Number(v.tot) || 0;
-  // Prioridade: campo salvo descPct > calculado de sub/desc > descPct global do PDV
-  let pct = Number(v.descPct || v.desc_pct) || 0;
-  if (!pct && sub > 0) pct = Math.round(desc / sub * 100);
+  // Busca pct de desconto — primeiro do campo salvo, depois calcula, depois usa 0
+  let pct = v.descPct || v.desc_pct || 0;
+  if (!pct && sub > 0) pct = Math.round(desc/sub*100);
 
   // Busca texto do romaneio
   let textoRodape = 'Obrigada pela preferencia!';
