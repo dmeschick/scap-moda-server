@@ -532,6 +532,10 @@ tr:hover td{background:var(--bg)}
 
       <!-- RELATÓRIOS -->
       <div class="page" id="page-relatorios">
+        <div class="tabs" style="margin-bottom:16px">
+          <button class="tab active" onclick="tabRel(this,'rel-content')">Relatório Mensal</button>
+          <button class="tab" onclick="tabRel(this,'rel-diario')">Relatório do Dia</button>
+        </div>
         <div class="card" style="padding:14px;margin-bottom:16px">
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:600;color:var(--text2)">Período:</span>
@@ -540,6 +544,17 @@ tr:hover td{background:var(--bg)}
             <button class="btn btn-sm" onclick="mesAnterior()">← Mês anterior</button>
             <button class="btn btn-sm" onclick="mesAtual()">Mês atual</button>
           </div>
+        </div>
+        <div id="rel-diario" style="display:none">
+          <div class="card" style="padding:14px;margin-bottom:16px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:600;color:var(--text2)">Data:</span>
+              <input type="date" id="rel-dia-data" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              <button class="btn btn-primary btn-sm" onclick="carregarRelatorioDiario()">Atualizar</button>
+              <button class="btn btn-sm" onclick="imprimirRelatorioDiario()">🖨️ Imprimir</button>
+            </div>
+          </div>
+          <div id="rel-diario-content"></div>
         </div>
         <div id="rel-content"></div>
       </div>
@@ -4155,6 +4170,100 @@ limparCarrinho = function() {
   _limparCarrinhoOriginal();
   renderTroca();
 };
+
+// ===== RELATÓRIO DIÁRIO =====
+function tabRel(btn, id) {
+  document.querySelectorAll('#page-relatorios .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['rel-diario', 'rel-content'].forEach(i => {
+    const el = document.getElementById(i);
+    if (el) el.style.display = i === id ? 'block' : 'none';
+  });
+  if (id === 'rel-diario') {
+    if (!document.getElementById('rel-dia-data').value) {
+      document.getElementById('rel-dia-data').value = new Date().toISOString().split('T')[0];
+    }
+    carregarRelatorioDiario();
+  }
+}
+
+async function carregarRelatorioDiario() {
+  const data = document.getElementById('rel-dia-data').value;
+  if (!data) return;
+  const el = document.getElementById('rel-diario-content');
+  el.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+  try {
+    const r = await api('GET', '/api/relatorios/diario?data=' + data);
+
+    const fmtPct = v => v.toFixed(1) + '%';
+
+    // Cards de resumo
+    const cards =
+      '<div class="cards-grid" style="margin-bottom:16px">' +
+        '<div class="metric-card"><div class="label">Total do dia</div><div class="value">' + fmtMoeda(r.totalLoja) + '</div><div class="sub">' + r.qtdVendas + ' venda(s)</div></div>' +
+        '<div class="metric-card"><div class="label">Peças vendidas</div><div class="value">' + r.totalPecasVendidas + '</div></div>' +
+        '<div class="metric-card"><div class="label">Peças trocadas</div><div class="value">' + r.totalPecasTrocadas + '</div></div>' +
+        '<div class="metric-card"><div class="label">CMV</div><div class="value" style="color:var(--red)">' + fmtMoeda(r.cmv) + '</div></div>' +
+        '<div class="metric-card"><div class="label">Margem bruta</div><div class="value" style="color:' + (r.margemBruta >= 50 ? 'var(--green)' : 'var(--amber)') + '">' + fmtPct(r.margemBruta) + '</div></div>' +
+      '</div>';
+
+    // Por vendedor
+    const tabelaVendedor =
+      '<div class="card" style="margin-bottom:16px">' +
+        '<div class="card-title">Por vendedora</div>' +
+        '<table><thead><tr><th>Vendedora</th><th>Total</th><th>Peças</th></tr></thead><tbody>' +
+        (r.porVendedor.length ? r.porVendedor.map(v =>
+          '<tr><td><strong>' + v.nome + '</strong></td><td>' + fmtMoeda(v.total) + '</td><td>' + v.pecas + '</td></tr>'
+        ).join('') : '<tr><td colspan="3"><div class="empty-state" style="padding:16px"><p>Sem vendas</p></div></td></tr>') +
+        '</tbody></table>' +
+      '</div>';
+
+    // Por forma de pagamento
+    const tabelaPagamento =
+      '<div class="card" style="margin-bottom:16px">' +
+        '<div class="card-title">Por forma de pagamento</div>' +
+        '<table><thead><tr><th>Forma</th><th>Total</th></tr></thead><tbody>' +
+        (r.porPagamento.length ? r.porPagamento.map(p =>
+          '<tr><td><strong>' + p.label + '</strong></td><td>' + fmtMoeda(p.total) + '</td></tr>'
+        ).join('') : '<tr><td colspan="2"><div class="empty-state" style="padding:16px"><p>Sem pagamentos</p></div></td></tr>') +
+        '</tbody></table>' +
+      '</div>';
+
+    el.innerHTML = cards + tabelaVendedor + tabelaPagamento;
+
+  } catch(e) { el.innerHTML = '<div class="empty-state"><p>Erro: ' + e.message + '</p></div>'; }
+}
+
+function imprimirRelatorioDiario() {
+  const data = document.getElementById('rel-dia-data').value;
+  const conteudo = document.getElementById('rel-diario-content').innerHTML;
+  if (!conteudo) { toast('Carregue o relatório primeiro', 'warn'); return; }
+
+  const dataFmt = data ? new Date(data + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+
+  const j = window.open('', '_blank', 'width=800,height=600');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+  j.document.write(`<!DOCTYPE html><html><head><title>Relatório do Dia</title><style>
+    @page { size: A4; margin: 15mm; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #000; }
+    h1 { font-size: 16px; margin-bottom: 4px; }
+    h2 { font-size: 13px; margin: 12px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
+    td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+    .card { border: 1px solid #ddd; border-radius: 6px; padding: 10px; text-align: center; }
+    .card .label { font-size: 9px; text-transform: uppercase; color: #666; }
+    .card .value { font-size: 16px; font-weight: bold; margin: 4px 0; }
+    @media print { body { margin: 0; } }
+  </style></head><body>
+    <h1>SCAP MODA FEMININA — Relatório do Dia</h1>
+    <div style="font-size:12px;color:#666;margin-bottom:12px">${dataFmt}</div>
+    ${conteudo}
+    <script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script>
+  </body></html>`);
+  j.document.close();
+}
 
 // ===== INIT =====
 ajustarMobile();
