@@ -1637,45 +1637,6 @@ let _clientesCache = [];
 let _vendaAtual = null;
 let _creditoGeradoAtual = 0;
 
-function verCliente(id) {
-  const c = _clientesCache.find(x => x.id === id);
-  if (!c) return;
-  const enderecos = c.enderecos || [];
-  const endHtml = enderecos.length
-    ? enderecos.map(e => `
-        <div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:8px">
-          <div style="font-size:11px;font-weight:700;color:var(--pink-dark);margin-bottom:6px">${e.tipo||'Endereço'}${e.principal?' ★':''}</div>
-          <div style="font-size:13px;line-height:1.7">
-            ${e.logradouro?`${e.logradouro}${e.numero?', '+e.numero:''}${e.complemento?' - '+e.complemento:''}<br>`:''}
-            ${e.bairro?`${e.bairro}<br>`:''}
-            ${e.cidade?`${e.cidade}${e.estado?' - '+e.estado:''}<br>`:''}
-            ${e.cep?`CEP: ${e.cep}`:''}
-          </div>
-        </div>`).join('')
-    : '<div style="color:var(--text2);font-size:13px">Nenhum endereço cadastrado</div>';
-
-  document.getElementById('modal-cli-resumo-body').innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
-      <div class="avatar" style="width:52px;height:52px;font-size:18px;background:var(--pink-light);color:var(--pink-dark);flex-shrink:0">${iniciais(c.nome)}</div>
-      <div>
-        <div style="font-size:20px;font-weight:700">${c.nome}</div>
-        <div style="font-size:13px;color:var(--text2)">${c.tel||''}${c.ig?' · '+c.ig:''}</div>
-      </div>
-    </div>
-    <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Endereços</div>
-    ${endHtml}
-    ${c.obs ? `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Observações</div>
-      <div style="font-size:13px;color:var(--text2);line-height:1.6">${c.obs}</div>
-    </div>` : ''}
-  `;
-  document.getElementById('btn-cli-resumo-editar').onclick = () => {
-    fecharModal('modal-cli-resumo');
-    abrirModalCliente(id);
-  };
-  abrirModal('modal-cli-resumo');
-}
-
 function tabCli(btn, tabId) {
   document.querySelectorAll('#modal-cliente .tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
@@ -3604,7 +3565,7 @@ function renderMobileCardsClientes(clis) {
       (c.email ? '<div class="m-card-row"><span class="m-card-label">E-mail</span><span class="m-card-value" style="font-size:12px">' + c.email + '</span></div>' : '') +
       '<div class="m-card-row"><span class="m-card-label">Última compra</span><span class="m-card-value">' + (c.ult_compra ? fmtData(c.ult_compra) : '—') + '</span></div>' +
       '<div class="m-card-actions">' +
-        '<button class="btn btn-sm" onclick="abrirResumoCliente(\'' + c.id + '\')">👁 Ver</button>' +
+        '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">👁 Ver</button>' +
         '<button class="btn btn-sm" onclick="abrirModalCliente(\'' + c.id + '\')">✏️ Editar</button>' +
       '</div></div>';
   }).join('');
