@@ -259,6 +259,7 @@ async function initDB() {
       status TEXT DEFAULT 'ativo',
       criado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE SEQUENCE IF NOT EXISTS venda_num_seq START 1;
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
@@ -271,6 +272,14 @@ async function initDB() {
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
+  await pool.query(`
+    SELECT SETVAL('venda_num_seq',
+      COALESCE(
+        (SELECT MAX(CAST(REPLACE(num, '#', '') AS INTEGER)) FROM vendas WHERE num ~ '^#[0-9]+$'),
+        0
+      )
+    );
+  `);
   console.log('Banco inicializado!');
 }
 
@@ -1196,6 +1205,15 @@ const agendarBackupDiario = () => {
 };
 
 
+
+// VENDAS — Gerar próximo número
+app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT NEXTVAL('venda_num_seq') as num`);
+    const num = '#' + String(r.rows[0].num).padStart(4, '0');
+    res.json({ num });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
