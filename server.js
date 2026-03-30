@@ -270,6 +270,7 @@ async function initDB() {
   // Adiciona colunas que podem não existir em bancos criados antes dessas definições
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
   console.log('Banco inicializado!');
 }
 
@@ -539,10 +540,10 @@ app.post('/api/vendas', auth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const v = req.body;
-    const insertResult = await client.query(`INSERT INTO vendas (id,num,data,cliente_id,cliente_nome,vendedor_id,vendedor_nome,canal,subtotal,desconto,credito,tot,credito_gerado,pag,obs,tipo,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+    const insertResult = await client.query(`INSERT INTO vendas (id,num,data,cliente_id,cliente_nome,vendedor_id,vendedor_nome,canal,subtotal,desconto,desc_pct,credito,tot,credito_gerado,pag,obs,tipo,status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       ON CONFLICT (id) DO NOTHING RETURNING id`,
-      [v.id,v.num,v.data,v.clienteId,v.clienteNome,v.vendedorId,v.vendedorNome,v.canal,v.sub||v.subtotal,v.desc||v.desconto||0,v.credito||0,v.tot,v.creditoGerado||0,v.pag,v.obs,v.tipo||'venda',v.status||'pago']);
+      [v.id,v.num,v.data,v.clienteId,v.clienteNome,v.vendedorId,v.vendedorNome,v.canal,v.sub||v.subtotal,v.desc||v.desconto||0,v.descPct||v.desc_pct||0,v.credito||0,v.tot,v.creditoGerado||0,v.pag,v.obs,v.tipo||'venda',v.status||'pago']);
     if (insertResult.rowCount === 0) {
       await client.query('ROLLBACK');
       return res.json({ ok: true, duplicata: true });
