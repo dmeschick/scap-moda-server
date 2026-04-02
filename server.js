@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const SALT_ROUNDS = 10;
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
@@ -302,10 +303,19 @@ app.post('/api/login', async (req, res) => {
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1 AND status=$2', [funcId, 'ativo']);
     if (!r.rows.length) return res.status(401).json({ erro: 'Funcionário não encontrado' });
     const func = r.rows[0];
-    const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
-    const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
-    const ok = func.senha_hash ? await bcrypt.compare(senha, func.senha_hash) : senha === senhaPadrao;
-    if (!ok) return res.status(401).json({ erro: 'Senha incorreta' });
+    let senhaValida = false;
+    if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+      senhaValida = await bcrypt.compare(senha, func.senha_hash);
+    } else {
+      const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
+      const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
+      senhaValida = senha === senhaPadrao;
+      if (senhaValida) {
+        const hash = await bcrypt.hash(senha, SALT_ROUNDS);
+        await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
+      }
+    }
+    if (!senhaValida) return res.status(401).json({ erro: 'Senha incorreta' });
     const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '10h' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
   } catch (err) { res.status(500).json({ erro: err.message }); }
@@ -319,10 +329,19 @@ app.post('/api/auth/validar-senha', auth, async (req, res) => {
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1', [usuario.id]);
     if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'Usuário não encontrado' });
     const func = r.rows[0];
-    const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
-    const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
-    const ok = func.senha_hash ? await bcrypt.compare(senha, func.senha_hash) : senha === senhaPadrao;
-    if (!ok) return res.json({ ok: false, erro: 'Senha incorreta' });
+    let senhaCorreta = false;
+    if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+      senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
+    } else {
+      const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
+      const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
+      senhaCorreta = senha === senhaPadrao;
+      if (senhaCorreta) {
+        const hash = await bcrypt.hash(senha, SALT_ROUNDS);
+        await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
+      }
+    }
+    if (!senhaCorreta) return res.json({ ok: false, erro: 'Senha incorreta' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -386,7 +405,7 @@ app.post('/api/funcionarios', auth, async (req, res) => {
 });
 app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
   try {
-    const hash = await bcrypt.hash(req.body.senha, 10);
+    const hash = await bcrypt.hash(req.body.senha, SALT_ROUNDS);
     await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
@@ -812,7 +831,7 @@ app.get('/api/ponto/hoje', auth, async (req, res) => {
 // SENHA FUNCIONÁRIO
 app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
   try {
-    const hash = await bcrypt.hash(req.body.senha, 10);
+    const hash = await bcrypt.hash(req.body.senha, SALT_ROUNDS);
     await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
