@@ -586,10 +586,10 @@ tr:hover td{background:var(--bg)}
           <div class="card" style="padding:14px;margin-bottom:16px">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
               <div>
-                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Produto</label>
-                <select id="hist-prod-filtro" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);min-width:180px">
-                  <option value="">Todos os produtos</option>
-                </select>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Código do produto</label>
+                <input type="text" id="hist-prod-filtro" placeholder="Ex: 000001B"
+                  style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:160px"
+                  onkeydown="if(event.key==='Enter') carregarHistoricoEstoque()">
               </div>
               <div>
                 <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Tipo</label>
@@ -4640,33 +4640,18 @@ function estoqueTab(aba) {
     t.classList.toggle('active', ['estoque-lista', 'estoque-historico'][i] === aba);
   });
   if (aba === 'estoque-historico') {
-    popularSelectProdutos();
     carregarHistoricoEstoque();
   }
 }
 
-async function popularSelectProdutos() {
-  const sel = document.getElementById('hist-prod-filtro');
-  if (sel.options.length > 1) return;
-  try {
-    const prods = await api('GET', '/api/produtos?limit=1000');
-    prods.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.cod + ' — ' + p.nome;
-      sel.appendChild(opt);
-    });
-  } catch(e) {}
-}
-
 async function carregarHistoricoEstoque() {
-  const produtoId = document.getElementById('hist-prod-filtro').value;
+  const produtoCod = document.getElementById('hist-prod-filtro').value.trim();
   const tipo = document.getElementById('hist-tipo-filtro').value;
   const dataInicio = document.getElementById('hist-data-ini').value;
   const dataFim = document.getElementById('hist-data-fim').value;
 
   let query = '/api/estoque/movimentos?limit=200';
-  if (produtoId) query += '&produtoId=' + produtoId;
+  if (produtoCod) query += '&produtoCod=' + encodeURIComponent(produtoCod);
   if (tipo) query += '&tipo=' + tipo;
   if (dataInicio) query += '&dataInicio=' + dataInicio;
   if (dataFim) query += '&dataFim=' + dataFim;

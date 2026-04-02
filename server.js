@@ -605,11 +605,12 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
 // ESTOQUE — Histórico de movimentações
 app.get('/api/estoque/movimentos', auth, async (req, res) => {
   try {
-    const { produtoId, tipo, dataInicio, dataFim, limit } = req.query;
+    const { produtoId, produtoCod, tipo, dataInicio, dataFim, limit } = req.query;
     let where = 'WHERE 1=1';
     const params = [];
     let i = 1;
     if (produtoId) { where += ` AND produto_id=$${i++}`; params.push(produtoId); }
+    if (produtoCod) { where += ` AND produto_cod ILIKE $${i++}`; params.push('%' + produtoCod + '%'); }
     if (tipo) { where += ` AND tipo=$${i++}`; params.push(tipo); }
     if (dataInicio) { where += ` AND DATE(criado_em) >= $${i++}`; params.push(dataInicio); }
     if (dataFim) { where += ` AND DATE(criado_em) <= $${i++}`; params.push(dataFim); }
