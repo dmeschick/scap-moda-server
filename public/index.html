@@ -1498,7 +1498,7 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-est').value = '';
     document.getElementById('prod-estmin').value = '3';
     document.getElementById('prod-cfop').value = '5102';
-    document.getElementById('prod-csosn').value = '400';
+    document.getElementById('prod-csosn').value = '102';
     document.getElementById('prod-origem').value = '0';
     document.getElementById('prod-unidade').value = 'UN';
     document.getElementById('prod-cst-pis').value = '07';
@@ -1509,7 +1509,7 @@ async function abrirModalProduto(id) {
       if (_ultimasFiscais.ncm) document.getElementById('prod-ncm').value = _ultimasFiscais.ncm;
       if (_ultimasFiscais.cest) document.getElementById('prod-cest').value = _ultimasFiscais.cest;
       if (_ultimasFiscais.cfop) document.getElementById('prod-cfop').value = _ultimasFiscais.cfop;
-      if (_ultimasFiscais.csosn) document.getElementById('prod-csosn').value = _ultimasFiscais.csosn;
+      document.getElementById('prod-csosn').value = _ultimasFiscais.csosn || '102';
       if (_ultimasFiscais.origem) document.getElementById('prod-origem').value = _ultimasFiscais.origem;
       if (_ultimasFiscais.unidade) document.getElementById('prod-unidade').value = _ultimasFiscais.unidade;
       if (_ultimasFiscais.cstPis) document.getElementById('prod-cst-pis').value = _ultimasFiscais.cstPis;
@@ -1582,7 +1582,7 @@ async function salvarProduto() {
       ncm: document.getElementById('prod-ncm')?.value || '',
       cest: document.getElementById('prod-cest')?.value || '',
       cfop: document.getElementById('prod-cfop')?.value || '',
-      csosn: document.getElementById('prod-csosn')?.value || '',
+      csosn: document.getElementById('prod-csosn')?.value || '102',
       origem: document.getElementById('prod-origem')?.value || '',
       unidade: document.getElementById('prod-unidade')?.value || '',
       cstPis: document.getElementById('prod-cst-pis')?.value || '',
