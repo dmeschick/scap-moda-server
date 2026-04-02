@@ -1317,8 +1317,9 @@ async function fazerLogin() {
   btn.textContent = 'Entrar'; btn.disabled = false;
 }
 
-function fazerLogout() {
+async function fazerLogout() {
   if (!confirm('Sair do sistema?')) return;
+  try { await api('POST', '/api/logout', {}); } catch(e) {}
   TOKEN = null; usuarioLogado = null; categorias = [];
   localStorage.removeItem('scap_token');
   localStorage.removeItem('scap_user');

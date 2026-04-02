@@ -48,10 +48,12 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const tokenBlacklist = new Set();
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   if (!token) return res.status(401).json({ erro: 'Não autorizado' });
+  if (tokenBlacklist.has(token)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
   catch { res.status(401).json({ erro: 'Token inválido' }); }
 }
@@ -342,6 +344,13 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '10h' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
   } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// Logout — invalidar token
+app.post('/api/logout', auth, (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) tokenBlacklist.add(token);
+  res.json({ ok: true });
 });
 
 // AUTH — Validar senha do próprio usuário
