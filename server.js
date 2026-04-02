@@ -272,6 +272,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -418,6 +419,71 @@ app.delete('/api/produtos/:id', auth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+// PRODUTOS — Próximo código por categoria
+app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
+  try {
+    const { categoriaId } = req.query;
+    if (!categoriaId) return res.status(400).json({ erro: 'Informe a categoria' });
+
+    // Busca sufixo da categoria
+    const cat = await pool.query('SELECT nome, sufixo FROM categorias WHERE id=$1', [categoriaId]);
+    if (!cat.rows.length) return res.status(404).json({ erro: 'Categoria não encontrada' });
+
+    // Mapeamento fixo de sufixos
+    const sufixosFixos = {
+      'blusa': 'B', 'blusas': 'B',
+      'vestido': 'V', 'vestidos': 'V',
+      'calca': 'C', 'calcas': 'C',
+      'conjunto': 'U', 'conjuntos': 'U',
+      'saia': 'S', 'saias': 'S',
+      'acessorio': 'A', 'acessorios': 'A',
+      'short': 'H', 'shorts': 'H',
+      'macacao': 'M', 'macacoes': 'M'
+    };
+
+    const nomeNorm = cat.rows[0].nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const sufixo = cat.rows[0].sufixo || sufixosFixos[nomeNorm] || cat.rows[0].nome.charAt(0).toUpperCase();
+
+    // Busca último código desta categoria
+    const r = await pool.query(
+      `SELECT cod FROM produtos WHERE cod LIKE $1 ORDER BY cod DESC LIMIT 1`,
+      ['%' + sufixo]
+    );
+
+    let proximoNum = 1;
+    if (r.rows.length) {
+      const ultimoCod = r.rows[0].cod;
+      const num = parseInt(ultimoCod.replace(sufixo, '')) || 0;
+      proximoNum = num + 1;
+    }
+
+    const novoCod = String(proximoNum).padStart(6, '0') + sufixo;
+    res.json({ cod: novoCod, sufixo });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// PRODUTOS — Última entrada de estoque
+app.get('/api/produtos/:id/ultima-entrada', auth, async (req, res) => {
+  try {
+    const prod = await pool.query('SELECT est FROM produtos WHERE id=$1', [req.params.id]);
+    if (!prod.rows.length) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+    let ultimaEntrada = prod.rows[0].est;
+
+    try {
+      const mov = await pool.query(
+        `SELECT quantidade FROM estoque_movimentos
+         WHERE produto_id=$1 AND tipo='entrada'
+         ORDER BY criado_em DESC LIMIT 1`,
+        [req.params.id]
+      );
+      if (mov.rows.length) ultimaEntrada = mov.rows[0].quantidade;
+    } catch(e) {} // tabela pode não existir
+
+    res.json({ ultimaEntrada });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
   try {
     const { delta } = req.body;
