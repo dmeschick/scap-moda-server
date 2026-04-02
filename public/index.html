@@ -355,7 +355,14 @@ tr:hover td{background:var(--bg)}
             <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
               🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
             </div>
-            <select id="pdv-cliente" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:6px"><option value="">— Cliente (opcional) —</option></select>
+            <div style="position:relative;margin-bottom:6px">
+              <input type="text" id="pdv-cliente-busca" placeholder="Buscar cliente por nome ou CPF..."
+                style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+                oninput="buscarClientePDV(this.value)"
+                onblur="setTimeout(()=>fecharSugestoes(),200)">
+              <input type="hidden" id="pdv-cliente" value="">
+              <div id="pdv-cliente-sugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+            </div>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
             <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
@@ -2990,14 +2997,10 @@ let _finalizandoVenda = false;
 async function initPDV() {
   carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0;
   await carregarCategoriasGlobal();
-  // Popula select de clientes
+  // Pré-carrega clientes no cache para autocomplete do PDV
   try {
     const clis = await api('GET', '/api/clientes');
-    document.getElementById('pdv-cliente').innerHTML = '<option value="">— Cliente (opcional) —</option>' +
-      clis.filter(c=>c.status==='ativo').map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
-    document.getElementById('pdv-cliente').addEventListener('change', function() {
-      verificarCreditoCliente(this.value);
-    });
+    _clientesCache = clis;
   } catch(e) {}
   // Popula select de vendedores
   try {
@@ -3168,6 +3171,7 @@ function limparCarrinho() {
   carrinho = []; pgtoItens = [];
   document.getElementById('pdv-produto-info').style.display = 'none';
   document.getElementById('pdv-search').value = '';
+  document.getElementById('pdv-cliente-busca').value = '';
   document.getElementById('pdv-cliente').value = '';
   document.getElementById('pdv-obs').value = '';
   document.getElementById('pgto-tipo').value = '';
@@ -4293,6 +4297,41 @@ function alterarQtyTroca(idx, delta) {
 
 function atualizarSaldoTroca() {
   renderCarrinho();
+}
+
+async function buscarClientePDV(q) {
+  const sugestoes = document.getElementById('pdv-cliente-sugestoes');
+  if (!q || q.length < 2) { sugestoes.style.display = 'none'; return; }
+  try {
+    const clientes = _clientesCache && _clientesCache.length ? _clientesCache : await api('GET', '/api/clientes');
+    if (!_clientesCache || !_clientesCache.length) _clientesCache = clientes;
+    const filtrados = clientes.filter(c =>
+      c.nome.toLowerCase().includes(q.toLowerCase()) ||
+      (c.cpf && c.cpf.replace(/\D/g,'').includes(q.replace(/\D/g,'')))
+    ).slice(0, 8);
+    if (!filtrados.length) { sugestoes.style.display = 'none'; return; }
+    sugestoes.innerHTML = filtrados.map(c =>
+      '<div onclick="selecionarClientePDV(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')" ' +
+      'style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)" ' +
+      'onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' +
+        '<div style="font-weight:600">' + c.nome + '</div>' +
+        (c.cpf ? '<div style="font-size:11px;color:var(--text2)">' + c.cpf + '</div>' : '') +
+      '</div>'
+    ).join('');
+    sugestoes.style.display = 'block';
+  } catch(e) {}
+}
+
+function selecionarClientePDV(id, nome) {
+  document.getElementById('pdv-cliente').value = id;
+  document.getElementById('pdv-cliente-busca').value = nome;
+  document.getElementById('pdv-cliente-sugestoes').style.display = 'none';
+  verificarCreditoCliente(id);
+}
+
+function fecharSugestoes() {
+  const el = document.getElementById('pdv-cliente-sugestoes');
+  if (el) el.style.display = 'none';
 }
 
 async function verificarCreditoCliente(cliId) {
