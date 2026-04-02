@@ -3397,6 +3397,9 @@ async function abrirRomaneio(v, cliNome) {
     '</div>'
     : '';
 
+  const totalPecasCompradas = itens.reduce((a, i) => a + i.qty, 0);
+  const totalPecasDevolvidas = itensDevolvidos.reduce((a, i) => a + i.qty, 0);
+
   const totalDev = itensDevolvidos.reduce((a, i) => {
     const precoUnit = Number(i.preco) || 0;
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
@@ -3445,6 +3448,10 @@ async function abrirRomaneio(v, cliNome) {
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
+    '<div style="font-family:monospace;font-size:11px;padding:4px 0;border-top:1px dashed #ccc">' +
+      '<div style="display:flex;justify-content:space-between"><span>Total de peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
+      (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between"><span>Total de peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
+    '</div>' +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       (itensDevolvidos.length
         ? '<div style="display:flex;justify-content:space-between"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
