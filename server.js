@@ -1306,6 +1306,24 @@ app.get('/api/backup/exportar', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// BACKUP — Descriptografar
+app.post('/api/backup/descriptografar', auth, async (req, res) => {
+  try {
+    const { conteudo } = req.body;
+    const BACKUP_SECRET = process.env.BACKUP_SECRET || 'scap-moda-backup-2024';
+    const [ivHex, encrypted] = conteudo.split(':');
+    const key = crypto.scryptSync(BACKUP_SECRET, 'salt', 32);
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    const backup = JSON.parse(decrypted);
+    res.json({ ok: true, backup });
+  } catch (err) {
+    res.status(400).json({ ok: false, erro: 'Senha incorreta ou arquivo inválido' });
+  }
+});
+
 // BACKUP — Envio manual por e-mail
 app.post('/api/backup/enviar-email', auth, async (req, res) => {
   try {

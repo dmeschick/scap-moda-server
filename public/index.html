@@ -815,6 +815,29 @@ tr:hover td{background:var(--bg)}
           <div class="card-title">Log de Auditoria</div>
           <div id="auditoria-lista" style="max-height:400px;overflow-y:auto"></div>
         </div>
+
+        <div class="card" style="margin-top:16px;max-width:800px" id="card-restaurar">
+          <div class="card-title">Restaurar / Visualizar Backup</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+            Cole o conteúdo do arquivo de backup criptografado (.enc) abaixo e clique em Descriptografar para visualizar os dados.
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Conteúdo do arquivo .enc</label>
+            <textarea id="backup-enc-conteudo" rows="4" placeholder="Cole aqui o conteúdo do arquivo de backup..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:monospace;resize:vertical"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Senha do backup</label>
+            <input type="password" id="backup-enc-senha" placeholder="Digite a senha de criptografia"
+              style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+          </div>
+          <button class="btn btn-primary" onclick="descriptografarBackup()">🔓 Descriptografar</button>
+          <div id="backup-resultado" style="margin-top:12px;display:none">
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--green)">✅ Backup descriptografado com sucesso</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="backup-resumo"></div>
+            <button class="btn btn-sm" onclick="downloadBackupJson()">⬇ Baixar como JSON</button>
+          </div>
+          <div id="backup-erro" style="margin-top:12px;display:none;color:var(--red);font-size:13px"></div>
+        </div>
       </div>
 
     </div><!-- /content -->
@@ -2676,6 +2699,8 @@ async function carregarConfiguracoes() {
   carregarEmailBackup();
   const cardAuditoria = document.getElementById('card-auditoria');
   if (cardAuditoria) cardAuditoria.style.display = CARGO_ATUAL === 'Administrador' ? 'block' : 'none';
+  const cardRestaurar = document.getElementById('card-restaurar');
+  if (cardRestaurar) cardRestaurar.style.display = CARGO_ATUAL === 'Administrador' ? 'block' : 'none';
   if (CARGO_ATUAL === 'Administrador') carregarAuditoria();
 }
 
@@ -2732,6 +2757,45 @@ async function enviarBackupAgora() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
   btn.disabled = false;
   btn.textContent = '📧 Enviar agora';
+}
+
+let _backupDescriptografado = null;
+
+async function descriptografarBackup() {
+  const conteudo = document.getElementById('backup-enc-conteudo').value.trim();
+  const resultEl = document.getElementById('backup-resultado');
+  const erroEl = document.getElementById('backup-erro');
+  resultEl.style.display = 'none';
+  erroEl.style.display = 'none';
+  if (!conteudo) { toast('Cole o conteúdo do arquivo', 'warn'); return; }
+  try {
+    const r = await api('POST', '/api/backup/descriptografar', { conteudo });
+    if (!r.ok) throw new Error(r.erro);
+    _backupDescriptografado = r.backup;
+    const b = r.backup;
+    document.getElementById('backup-resumo').innerHTML =
+      'Gerado em: ' + new Date(b.geradoEm).toLocaleString('pt-BR') + '<br>' +
+      (b.produtos?.length || 0) + ' produtos · ' +
+      (b.clientes?.length || 0) + ' clientes · ' +
+      (b.vendas?.length || 0) + ' vendas · ' +
+      (b.funcionarios?.length || 0) + ' funcionários';
+    resultEl.style.display = 'block';
+  } catch(e) {
+    erroEl.textContent = '❌ ' + (e.message || 'Erro ao descriptografar');
+    erroEl.style.display = 'block';
+  }
+}
+
+function downloadBackupJson() {
+  if (!_backupDescriptografado) return;
+  const json = JSON.stringify(_backupDescriptografado, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'backup-descriptografado.json';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function carregarTextoCredito() {
