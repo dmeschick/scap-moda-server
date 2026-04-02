@@ -306,6 +306,18 @@ async function initDB() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE SEQUENCE IF NOT EXISTS venda_num_seq START 1;
+    CREATE TABLE IF NOT EXISTS vales_funcionarios (
+      id TEXT PRIMARY KEY,
+      funcionario_id TEXT NOT NULL,
+      funcionario_nome TEXT,
+      valor NUMERIC(10,2) NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'dinheiro',
+      descricao TEXT,
+      mes TEXT NOT NULL,
+      venda_id TEXT,
+      status TEXT DEFAULT 'pendente',
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
@@ -829,6 +841,15 @@ app.post('/api/vendas', auth, async (req, res) => {
     if (v.clienteId) {
       await client.query('UPDATE clientes SET total_compras=total_compras+$1,ult_compra=CURRENT_DATE WHERE id=$2', [v.tot, v.clienteId]);
     }
+    const temVale = (v.pgtoItens||[]).some(p => p.tipo === 'vale_funcionaria');
+    if (temVale) {
+      const mes = new Date(v.data).toISOString().slice(0,7);
+      await client.query(
+        `INSERT INTO vales_funcionarios (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, venda_id)
+         VALUES ($1,$2,$3,$4,'roupa',$5,$6,$7)`,
+        [uid(), v.vendedorId||v.clienteId, v.vendedorNome||v.clienteNome, v.tot, 'Vale roupa — ' + (v.num||''), mes, v.id]
+      );
+    }
     await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
@@ -874,6 +895,73 @@ app.post('/api/config/:chave', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// VALES — Listar por funcionário e mês
+app.get('/api/vales', auth, async (req, res) => {
+  try {
+    const { funcionarioId, mes } = req.query;
+    let where = 'WHERE 1=1';
+    const params = [];
+    let i = 1;
+    if (funcionarioId) { where += ` AND funcionario_id=$${i++}`; params.push(funcionarioId); }
+    if (mes) { where += ` AND mes=$${i++}`; params.push(mes); }
+    const r = await pool.query(
+      `SELECT * FROM vales_funcionarios ${where} ORDER BY criado_em DESC`,
+      params
+    );
+    const total = r.rows.reduce((a, v) => a + parseFloat(v.valor), 0);
+    res.json({ vales: r.rows, total: Math.round(total * 100) / 100 });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// VALES — Resumo mensal por funcionário
+app.get('/api/vales/resumo', auth, async (req, res) => {
+  try {
+    const { mes } = req.query;
+    const r = await pool.query(
+      `SELECT funcionario_id, funcionario_nome,
+        SUM(CASE WHEN tipo='dinheiro' THEN valor ELSE 0 END) as total_dinheiro,
+        SUM(CASE WHEN tipo='roupa' THEN valor ELSE 0 END) as total_roupa,
+        SUM(valor) as total,
+        COUNT(*) as qtd
+       FROM vales_funcionarios
+       WHERE mes=$1
+       GROUP BY funcionario_id, funcionario_nome
+       ORDER BY total DESC`,
+      [mes || new Date().toISOString().slice(0,7)]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// VALES — Registrar vale em dinheiro
+app.post('/api/vales', auth, async (req, res) => {
+  try {
+    const { id, funcionarioId, funcionarioNome, valor, tipo, descricao, mes, vendaId } = req.body;
+    await pool.query(
+      `INSERT INTO vales_funcionarios (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, venda_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, funcionarioId, funcionarioNome, valor, tipo||'dinheiro', descricao||'', mes, vendaId||null]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// VALES — Marcar como descontado
+app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
+  try {
+    await pool.query(`UPDATE vales_funcionarios SET status='descontado' WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// VALES — Excluir
+app.delete('/api/vales/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM vales_funcionarios WHERE id=$1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // RELATÓRIOS
 app.get('/api/relatorios/mensal', auth, async (req, res) => {
   try {
@@ -885,13 +973,13 @@ app.get('/api/relatorios/mensal', auth, async (req, res) => {
         COUNT(*) FILTER (WHERE canal='presencial') as presencial,COUNT(*) FILTER (WHERE canal='online') as online,
         COALESCE(SUM(CASE WHEN canal='presencial' AND status='pago' THEN tot + COALESCE(credito_gerado,0) END),0) as valor_presencial,
         COALESCE(SUM(CASE WHEN canal='online' AND status='pago' THEN tot + COALESCE(credito_gerado,0) END),0) as valor_online
-        FROM vendas WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada'`, [mes]),
+        FROM vendas WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' AND (tipo IS NULL OR tipo NOT IN ('vale_funcionaria'))`, [mes]),
       pool.query(`SELECT DATE(data) as dia,SUM(tot) as total,COUNT(*) as qtd FROM vendas
-        WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' GROUP BY DATE(data) ORDER BY dia`, [mes]),
+        WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' AND (tipo IS NULL OR tipo NOT IN ('vale_funcionaria')) GROUP BY DATE(data) ORDER BY dia`, [mes]),
       pool.query(`SELECT vendedor_nome,COUNT(*) as qtd,SUM(tot) as total FROM vendas
-        WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' GROUP BY vendedor_nome ORDER BY total DESC`, [mes]),
+        WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status!='cancelada' AND (tipo IS NULL OR tipo NOT IN ('vale_funcionaria')) GROUP BY vendedor_nome ORDER BY total DESC`, [mes]),
       pool.query(`SELECT vi.nome,SUM(vi.qty) as qty,SUM(vi.preco*vi.qty) as receita FROM venda_itens vi
-        JOIN vendas v ON v.id=vi.venda_id WHERE TO_CHAR(v.data,'YYYY-MM')=$1 AND v.status!='cancelada' AND vi.tipo!='devolvido'
+        JOIN vendas v ON v.id=vi.venda_id WHERE TO_CHAR(v.data,'YYYY-MM')=$1 AND v.status!='cancelada' AND vi.tipo!='devolvido' AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))
         GROUP BY vi.nome ORDER BY qty DESC LIMIT 20`, [mes])
     ]);
     res.json({ resumo: resumo.rows[0], porDia: porDia.rows, porVendedor: porVendedor.rows, topProdutos: topProdutos.rows });
@@ -1496,7 +1584,8 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        FROM vendas v
        LEFT JOIN funcionarios f ON f.id = v.vendedor_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
-         AND v.status != 'cancelada'`,
+         AND v.status != 'cancelada'
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
       [data]
     );
 
@@ -1507,7 +1596,8 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        JOIN vendas v ON v.id = vi.venda_id
        LEFT JOIN produtos p ON p.id = vi.produto_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
-         AND v.status != 'cancelada'`,
+         AND v.status != 'cancelada'
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
       [data]
     );
 
@@ -1517,7 +1607,8 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        FROM venda_pagamentos vp
        JOIN vendas v ON v.id = vp.venda_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
-         AND v.status != 'cancelada'`,
+         AND v.status != 'cancelada'
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
       [data]
     );
 
