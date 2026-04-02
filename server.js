@@ -51,6 +51,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const tokenBlacklist = new Set();
 
+async function registrarMovimento(client, { produtoId, produtoNome, produtoCod, tipo, quantidade, estoqueAnterior, estoquePosteriror, motivo, vendaId, usuarioId, usuarioNome }) {
+  await client.query(
+    `INSERT INTO estoque_movimentos
+     (id, produto_id, produto_nome, produto_cod, tipo, quantidade, estoque_anterior, estoque_posterior, motivo, venda_id, usuario_id, usuario_nome)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [uid(), produtoId, produtoNome||'', produtoCod||'', tipo, quantidade, estoqueAnterior||0, estoquePosteriror||0, motivo||'', vendaId||null, usuarioId||null, usuarioNome||'']
+  );
+}
+
 function criptografarBackup(jsonStr) {
   const BACKUP_SECRET = process.env.BACKUP_SECRET || 'scap-moda-backup-2024';
   const key = crypto.scryptSync(BACKUP_SECRET, 'salt', 32);
@@ -321,6 +330,21 @@ async function initDB() {
     ip TEXT,
     criado_em TIMESTAMP DEFAULT NOW()
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS estoque_movimentos (
+    id TEXT PRIMARY KEY,
+    produto_id TEXT NOT NULL,
+    produto_nome TEXT,
+    produto_cod TEXT,
+    tipo TEXT NOT NULL,
+    quantidade INTEGER NOT NULL,
+    estoque_anterior INTEGER,
+    estoque_posterior INTEGER,
+    motivo TEXT,
+    venda_id TEXT,
+    usuario_id TEXT,
+    usuario_nome TEXT,
+    criado_em TIMESTAMP DEFAULT NOW()
+  )`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -578,6 +602,25 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// ESTOQUE — Histórico de movimentações
+app.get('/api/estoque/movimentos', auth, async (req, res) => {
+  try {
+    const { produtoId, tipo, dataInicio, dataFim, limit } = req.query;
+    let where = 'WHERE 1=1';
+    const params = [];
+    let i = 1;
+    if (produtoId) { where += ` AND produto_id=$${i++}`; params.push(produtoId); }
+    if (tipo) { where += ` AND tipo=$${i++}`; params.push(tipo); }
+    if (dataInicio) { where += ` AND DATE(criado_em) >= $${i++}`; params.push(dataInicio); }
+    if (dataFim) { where += ` AND DATE(criado_em) <= $${i++}`; params.push(dataFim); }
+    const r = await pool.query(
+      `SELECT * FROM estoque_movimentos ${where} ORDER BY criado_em DESC LIMIT $${i}`,
+      [...params, parseInt(limit) || 200]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // PRODUTOS — Última entrada de estoque
 app.get('/api/produtos/:id/ultima-entrada', auth, async (req, res) => {
   try {
@@ -602,10 +645,23 @@ app.get('/api/produtos/:id/ultima-entrada', auth, async (req, res) => {
 
 app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
   try {
-    const { delta } = req.body;
-    await pool.query('UPDATE produtos SET est=GREATEST(0,est+$1),atualizado_em=NOW() WHERE id=$2', [delta, req.params.id]);
-    const r = await pool.query('SELECT est FROM produtos WHERE id=$1', [req.params.id]);
-    res.json({ est: r.rows[0]?.est });
+    const { delta, motivo } = req.body;
+    const prodId = req.params.id;
+    const antes = await pool.query('SELECT est, nome, cod FROM produtos WHERE id=$1', [prodId]);
+    const estoqueAnterior = antes.rows[0]?.est || 0;
+    const produtoNome = antes.rows[0]?.nome || '';
+    const produtoCod = antes.rows[0]?.cod || '';
+    await pool.query('UPDATE produtos SET est=GREATEST(0,est+$1),atualizado_em=NOW() WHERE id=$2', [delta, prodId]);
+    const r = await pool.query('SELECT est FROM produtos WHERE id=$1', [prodId]);
+    const estoquePosteriror = r.rows[0]?.est || 0;
+    await registrarMovimento(pool, {
+      produtoId: prodId, produtoNome, produtoCod,
+      tipo: 'ajuste', quantidade: delta,
+      estoqueAnterior, estoquePosteriror,
+      motivo: motivo || 'Ajuste manual',
+      usuarioId: req.user?.id, usuarioNome: req.user?.nome
+    });
+    res.json({ est: estoquePosteriror });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
@@ -742,10 +798,27 @@ app.post('/api/vendas', auth, async (req, res) => {
     for (const item of (v.itens||[])) {
       await client.query('INSERT INTO venda_itens (venda_id,produto_id,nome,cod,preco,qty,tipo) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [v.id,item.id,item.nome,item.cod,item.preco,item.qty,item.tipo||'novo']);
+      const estAntes = await client.query('SELECT est FROM produtos WHERE id=$1', [item.id]);
+      const estoqueAnterior = estAntes.rows[0]?.est || 0;
       if (item.tipo === 'devolvido') {
         await client.query('UPDATE produtos SET est=est+$1,atualizado_em=NOW() WHERE id=$2', [item.qty, item.id]);
+        await registrarMovimento(client, {
+          produtoId: item.id, produtoNome: item.nome, produtoCod: item.cod,
+          tipo: 'devolucao', quantidade: item.qty,
+          estoqueAnterior, estoquePosteriror: estoqueAnterior + item.qty,
+          motivo: 'Devolução venda ' + v.num, vendaId: v.id,
+          usuarioId: v.vendedorId, usuarioNome: v.vendedorNome
+        });
       } else {
         await client.query('UPDATE produtos SET est=GREATEST(0,est-$1),atualizado_em=NOW() WHERE id=$2', [item.qty, item.id]);
+        const estoquePos = Math.max(0, estoqueAnterior - item.qty);
+        await registrarMovimento(client, {
+          produtoId: item.id, produtoNome: item.nome, produtoCod: item.cod,
+          tipo: 'venda', quantidade: item.qty,
+          estoqueAnterior, estoquePosteriror: estoquePos,
+          motivo: 'Venda ' + v.num, vendaId: v.id,
+          usuarioId: v.vendedorId, usuarioNome: v.vendedorNome
+        });
       }
     }
     for (const p of (v.pgtoItens||[])) {
