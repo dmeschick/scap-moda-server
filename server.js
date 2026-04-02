@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const SALT_ROUNDS = 10;
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
@@ -11,6 +12,26 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Rate limiting
+const limiterGeral = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { erro: 'Muitas requisições. Tente novamente em 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use(limiterGeral);
+
+const limiterLogin = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { erro: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/login', limiterLogin);
+app.use('/api/auth/validar-senha', limiterLogin);
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
