@@ -536,15 +536,6 @@ tr:hover td{background:var(--bg)}
           <button class="tab active" onclick="tabRel(this,'rel-content')">Relatório Mensal</button>
           <button class="tab" onclick="tabRel(this,'rel-diario')">Relatório do Dia</button>
         </div>
-        <div class="card" style="padding:14px;margin-bottom:16px">
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:13px;font-weight:600;color:var(--text2)">Período:</span>
-            <input type="month" id="rel-mes" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-            <button class="btn btn-primary btn-sm" onclick="carregarRelatorio()">Atualizar</button>
-            <button class="btn btn-sm" onclick="mesAnterior()">← Mês anterior</button>
-            <button class="btn btn-sm" onclick="mesAtual()">Mês atual</button>
-          </div>
-        </div>
         <div id="rel-diario" style="display:none">
           <div class="card" style="padding:14px;margin-bottom:16px">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -555,6 +546,15 @@ tr:hover td{background:var(--bg)}
             </div>
           </div>
           <div id="rel-diario-content"></div>
+        </div>
+        <div id="rel-filtro-mensal" class="card" style="padding:14px;margin-bottom:16px">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:13px;font-weight:600;color:var(--text2)">Período:</span>
+            <input type="month" id="rel-mes" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+            <button class="btn btn-primary btn-sm" onclick="carregarRelatorio()">Atualizar</button>
+            <button class="btn btn-sm" onclick="mesAnterior()">← Mês anterior</button>
+            <button class="btn btn-sm" onclick="mesAtual()">Mês atual</button>
+          </div>
         </div>
         <div id="rel-content"></div>
       </div>
@@ -4226,6 +4226,8 @@ function tabRel(btn, id) {
     const el = document.getElementById(i);
     if (el) el.style.display = i === id ? 'block' : 'none';
   });
+  const filtroMensal = document.getElementById('rel-filtro-mensal');
+  if (filtroMensal) filtroMensal.style.display = id === 'rel-content' ? 'block' : 'none';
   if (id === 'rel-diario') {
     if (!document.getElementById('rel-dia-data').value) {
       document.getElementById('rel-dia-data').value = new Date().toISOString().split('T')[0];
