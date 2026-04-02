@@ -274,6 +274,16 @@ async function initDB() {
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS auditoria (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL,
+    usuario_nome TEXT,
+    cargo TEXT,
+    acao TEXT NOT NULL,
+    detalhes TEXT,
+    ip TEXT,
+    criado_em TIMESTAMP DEFAULT NOW()
+  )`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -298,6 +308,44 @@ app.post('/api/login', async (req, res) => {
     if (!ok) return res.status(401).json({ erro: 'Senha incorreta' });
     const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// AUTH — Validar senha do próprio usuário
+app.post('/api/auth/validar-senha', auth, async (req, res) => {
+  try {
+    const { senha } = req.body;
+    const usuario = req.user;
+    const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1', [usuario.id]);
+    if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'Usuário não encontrado' });
+    const func = r.rows[0];
+    const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
+    const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
+    const ok = func.senha_hash ? await bcrypt.compare(senha, func.senha_hash) : senha === senhaPadrao;
+    if (!ok) return res.json({ ok: false, erro: 'Senha incorreta' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// AUDITORIA — Registrar
+app.post('/api/auditoria', auth, async (req, res) => {
+  try {
+    const { acao, detalhes } = req.body;
+    const usuario = req.user;
+    await pool.query(
+      `INSERT INTO auditoria (id, usuario_id, usuario_nome, cargo, acao, detalhes, ip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [uid(), usuario.id, usuario.nome, usuario.cargo, acao, detalhes || '', req.ip || '']
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// AUDITORIA — Buscar log
+app.get('/api/auditoria', auth, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT * FROM auditoria ORDER BY criado_em DESC LIMIT 200`);
+    res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
