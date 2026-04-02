@@ -4408,6 +4408,8 @@ function requerConfirmacao() {
 
 async function confirmarAcao(acao, detalhes, callback) {
   if (!requerConfirmacao()) {
+    // Admin — executa direto mas registra auditoria
+    try { await api('POST', '/api/auditoria', { acao, detalhes }); } catch(e) {}
     callback();
     return;
   }
