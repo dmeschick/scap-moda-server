@@ -477,6 +477,7 @@ tr:hover td{background:var(--bg)}
         <div class="tabs" style="margin-bottom:16px">
           <button class="tab active" onclick="tabFunc(this,'tab-func-lista')">👥 Funcionários</button>
           <button class="tab" onclick="tabFunc(this,'tab-func-ponto')">⏱ Ponto</button>
+          <button class="tab" onclick="tabFunc(this,'tab-func-vales')">💵 Vales</button>
         </div>
         <!-- Lista -->
         <div id="tab-func-lista">
@@ -515,6 +516,41 @@ tr:hover td{background:var(--bg)}
           </div>
           <!-- Resumo horas -->
           <div id="ponto-resumo" style="margin-top:16px"></div>
+        </div>
+        <!-- Vales -->
+        <div id="tab-func-vales" style="display:none">
+          <div class="card" style="padding:14px;margin-bottom:16px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Mês</label>
+                <input type="month" id="vales-mes" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="carregarVales()">Filtrar</button>
+              <button class="btn btn-sm btn-primary" onclick="abrirModalVale()">+ Registrar Vale</button>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-title">Resumo do mês</div>
+            <div id="vales-resumo"></div>
+          </div>
+          <div class="card" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Funcionária</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Descrição</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="vales-tbody"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -910,6 +946,39 @@ tr:hover td{background:var(--bg)}
 </div><!-- /app -->
 
 <!-- MODAIS -->
+<!-- Modal Vale -->
+<div class="modal-backdrop" id="modal-vale">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><h3>Registrar Vale</h3><button class="modal-close" onclick="fecharModal('modal-vale')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Funcionária</label>
+        <select id="vale-func" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Valor (R$)</label>
+        <input type="number" id="vale-valor" step="0.01" min="0"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Mês de referência</label>
+        <input type="month" id="vale-mes-ref"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+      <div class="form-group">
+        <label>Descrição (opcional)</label>
+        <input type="text" id="vale-desc" placeholder="Ex: Vale dia 20"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-vale')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarVale()">Salvar</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Produto -->
 <div class="modal-backdrop" id="modal-produto">
   <div class="modal" style="max-width:760px">
@@ -2183,10 +2252,16 @@ async function excluirFornecedor(id, nome) {
 function tabFunc(btn, tabId) {
   document.querySelectorAll('#page-funcionarios .tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  ['tab-func-lista','tab-func-ponto'].forEach(id => {
+  ['tab-func-lista','tab-func-ponto','tab-func-vales'].forEach(id => {
     document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
   });
   if (tabId === 'tab-func-ponto') iniciarPonto();
+  if (tabId === 'tab-func-vales') {
+    if (!document.getElementById('vales-mes').value) {
+      document.getElementById('vales-mes').value = new Date().toISOString().slice(0,7);
+    }
+    carregarVales();
+  }
 }
 
 function tabFuncModal(btn, tabId) {
@@ -4678,6 +4753,114 @@ async function salvarAjusteEstoqueReal() {
     fecharModal('modal-estoque-ajuste');
     toast('Estoque ajustado!');
     carregarEstoque();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// ===== VALES DE FUNCIONÁRIOS =====
+async function abrirModalVale() {
+  const sel = document.getElementById('vale-func');
+  sel.innerHTML = '<option value="">Selecione...</option>';
+  try {
+    const funcs = await api('GET', '/api/funcionarios');
+    funcs.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.dataset.nome = f.nome;
+      opt.textContent = f.nome;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+  document.getElementById('vale-valor').value = '';
+  document.getElementById('vale-mes-ref').value = new Date().toISOString().slice(0,7);
+  document.getElementById('vale-desc').value = '';
+  abrirModal('modal-vale');
+}
+
+async function salvarVale() {
+  const funcEl = document.getElementById('vale-func');
+  const funcId = funcEl.value;
+  const funcNome = funcEl.selectedOptions[0]?.dataset.nome || '';
+  const valor = parseFloat(document.getElementById('vale-valor').value)||0;
+  const mes = document.getElementById('vale-mes-ref').value;
+  const desc = document.getElementById('vale-desc').value;
+  if (!funcId) { toast('Selecione a funcionária', 'warn'); return; }
+  if (!valor) { toast('Informe o valor', 'warn'); return; }
+  if (!mes) { toast('Informe o mês', 'warn'); return; }
+  try {
+    await api('POST', '/api/vales', {
+      id: uid(), funcionarioId: funcId, funcionarioNome: funcNome,
+      valor, tipo: 'dinheiro', descricao: desc || 'Vale em dinheiro', mes
+    });
+    toast('Vale registrado!');
+    fecharModal('modal-vale');
+    carregarVales();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function carregarVales() {
+  const mes = document.getElementById('vales-mes').value;
+  try {
+    const [resumo, { vales }] = await Promise.all([
+      api('GET', '/api/vales/resumo?mes=' + mes),
+      api('GET', '/api/vales?mes=' + mes)
+    ]);
+    const resumoEl = document.getElementById('vales-resumo');
+    if (!resumo.length) {
+      resumoEl.innerHTML = '<div class="empty-state" style="padding:16px"><p>Nenhum vale em ' + mes + '</p></div>';
+    } else {
+      resumoEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr>' +
+        '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Funcionária</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Dinheiro</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Roupa</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Total</th>' +
+        '</tr></thead><tbody>' +
+        resumo.map(r =>
+          '<tr><td style="padding:8px;border-bottom:1px solid var(--border)"><strong>' + r.funcionario_nome + '</strong></td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + fmtMoeda(r.total_dinheiro) + '</td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + fmtMoeda(r.total_roupa) + '</td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--pink-dark)">' + fmtMoeda(r.total) + '</td></tr>'
+        ).join('') +
+        '</tbody></table>';
+    }
+    const tbody = document.getElementById('vales-tbody');
+    if (!vales.length) {
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:24px"><p>Nenhum vale registrado</p></div></td></tr>';
+      return;
+    }
+    const tipoLabel = { dinheiro: '💵 Dinheiro', roupa: '👗 Roupa' };
+    tbody.innerHTML = vales.map(v =>
+      '<tr>' +
+        '<td>' + new Date(v.criado_em).toLocaleDateString('pt-BR') + '</td>' +
+        '<td><strong>' + v.funcionario_nome + '</strong></td>' +
+        '<td>' + (tipoLabel[v.tipo]||v.tipo) + '</td>' +
+        '<td><strong>' + fmtMoeda(v.valor) + '</strong></td>' +
+        '<td style="color:var(--text2);font-size:12px">' + (v.descricao||'—') + '</td>' +
+        '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' + (v.status==='descontado' ? 'Descontado' : 'Pendente') + '</span></td>' +
+        '<td style="display:flex;gap:4px">' +
+          (v.status !== 'descontado' ? '<button class="btn btn-sm btn-primary" onclick="marcarDescontado(\'' + v.id + '\')">✓ Descontar</button>' : '') +
+          '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">Excluir</button>' +
+        '</td>' +
+      '</tr>'
+    ).join('');
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function marcarDescontado(id) {
+  if (!confirm('Marcar vale como descontado do salário?')) return;
+  try {
+    await api('PATCH', '/api/vales/' + id + '/descontar', {});
+    toast('Vale marcado como descontado!');
+    carregarVales();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirVale(id) {
+  if (!confirm('Excluir este vale?')) return;
+  try {
+    await api('DELETE', '/api/vales/' + id);
+    toast('Vale excluído');
+    carregarVales();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
