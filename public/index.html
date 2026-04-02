@@ -1618,7 +1618,6 @@ async function salvarProduto() {
 }
 
 async function excluirProduto(id, nome) {
-  if (!confirm(`Excluir "${nome}"?`)) return;
   await confirmarAcao('excluir produto', 'Excluir produto: ' + nome, () => excluirProdutoReal(id, nome));
 }
 
@@ -1841,7 +1840,7 @@ async function carregarClientes() {
         <td><strong>${fmtMoeda(c.total_compras)}</strong></td>
         <td class="col-hide-mobile">${c.saldo_credito > 0 ? `<span class="badge badge-green">💳 ${fmtMoeda(c.saldo_credito)}</span>` : '—'}</td>
         <td><div class="action-btns" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="abrirModalCliente('${c.id}')">Editar</button>
+          <button class="btn btn-sm" onclick="confirmarAcao('editar cliente','Editar cliente ${c.nome.replace(/'/g,"\\'")}',()=>abrirModalCliente('${c.id}'))">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
       </tr>`;
@@ -1996,7 +1995,6 @@ async function salvarCliente() {
 }
 
 async function excluirCliente(id, nome) {
-  if (!confirm(`Excluir "${nome}"?`)) return;
   await confirmarAcao('excluir cliente', 'Excluir cliente: ' + nome, () => excluirClienteReal(id));
 }
 
@@ -2027,7 +2025,7 @@ async function carregarFornecedores() {
       <td>${f.tel||'—'}</td>
       <td style="font-size:12px">${f.cats||'—'}</td>
       <td><div class="action-btns">
-        <button class="btn btn-sm" onclick="abrirModalFornecedor('${f.id}')">Editar</button>
+        <button class="btn btn-sm" onclick="confirmarAcao('editar fornecedor','Editar fornecedor ${f.nome.replace(/'/g,"\\'")}',()=>abrirModalFornecedor('${f.id}'))">Editar</button>
         <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
       </div></td>
     </tr>`).join('');
@@ -2086,7 +2084,6 @@ async function salvarFornecedor() {
 }
 
 async function excluirFornecedor(id, nome) {
-  if (!confirm(`Excluir "${nome}"?`)) return;
   await confirmarAcao('excluir fornecedor', 'Excluir fornecedor: ' + nome, () => excluirFornecedorReal(id));
 }
 
@@ -2126,7 +2123,7 @@ async function carregarFuncionarios() {
       <td>${f.comissao||0}%</td>
       <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span></td>
       <td><div class="action-btns">
-        <button class="btn btn-sm" onclick="abrirModalFuncionario('${f.id}')">Editar</button>
+        <button class="btn btn-sm" onclick="confirmarAcao('editar funcionário','Editar funcionário ${f.nome.replace(/'/g,"\\'")}',()=>abrirModalFuncionario('${f.id}'))">Editar</button>
         <button class="btn btn-sm btn-danger" onclick="excluirFuncionario('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
       </div></td>
     </tr>`).join('');
@@ -2134,7 +2131,6 @@ async function carregarFuncionarios() {
 }
 
 async function excluirFuncionario(id, nome) {
-  if (!confirm(`Excluir permanentemente "${nome}"?`)) return;
   await confirmarAcao('excluir funcionário', 'Excluir funcionário: ' + nome, () => excluirFuncionarioReal(id));
 }
 
@@ -2644,7 +2640,7 @@ async function carregarEstoque() {
         <td><strong style="font-size:16px">${p.est}</strong></td>
         <td>${p.estmin}</td>
         <td><span class="badge ${badge}">${label}</span></td>
-        <td><button class="btn btn-sm" onclick="abrirAjusteEstoque('${p.id}','${p.nome.replace(/'/g,"\\'")}',${p.est})">Ajustar</button></td>
+        <td><button class="btn btn-sm" onclick="confirmarAcao('ajustar estoque','Ajuste: ${p.nome.replace(/'/g,"\\'")}',()=>abrirAjusteEstoque('${p.id}','${p.nome.replace(/'/g,"\\'")}',${p.est}))">Ajustar</button></td>
       </tr>`;
     }).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
@@ -4597,9 +4593,9 @@ async function carregarContas() {
         '<td>' + fmtData(venc) + '</td>' +
         '<td><span class="badge ' + badge + '">' + label + '</span></td>' +
         '<td><div class="action-btns">' +
-          (!c.pago ? '<button class="btn btn-sm btn-primary" onclick="abrirModalPagar(\'' + c.id + '\',' + c.valor + ')">✓ Pagar</button>' : '') +
-          '<button class="btn btn-sm" onclick="abrirModalConta(\'' + c.id + '\')">Editar</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="excluirConta(\'' + c.id + '\')">Excluir</button>' +
+          (!c.pago ? '<button class="btn btn-sm btn-primary" onclick="confirmarAcao(\'confirmar pagamento\',\'Pagar conta: ' + (c.descricao||'').replace(/'/g,"\\'") + '\',()=>abrirModalPagar(\'' + c.id + '\',' + c.valor + '))">✓ Pagar</button>' : '') +
+          '<button class="btn btn-sm" onclick="confirmarAcao(\'editar conta\',\'Editar conta: ' + (c.descricao||'').replace(/'/g,"\\'") + '\',()=>abrirModalConta(\'' + c.id + '\'))">Editar</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirConta(\'' + c.id + '\',\'' + (c.descricao||'').replace(/'/g,"\\'") + '\')">Excluir</button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -4682,8 +4678,11 @@ async function confirmarPagamento() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; } }
 }
 
-async function excluirConta(id) {
-  if (!confirm('Excluir esta conta?')) return;
+async function excluirConta(id, desc) {
+  await confirmarAcao('excluir conta', 'Excluir conta: ' + (desc||''), () => excluirContaReal(id));
+}
+
+async function excluirContaReal(id) {
   try {
     await api('DELETE', '/api/financeiro/contas-pagar/' + id);
     toast('Conta excluída');
@@ -4718,7 +4717,7 @@ async function carregarCheques() {
         '<td><div class="action-btns">' +
           (c.status === 'pendente' ? '<button class="btn btn-sm btn-primary" onclick="compensarCheque(\'' + c.id + '\')">✓ Compensar</button>' : '') +
           (c.status === 'pendente' ? '<button class="btn btn-sm btn-danger" onclick="devolverCheque(\'' + c.id + '\')">✗ Devolver</button>' : '') +
-          '<button class="btn btn-sm btn-danger" onclick="excluirCheque(\'' + c.id + '\')">Excluir</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCheque(\'' + c.id + '\',\'' + (c.nome||'').replace(/'/g,"\\'") + '\')">Excluir</button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -4771,7 +4770,9 @@ async function salvarCheque() {
 }
 
 async function compensarCheque(id) {
-  if (!confirm('Marcar cheque como compensado?')) return;
+  await confirmarAcao('compensar cheque', 'Marcar cheque como compensado', () => compensarChequeReal(id));
+}
+async function compensarChequeReal(id) {
   try {
     await api('PATCH', '/api/financeiro/cheques/' + id + '/status', { status: 'compensado' });
     toast('Cheque compensado!');
@@ -4780,7 +4781,9 @@ async function compensarCheque(id) {
 }
 
 async function devolverCheque(id) {
-  if (!confirm('Marcar cheque como devolvido?')) return;
+  await confirmarAcao('devolver cheque', 'Marcar cheque como devolvido', () => devolverChequeReal(id));
+}
+async function devolverChequeReal(id) {
   try {
     await api('PATCH', '/api/financeiro/cheques/' + id + '/status', { status: 'devolvido' });
     toast('Cheque marcado como devolvido');
@@ -4788,8 +4791,10 @@ async function devolverCheque(id) {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
-async function excluirCheque(id) {
-  if (!confirm('Excluir este cheque?')) return;
+async function excluirCheque(id, nome) {
+  await confirmarAcao('excluir cheque', 'Excluir cheque: ' + (nome||''), () => excluirChequeReal(id));
+}
+async function excluirChequeReal(id) {
   try {
     await api('DELETE', '/api/financeiro/cheques/' + id);
     toast('Cheque excluído');
@@ -4847,8 +4852,11 @@ function renderCaixa(caixa) {
 }
 
 async function abrirCaixa() {
+  await confirmarAcao('operar caixa', 'Abrir caixa', () => abrirCaixaReal());
+}
+async function abrirCaixaReal() {
   const val = parseFloat(document.getElementById('caixa-abertura-val').value)||0;
-  const btn = event?.target || document.querySelector('[onclick="abrirCaixa()"]');
+  const btn = document.querySelector('[onclick="abrirCaixa()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Abrindo...'; }
   try {
     await api('POST', '/api/financeiro/caixa/abrir', {
@@ -4864,13 +4872,15 @@ async function abrirCaixa() {
 
 async function fecharCaixa() {
   if (!_caixaAtual) return;
+  await confirmarAcao('operar caixa', 'Fechar caixa', () => fecharCaixaReal());
+}
+async function fecharCaixaReal() {
   const valInput = document.getElementById('caixa-fechamento-val');
   const difEl = document.getElementById('caixa-diferenca');
   const contado = parseFloat(valInput.value)||0;
   const saldo = difEl._saldo || 0;
   const dif = contado - saldo;
-  if (!confirm('Confirmar fechamento do caixa?')) return;
-  const btn = event?.target || document.querySelector('[onclick="fecharCaixa()"]');
+  const btn = document.querySelector('[onclick="fecharCaixa()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Fechando...'; }
   try {
     await api('POST', '/api/financeiro/caixa/fechar', {
