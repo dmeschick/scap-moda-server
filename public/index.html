@@ -3838,11 +3838,18 @@ function limparSelecaoEtiquetas() {
   atualizarBarraEtiquetas();
 }
 
-function abrirModalEtiqueta(id, nome, cod, colecao, preco) {
+async function abrirModalEtiqueta(id, nome, cod, colecao, preco) {
   _etiquetaAtual = { id, nome, cod, colecao, preco };
   document.getElementById('etiq-id').value = id;
   document.getElementById('etiq-produto-nome').textContent = nome + ' · ' + cod;
-  document.getElementById('etiq-qtd').value = 1;
+  document.getElementById('etiq-qtd').value = 1; // padrão enquanto carrega
+
+  // Busca última entrada
+  try {
+    const r = await api('GET', '/api/produtos/' + id + '/ultima-entrada');
+    document.getElementById('etiq-qtd').value = r.ultimaEntrada || 1;
+  } catch(e) {}
+
   abrirModal('modal-etiqueta');
 }
 
