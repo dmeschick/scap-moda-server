@@ -4266,6 +4266,10 @@ async function carregarRelatorioDiario() {
       '</div>';
 
     // Por forma de pagamento
+    const totalCredito = r.porPagamento
+      .filter(p => p.tipo === 'credito')
+      .reduce((a, p) => a + p.total, 0);
+
     const tabelaPagamento =
       '<div class="card" style="margin-bottom:16px">' +
         '<div class="card-title">Por forma de pagamento</div>' +
@@ -4273,40 +4277,83 @@ async function carregarRelatorioDiario() {
         (r.porPagamento.length ? r.porPagamento.map(p =>
           '<tr><td><strong>' + p.label + '</strong></td><td>' + fmtMoeda(p.total) + '</td></tr>'
         ).join('') : '<tr><td colspan="2"><div class="empty-state" style="padding:16px"><p>Sem pagamentos</p></div></td></tr>') +
+        (totalCredito > 0 ? '<tr style="border-top:2px solid var(--border);font-weight:700"><td>Total Cartão de Crédito</td><td>' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
         '</tbody></table>' +
       '</div>';
 
+    _relDiarioAtual = r;
     el.innerHTML = cards + tabelaVendedor + tabelaPagamento;
 
   } catch(e) { el.innerHTML = '<div class="empty-state"><p>Erro: ' + e.message + '</p></div>'; }
 }
 
 function imprimirRelatorioDiario() {
+  if (!_relDiarioAtual) { toast('Carregue o relatório primeiro', 'warn'); return; }
+  const r = _relDiarioAtual;
   const data = document.getElementById('rel-dia-data').value;
-  const conteudo = document.getElementById('rel-diario-content').innerHTML;
-  if (!conteudo) { toast('Carregue o relatório primeiro', 'warn'); return; }
-
   const dataFmt = data ? new Date(data + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+
+  const fmtPct = v => v.toFixed(1) + '%';
+
+  // Cards de resumo
+  const cardStyle = 'border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center;flex:1';
+  const cards =
+    '<div style="display:flex;gap:8px;margin-bottom:16px">' +
+      '<div style="' + cardStyle + '"><div style="font-size:9px;text-transform:uppercase;color:#666">Total do dia</div><div style="font-size:18px;font-weight:bold;margin:4px 0">' + fmtMoeda(r.totalLoja) + '</div><div style="font-size:10px;color:#666">' + r.qtdVendas + ' venda(s)</div></div>' +
+      '<div style="' + cardStyle + '"><div style="font-size:9px;text-transform:uppercase;color:#666">Peças vendidas</div><div style="font-size:18px;font-weight:bold;margin:4px 0">' + r.totalPecasVendidas + '</div></div>' +
+      '<div style="' + cardStyle + '"><div style="font-size:9px;text-transform:uppercase;color:#666">Peças trocadas</div><div style="font-size:18px;font-weight:bold;margin:4px 0">' + r.totalPecasTrocadas + '</div></div>' +
+      '<div style="' + cardStyle + '"><div style="font-size:9px;text-transform:uppercase;color:#666">CMV</div><div style="font-size:18px;font-weight:bold;margin:4px 0;color:#c0392b">' + fmtMoeda(r.cmv) + '</div></div>' +
+      '<div style="' + cardStyle + '"><div style="font-size:9px;text-transform:uppercase;color:#666">Margem bruta</div><div style="font-size:18px;font-weight:bold;margin:4px 0;color:' + (r.margemBruta >= 50 ? '#27ae60' : '#e67e22') + '">' + fmtPct(r.margemBruta) + '</div></div>' +
+    '</div>';
+
+  const thStyle = 'background:#f0f0f0;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;border-bottom:2px solid #ddd';
+  const tdStyle = 'padding:6px 8px;border-bottom:1px solid #eee';
+
+  // Por vendedor
+  const tabelaVendedor =
+    '<div style="border:1px solid #ddd;border-radius:6px;margin-bottom:16px;overflow:hidden">' +
+      '<div style="font-weight:700;font-size:13px;padding:10px 12px;border-bottom:1px solid #ddd">Por vendedora</div>' +
+      '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr><th style="' + thStyle + '">Vendedora</th><th style="' + thStyle + '">Total</th><th style="' + thStyle + '">Peças</th></tr></thead>' +
+        '<tbody>' +
+        (r.porVendedor.length ? r.porVendedor.map(v =>
+          '<tr><td style="' + tdStyle + '"><strong>' + v.nome + '</strong></td><td style="' + tdStyle + '">' + fmtMoeda(v.total) + '</td><td style="' + tdStyle + '">' + v.pecas + '</td></tr>'
+        ).join('') : '<tr><td colspan="3" style="' + tdStyle + ';text-align:center;color:#999">Sem vendas</td></tr>') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+
+  // Por forma de pagamento
+  const totalCredito = r.porPagamento
+    .filter(p => p.tipo === 'credito')
+    .reduce((a, p) => a + p.total, 0);
+
+  const tabelaPagamento =
+    '<div style="border:1px solid #ddd;border-radius:6px;margin-bottom:16px;overflow:hidden">' +
+      '<div style="font-weight:700;font-size:13px;padding:10px 12px;border-bottom:1px solid #ddd">Por forma de pagamento</div>' +
+      '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr><th style="' + thStyle + '">Forma</th><th style="' + thStyle + '">Total</th></tr></thead>' +
+        '<tbody>' +
+        (r.porPagamento.length ? r.porPagamento.map(p =>
+          '<tr><td style="' + tdStyle + '"><strong>' + p.label + '</strong></td><td style="' + tdStyle + '">' + fmtMoeda(p.total) + '</td></tr>'
+        ).join('') : '<tr><td colspan="2" style="' + tdStyle + ';text-align:center;color:#999">Sem pagamentos</td></tr>') +
+        (totalCredito > 0 ? '<tr style="border-top:2px solid #ddd"><td style="' + tdStyle + ';font-weight:700">Total Cartão de Crédito</td><td style="' + tdStyle + ';font-weight:700">' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
 
   const j = window.open('', '_blank', 'width=800,height=600');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
   j.document.write(`<!DOCTYPE html><html><head><title>Relatório do Dia</title><style>
     @page { size: A4; margin: 15mm; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #000; }
-    h1 { font-size: 16px; margin-bottom: 4px; }
-    h2 { font-size: 13px; margin: 12px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-    th { background: #f0f0f0; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
-    td { padding: 6px 8px; border-bottom: 1px solid #eee; }
-    .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
-    .card { border: 1px solid #ddd; border-radius: 6px; padding: 10px; text-align: center; }
-    .card .label { font-size: 9px; text-transform: uppercase; color: #666; }
-    .card .value { font-size: 16px; font-weight: bold; margin: 4px 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; }
     @media print { body { margin: 0; } }
   </style></head><body>
-    <h1>SCAP MODA FEMININA — Relatório do Dia</h1>
-    <div style="font-size:12px;color:#666;margin-bottom:12px">${dataFmt}</div>
-    ${conteudo}
+    <div style="font-size:16px;font-weight:bold;margin-bottom:4px">SCAP MODA FEMININA — Relatório do Dia</div>
+    <div style="font-size:12px;color:#666;margin-bottom:14px">${dataFmt}</div>
+    ${cards}
+    ${tabelaVendedor}
+    ${tabelaPagamento}
     <script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script>
   </body></html>`);
   j.document.close();
@@ -4344,6 +4391,7 @@ ajustarMobile();
 
 // ===== FINANCEIRO =====
 let _caixaAtual = null;
+let _relDiarioAtual = null;
 
 function finTab(aba) {
   ['contas','cheques','caixa','dre','projecao','comissoes'].forEach(a => {
