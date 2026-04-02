@@ -566,7 +566,7 @@ app.get('/api/clientes', auth, async (req, res) => {
       FROM clientes c
       LEFT JOIN enderecos_cliente e ON e.cliente_id=c.id
       WHERE ${where.join(' AND ')}
-      GROUP BY c.id ORDER BY c.nome`;
+      GROUP BY c.id ORDER BY c.criado_em DESC`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
