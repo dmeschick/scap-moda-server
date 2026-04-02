@@ -273,6 +273,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -398,7 +399,7 @@ app.get('/api/produtos', auth, async (req, res) => {
     if (status) params.push(status);
     if (cat) { where.push(`cat=$${i++}`); params.push(cat); }
     if (q) { where.push(`(LOWER(nome) LIKE $${i} OR cod ILIKE $${i})`); params.push('%'+q.toLowerCase()+'%'); i++; }
-    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ORDER BY nome LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
+    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ORDER BY criado_em DESC LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }

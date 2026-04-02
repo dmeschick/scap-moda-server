@@ -829,7 +829,7 @@ tr:hover td{background:var(--bg)}
         <div class="form-grid">
           <div class="form-group"><label>Nome *</label><input id="prod-nome" placeholder="Ex: Vestido Floral Midi"></div>
           <div class="form-group"><label>Código</label><input id="prod-cod" placeholder="Gerado automaticamente" readonly style="background:var(--bg)"></div>
-          <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="atualizarCodProduto()"><option value="">— Selecionar —</option></select></div>
+          <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="gerarCodigoProduto(this.value)"><option value="">— Selecionar —</option></select></div>
           <div class="form-group"><label>Fornecedor</label><select id="prod-forn"><option value="">— Selecionar —</option></select></div>
           <div class="form-group"><label>Cor</label><input id="prod-cor" placeholder="Azul, Preto..."></div>
           <div class="form-group"><label>Tamanhos</label><input id="prod-tam" placeholder="P, M, G, GG"></div>
@@ -1439,6 +1439,16 @@ async function carregarProdutos() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
+async function gerarCodigoProduto(catId) {
+  if (!catId) return;
+  const id = document.getElementById('prod-id').value;
+  if (id) return; // editando — não sobrescrever
+  try {
+    const r = await api('GET', '/api/produtos/proximo-codigo?categoriaId=' + catId);
+    document.getElementById('prod-cod').value = r.cod;
+  } catch(e) {}
+}
+
 async function abrirModalProduto(id) {
   document.getElementById('modal-prod-titulo').textContent = id ? 'Editar Produto' : 'Novo Produto';
   await carregarCategoriasGlobal();
@@ -1484,7 +1494,7 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-custo').value = '';
     document.getElementById('prod-venda').value = '';
     document.getElementById('prod-est').value = '';
-    document.getElementById('prod-estmin').value = 5;
+    document.getElementById('prod-estmin').value = '3';
     document.getElementById('prod-cfop').value = '5102';
     document.getElementById('prod-csosn').value = '400';
     document.getElementById('prod-origem').value = '0';
@@ -1493,6 +1503,16 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-cst-cofins').value = '07';
     // Mantém categoria, coleção e NCM do último cadastro
     // (já preenchidos pelo salvarProduto via _ultimoProdCat)
+    if (Object.keys(_ultimasFiscais).length) {
+      if (_ultimasFiscais.ncm) document.getElementById('prod-ncm').value = _ultimasFiscais.ncm;
+      if (_ultimasFiscais.cest) document.getElementById('prod-cest').value = _ultimasFiscais.cest;
+      if (_ultimasFiscais.cfop) document.getElementById('prod-cfop').value = _ultimasFiscais.cfop;
+      if (_ultimasFiscais.csosn) document.getElementById('prod-csosn').value = _ultimasFiscais.csosn;
+      if (_ultimasFiscais.origem) document.getElementById('prod-origem').value = _ultimasFiscais.origem;
+      if (_ultimasFiscais.unidade) document.getElementById('prod-unidade').value = _ultimasFiscais.unidade;
+      if (_ultimasFiscais.cstPis) document.getElementById('prod-cst-pis').value = _ultimasFiscais.cstPis;
+      if (_ultimasFiscais.cstCofins) document.getElementById('prod-cst-cofins').value = _ultimasFiscais.cstCofins;
+    }
   }
   // Código sempre editável
   document.getElementById('prod-cod').readOnly = false;
@@ -1556,6 +1576,16 @@ async function salvarProduto() {
   try {
     await api('POST', '/api/produtos', prod);
     toast('Produto salvo! ✅');
+    _ultimasFiscais = {
+      ncm: document.getElementById('prod-ncm')?.value || '',
+      cest: document.getElementById('prod-cest')?.value || '',
+      cfop: document.getElementById('prod-cfop')?.value || '',
+      csosn: document.getElementById('prod-csosn')?.value || '',
+      origem: document.getElementById('prod-origem')?.value || '',
+      unidade: document.getElementById('prod-unidade')?.value || '',
+      cstPis: document.getElementById('prod-cst-pis')?.value || '',
+      cstCofins: document.getElementById('prod-cst-cofins')?.value || '',
+    };
     carregarProdutos();
     if (isNovo) {
       // Lembra NCM e coleção por categoria
@@ -1649,6 +1679,7 @@ function mascaraCEST(el) {
 // ===== CLIENTES =====
 let enderecosTemp = [];
 let _clientesCache = [];
+let _ultimasFiscais = {};
 let _vendaAtual = null;
 let _creditoGeradoAtual = 0;
 
