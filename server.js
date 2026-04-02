@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 require('dotenv').config();
+const crypto = require('crypto');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -49,6 +50,16 @@ const pool = new Pool({
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const tokenBlacklist = new Set();
+
+function criptografarBackup(jsonStr) {
+  const BACKUP_SECRET = process.env.BACKUP_SECRET || 'scap-moda-backup-2024';
+  const key = crypto.scryptSync(BACKUP_SECRET, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(jsonStr, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
@@ -1287,10 +1298,11 @@ app.get('/api/backup/exportar', auth, async (req, res) => {
   try {
     const backup = await gerarBackup();
     const json = JSON.stringify(backup, null, 2);
+    const jsonCriptografado = criptografarBackup(json);
     const data = new Date().toISOString().split('T')[0];
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="scap-backup-${data}.json"`);
-    res.send(json);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="scap-backup-${data}.enc"`);
+    res.send(jsonCriptografado);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
@@ -1300,6 +1312,7 @@ app.post('/api/backup/enviar-email', auth, async (req, res) => {
     const { email } = req.body;
     const backup = await gerarBackup();
     const json = JSON.stringify(backup, null, 2);
+    const jsonCriptografado = criptografarBackup(json);
     const data = new Date().toISOString().split('T')[0];
     const stats = {
       funcionarios: backup.funcionarios.length,
@@ -1320,11 +1333,11 @@ app.post('/api/backup/enviar-email', auth, async (req, res) => {
           <li>${stats.clientes} clientes</li>
           <li>${stats.vendas} vendas</li>
         </ul>
-        <p>O arquivo JSON com todos os dados está em anexo.</p>
+        <p>O arquivo criptografado com todos os dados está em anexo.</p>
       `,
       attachments: [{
-        filename: `scap-backup-${data}.json`,
-        content: Buffer.from(json).toString('base64')
+        filename: `scap-backup-${data}.enc`,
+        content: Buffer.from(jsonCriptografado).toString('base64')
       }]
     });
     res.json({ ok: true });
@@ -1346,6 +1359,7 @@ const agendarBackupDiario = () => {
       const email = cfg.rows[0]?.valor || 'dmeschick@hotmail.com';
       const backup = await gerarBackup();
       const json = JSON.stringify(backup, null, 2);
+      const jsonCriptografado = criptografarBackup(json);
       const data = new Date().toISOString().split('T')[0];
       await resend.emails.send({
         from: 'onboarding@resend.dev',
@@ -1360,11 +1374,11 @@ const agendarBackupDiario = () => {
             <li>${backup.clientes.length} clientes</li>
             <li>${backup.vendas.length} vendas</li>
           </ul>
-          <p>O arquivo JSON com todos os dados está em anexo.</p>
+          <p>O arquivo criptografado com todos os dados está em anexo.</p>
         `,
         attachments: [{
-          filename: `scap-backup-${data}.json`,
-          content: Buffer.from(json).toString('base64')
+          filename: `scap-backup-${data}.enc`,
+          content: Buffer.from(jsonCriptografado).toString('base64')
         }]
       });
       console.log('Backup diário enviado para', email);
