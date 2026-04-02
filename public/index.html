@@ -1275,10 +1275,10 @@ function nav(id, el) {
 // ===== LOGIN =====
 async function iniciarLogin() {
   try {
-    const funcs = await api('GET', '/api/funcionarios');
+    const funcs = await api('GET', '/api/funcionarios?login=1');
     const sel = document.getElementById('login-usuario');
     sel.innerHTML = '<option value="">— Selecione seu nome —</option>' +
-      funcs.filter(f => f.status === 'ativo').map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+      funcs.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
   } catch (e) {
     document.getElementById('login-erro').textContent = 'Sem conexão com o servidor.';
     document.getElementById('login-erro').style.display = 'block';

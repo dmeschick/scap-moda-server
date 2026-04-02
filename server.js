@@ -306,7 +306,7 @@ app.post('/api/login', async (req, res) => {
     const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
     const ok = func.senha_hash ? await bcrypt.compare(senha, func.senha_hash) : senha === senhaPadrao;
     if (!ok) return res.status(401).json({ erro: 'Senha incorreta' });
-    const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '10h' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -352,10 +352,15 @@ app.get('/api/auditoria', auth, async (req, res) => {
 // FUNCIONÁRIOS
 app.get('/api/funcionarios', async (req, res) => {
   try {
-    const { todos } = req.query;
-    const sql = todos
-      ? 'SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios ORDER BY nome'
-      : "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE status='ativo' ORDER BY nome";
+    const { todos, login } = req.query;
+    let sql;
+    if (login) {
+      sql = "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE cargo IN ('Administrador','Gerente') AND status='ativo' ORDER BY nome";
+    } else if (todos) {
+      sql = 'SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios ORDER BY nome';
+    } else {
+      sql = "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE status='ativo' ORDER BY nome";
+    }
     const r = await pool.query(sql);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
