@@ -302,7 +302,7 @@ tr:hover td{background:var(--bg)}
       <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Financeiro
     </div>
     <div class="nav-section">Sistema</div>
-    <div class="nav-item" onclick="nav('configuracoes',this)">
+    <div class="nav-item" onclick="navegarConfiguracoes()">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Configurações
     </div>
     <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);margin-top:auto" id="sidebar-hora"></div>
@@ -410,7 +410,7 @@ tr:hover td{background:var(--bg)}
         <div class="search-bar">
           <input type="text" id="busca-prod" placeholder="Buscar produto..." oninput="carregarProdutos()">
           <select id="filtro-cat-prod" onchange="carregarProdutos()"><option value="">Todas categorias</option></select>
-          <button class="btn btn-primary" onclick="abrirModalProduto()">+ Novo Produto</button>
+          <button class="btn btn-primary" onclick="abrirModalProdutoSeguro()">+ Novo Produto</button>
         </div>
         <div id="etiqueta-barra" style="display:none;background:var(--pink-light);border:1px solid var(--pink);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="etiqueta-selecionados" style="font-size:13px;font-weight:600;color:var(--pink-dark)">0 produtos selecionados</span>
@@ -1180,6 +1180,7 @@ tr:hover td{background:var(--bg)}
 const API = 'https://scap-moda-server-production.up.railway.app';
 let TOKEN = null;
 let usuarioLogado = null;
+let CARGO_ATUAL = '';
 let categorias = [];
 let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{id:'d3',nome:'Promoção',pct:0}];
 
@@ -1293,6 +1294,7 @@ async function fazerLogin() {
     const data = await api('POST', '/api/login', { funcId, senha });
     TOKEN = data.token;
     usuarioLogado = data.funcionario;
+    CARGO_ATUAL = data.funcionario.cargo || '';
     localStorage.setItem('scap_token', data.token);
     localStorage.setItem('scap_user', JSON.stringify(data.funcionario));
     document.getElementById('tela-login').classList.add('hidden');
@@ -1301,6 +1303,7 @@ async function fazerLogin() {
     document.getElementById('login-senha').value = '';
     // Carrega categorias e descontos globais
     await Promise.all([carregarCategoriasGlobal(), carregarDescontosGlobal()]);
+    aplicarPermissoesMenu();
     carregarDashboard();
   } catch(e) {
     erroEl.textContent = e.message;
@@ -1427,7 +1430,7 @@ async function carregarProdutos() {
         <td><strong>${fmtMoeda(p.venda)}</strong></td>
         <td><span class="badge ${p.status==='ativo'?'badge-green':'badge-gray'}">${p.status}</span></td>
         <td><div class="action-btns">
-          <button class="btn btn-sm" onclick="abrirModalProduto('${p.id}')">Editar</button>
+          <button class="btn btn-sm" onclick="confirmarAcao('editar produto','Editar produto ${p.cod||p.nome}',()=>abrirModalProduto('${p.id}'))">Editar</button>
           <button class="btn btn-sm btn-danger" onclick="excluirProduto('${p.id}','${p.nome.replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
         <td><button class="btn btn-sm" onclick="abrirModalEtiqueta('${p.id}','${(p.nome||'').replace(/'/g,"\\'")}','${p.cod||''}','${(p.colecao||'').replace(/'/g,"\\'")}','${p.venda||0}')">🏷️</button></td>
@@ -1612,11 +1615,7 @@ async function salvarProduto() {
 
 async function excluirProduto(id, nome) {
   if (!confirm(`Excluir "${nome}"?`)) return;
-  try {
-    await api('DELETE', `/api/produtos/${id}`);
-    toast('Produto excluído');
-    carregarProdutos();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  await confirmarAcao('excluir produto', 'Excluir produto: ' + nome, () => excluirProdutoReal(id, nome));
 }
 
 function tabProd(btn, tabId) {
@@ -1994,11 +1993,7 @@ async function salvarCliente() {
 
 async function excluirCliente(id, nome) {
   if (!confirm(`Excluir "${nome}"?`)) return;
-  try {
-    await api('DELETE', `/api/clientes/${id}`);
-    toast('Cliente excluído');
-    carregarClientes();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  await confirmarAcao('excluir cliente', 'Excluir cliente: ' + nome, () => excluirClienteReal(id));
 }
 
 function setTipoCli(tipo) {
@@ -2088,11 +2083,7 @@ async function salvarFornecedor() {
 
 async function excluirFornecedor(id, nome) {
   if (!confirm(`Excluir "${nome}"?`)) return;
-  try {
-    await api('DELETE', `/api/fornecedores/${id}`);
-    toast('Fornecedor excluído');
-    carregarFornecedores();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  await confirmarAcao('excluir fornecedor', 'Excluir fornecedor: ' + nome, () => excluirFornecedorReal(id));
 }
 
 // ===== FUNCIONÁRIOS =====
@@ -2140,11 +2131,7 @@ async function carregarFuncionarios() {
 
 async function excluirFuncionario(id, nome) {
   if (!confirm(`Excluir permanentemente "${nome}"?`)) return;
-  try {
-    await api('DELETE', `/api/funcionarios/${id}`);
-    toast('Funcionário excluído');
-    carregarFuncionarios();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  await confirmarAcao('excluir funcionário', 'Excluir funcionário: ' + nome, () => excluirFuncionarioReal(id));
 }
 
 async function abrirModalFuncionario(id) {
@@ -2669,17 +2656,9 @@ function abrirAjusteEstoque(id, nome, est) {
 }
 
 async function salvarAjusteEstoque() {
-  const id = document.getElementById('est-prod-id').value;
-  const tipo = document.getElementById('est-tipo').value;
   const qtd = parseInt(document.getElementById('est-qtd').value)||0;
   if (qtd <= 0) { toast('Informe uma quantidade válida', 'warn'); return; }
-  const delta = tipo === 'entrada' ? qtd : -qtd;
-  try {
-    await api('PATCH', `/api/produtos/${id}/estoque`, { delta });
-    fecharModal('modal-estoque-ajuste');
-    toast('Estoque ajustado!');
-    carregarEstoque();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  await confirmarAcao('ajustar estoque', 'Ajuste de estoque', () => salvarAjusteEstoqueReal());
 }
 
 // ===== CONFIGURAÇÕES =====
@@ -3596,7 +3575,7 @@ function renderMobileCardsProdutos(prods) {
       (p.cor ? '<div class="m-card-row"><span class="m-card-label">Cor</span><span class="m-card-value">' + p.cor + '</span></div>' : '') +
       '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + p.status + '</span></span></div>' +
       '<div class="m-card-actions">' +
-        '<button class="btn btn-sm" onclick="abrirModalProduto(\'' + p.id + '\')">✏️ Editar</button>' +
+        '<button class="btn btn-sm" onclick="confirmarAcao(\'editar produto\',\'Editar produto ' + (p.cod||p.nome) + '\',()=>abrirModalProduto(\'' + p.id + '\'))">✏️ Editar</button>' +
         '<button class="btn btn-sm btn-danger" onclick="excluirProduto(\'' + p.id + '\',\'' + nomeEsc + '\')">Excluir</button>' +
       '</div></div>';
   }).join('');
@@ -4375,6 +4354,131 @@ function imprimirRelatorioDiario() {
   j.document.close();
 }
 
+// ===== SEGURANÇA =====
+let _senhaCallback = null;
+let _senhaAcao = '';
+let _senhaDetalhes = '';
+
+const CARGOS_COM_RESTRICAO = ['Gerente'];
+const CARGOS_BASICOS = ['Vendedora', 'Auxiliar Geral', 'Costureira'];
+
+function aplicarPermissoesMenu() {
+  if (CARGOS_BASICOS.includes(CARGO_ATUAL)) {
+    document.querySelectorAll('.nav-item').forEach(item => {
+      if (!item.textContent.includes('Ponto')) {
+        item.style.display = 'none';
+      }
+    });
+    navegarPara('ponto');
+  }
+}
+
+function navegarPara(id) {
+  const el = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
+  nav(id, el);
+}
+
+function requerConfirmacao() {
+  return CARGOS_COM_RESTRICAO.includes(CARGO_ATUAL);
+}
+
+async function confirmarAcao(acao, detalhes, callback) {
+  if (!requerConfirmacao()) {
+    callback();
+    return;
+  }
+  _senhaCallback = callback;
+  _senhaAcao = acao;
+  _senhaDetalhes = detalhes;
+  document.getElementById('confirmar-senha-input').value = '';
+  document.getElementById('confirmar-senha-erro').style.display = 'none';
+  document.getElementById('confirmar-senha-msg').textContent = 'Para ' + acao + ', confirme sua senha.';
+  abrirModal('modal-confirmar-senha');
+  setTimeout(() => document.getElementById('confirmar-senha-input').focus(), 300);
+}
+
+async function confirmarSenhaOk() {
+  const senha = document.getElementById('confirmar-senha-input').value;
+  if (!senha) { toast('Digite sua senha', 'warn'); return; }
+  try {
+    const r = await api('POST', '/api/auth/validar-senha', { senha });
+    if (!r.ok) {
+      document.getElementById('confirmar-senha-erro').style.display = 'block';
+      document.getElementById('confirmar-senha-input').value = '';
+      document.getElementById('confirmar-senha-input').focus();
+      return;
+    }
+    await api('POST', '/api/auditoria', { acao: _senhaAcao, detalhes: _senhaDetalhes }).catch(() => {});
+    fecharModal('modal-confirmar-senha');
+    if (_senhaCallback) _senhaCallback();
+    _senhaCallback = null;
+  } catch(e) {
+    toast('Erro ao validar senha', 'error');
+  }
+}
+
+function navegarConfiguracoes() {
+  if (requerConfirmacao()) {
+    confirmarAcao('acessar configurações', 'Acesso a configurações', () => nav('configuracoes', document.querySelector(".nav-item[onclick*=\"'configuracoes'\"]")));
+  } else {
+    nav('configuracoes', document.querySelector(".nav-item[onclick*=\"'configuracoes'\"]"));
+  }
+}
+
+function abrirModalProdutoSeguro(id) {
+  if (!id && requerConfirmacao()) {
+    confirmarAcao('cadastrar novo produto', 'Novo produto', () => abrirModalProduto(null));
+  } else {
+    abrirModalProduto(id);
+  }
+}
+
+async function excluirProdutoReal(id, nome) {
+  try {
+    await api('DELETE', `/api/produtos/${id}`);
+    toast('Produto excluído');
+    carregarProdutos();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirClienteReal(id) {
+  try {
+    await api('DELETE', `/api/clientes/${id}`);
+    toast('Cliente excluído');
+    carregarClientes();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirFornecedorReal(id) {
+  try {
+    await api('DELETE', `/api/fornecedores/${id}`);
+    toast('Fornecedor excluído');
+    carregarFornecedores();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function excluirFuncionarioReal(id) {
+  try {
+    await api('DELETE', `/api/funcionarios/${id}`);
+    toast('Funcionário excluído');
+    carregarFuncionarios();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function salvarAjusteEstoqueReal() {
+  const id = document.getElementById('est-prod-id').value;
+  const tipo = document.getElementById('est-tipo').value;
+  const qtd = parseInt(document.getElementById('est-qtd').value)||0;
+  if (qtd <= 0) { toast('Informe uma quantidade válida', 'warn'); return; }
+  const delta = tipo === 'entrada' ? qtd : -qtd;
+  try {
+    await api('PATCH', `/api/produtos/${id}/estoque`, { delta });
+    fecharModal('modal-estoque-ajuste');
+    toast('Estoque ajustado!');
+    carregarEstoque();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
 // ===== INIT =====
 ajustarMobile();
 
@@ -4387,12 +4491,14 @@ ajustarMobile();
       // Verifica se o token ainda é válido
       TOKEN = savedToken;
       usuarioLogado = JSON.parse(savedUser);
+      CARGO_ATUAL = usuarioLogado.cargo || '';
       await api('GET', '/api/funcionarios'); // teste rápido
       // Token válido — entra direto
       document.getElementById('tela-login').classList.add('hidden');
       document.getElementById('user-avatar').textContent = iniciais(usuarioLogado.nome);
       document.getElementById('user-nome').textContent = usuarioLogado.nome;
       await Promise.all([carregarCategoriasGlobal(), carregarDescontosGlobal()]);
+      aplicarPermissoesMenu();
       carregarDashboard();
       return;
     } catch(e) {
@@ -4981,6 +5087,35 @@ async function carregarProjecao() {
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-etiqueta-lote')">Cancelar</button>
       <button class="btn btn-primary" onclick="imprimirEtiquetasLote()">🖨️ Imprimir todas</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Confirmação de Senha -->
+<div class="modal-backdrop" id="modal-confirmar-senha">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h3>Confirmação necessária</h3>
+      <button class="modal-close" onclick="fecharModal('modal-confirmar-senha')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="confirmar-senha-msg" style="font-size:13px;color:var(--text2);margin-bottom:14px">
+        Esta ação requer confirmação. Digite sua senha para continuar.
+      </div>
+      <div class="form-group">
+        <label>Sua senha</label>
+        <input type="password" id="confirmar-senha-input"
+          placeholder="Digite sua senha"
+          style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+          onkeydown="if(event.key==='Enter')confirmarSenhaOk()">
+      </div>
+      <div id="confirmar-senha-erro" style="color:var(--red);font-size:12px;display:none;margin-top:6px">
+        Senha incorreta. Tente novamente.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-confirmar-senha')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarSenhaOk()">Confirmar</button>
     </div>
   </div>
 </div>
