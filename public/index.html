@@ -561,21 +561,78 @@ tr:hover td{background:var(--bg)}
 
       <!-- ESTOQUE -->
       <div class="page" id="page-estoque">
-        <div class="search-bar">
-          <input type="text" id="busca-est" placeholder="Buscar produto..." oninput="carregarEstoque()">
-          <select id="filtro-est" onchange="carregarEstoque()">
-            <option value="">Todos</option>
-            <option value="baixo">Estoque baixo</option>
-            <option value="zerado">Zerado</option>
-          </select>
+        <div id="estoque-tabs" style="display:flex;gap:4px;margin-bottom:16px">
+          <button class="tab active" onclick="estoqueTab('estoque-lista')">Estoque atual</button>
+          <button class="tab" onclick="estoqueTab('estoque-historico')">Histórico</button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Status</th><th>Ajustar</th></tr></thead>
-            <tbody id="tabela-estoque"></tbody>
-          </table>
+        <div id="estoque-lista">
+          <div class="search-bar">
+            <input type="text" id="busca-est" placeholder="Buscar produto..." oninput="carregarEstoque()">
+            <select id="filtro-est" onchange="carregarEstoque()">
+              <option value="">Todos</option>
+              <option value="baixo">Estoque baixo</option>
+              <option value="zerado">Zerado</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Mínimo</th><th>Status</th><th>Ajustar</th></tr></thead>
+              <tbody id="tabela-estoque"></tbody>
+            </table>
+          </div>
+          <div id="mobile-cards-estoque" class="mobile-cards-list"></div>
         </div>
-        <div id="mobile-cards-estoque" class="mobile-cards-list"></div>
+        <div id="estoque-historico" style="display:none">
+          <div class="card" style="padding:14px;margin-bottom:16px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Produto</label>
+                <select id="hist-prod-filtro" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);min-width:180px">
+                  <option value="">Todos os produtos</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Tipo</label>
+                <select id="hist-tipo-filtro" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+                  <option value="">Todos</option>
+                  <option value="venda">Venda</option>
+                  <option value="devolucao">Devolução</option>
+                  <option value="ajuste">Ajuste manual</option>
+                  <option value="entrada">Entrada</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">De</label>
+                <input type="date" id="hist-data-ini" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Até</label>
+                <input type="date" id="hist-data-fim" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="carregarHistoricoEstoque()">Filtrar</button>
+              <button class="btn btn-sm" onclick="limparFiltrosHistorico()">Limpar</button>
+            </div>
+          </div>
+          <div class="card" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data/Hora</th>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th>Qtd</th>
+                    <th>Antes</th>
+                    <th>Depois</th>
+                    <th>Motivo</th>
+                    <th>Usuário</th>
+                  </tr>
+                </thead>
+                <tbody id="hist-estoque-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- FINANCEIRO -->
@@ -4571,6 +4628,85 @@ async function salvarAjusteEstoqueReal() {
     toast('Estoque ajustado!');
     carregarEstoque();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+// ===== HISTÓRICO DE ESTOQUE =====
+function estoqueTab(aba) {
+  ['estoque-lista', 'estoque-historico'].forEach(a => {
+    const el = document.getElementById(a);
+    if (el) el.style.display = a === aba ? 'block' : 'none';
+  });
+  document.querySelectorAll('#estoque-tabs .tab').forEach((t, i) => {
+    t.classList.toggle('active', ['estoque-lista', 'estoque-historico'][i] === aba);
+  });
+  if (aba === 'estoque-historico') {
+    popularSelectProdutos();
+    carregarHistoricoEstoque();
+  }
+}
+
+async function popularSelectProdutos() {
+  const sel = document.getElementById('hist-prod-filtro');
+  if (sel.options.length > 1) return;
+  try {
+    const prods = await api('GET', '/api/produtos?limit=1000');
+    prods.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.cod + ' — ' + p.nome;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+async function carregarHistoricoEstoque() {
+  const produtoId = document.getElementById('hist-prod-filtro').value;
+  const tipo = document.getElementById('hist-tipo-filtro').value;
+  const dataInicio = document.getElementById('hist-data-ini').value;
+  const dataFim = document.getElementById('hist-data-fim').value;
+
+  let query = '/api/estoque/movimentos?limit=200';
+  if (produtoId) query += '&produtoId=' + produtoId;
+  if (tipo) query += '&tipo=' + tipo;
+  if (dataInicio) query += '&dataInicio=' + dataInicio;
+  if (dataFim) query += '&dataFim=' + dataFim;
+
+  const tbody = document.getElementById('hist-estoque-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text2)">Carregando...</td></tr>';
+
+  try {
+    const movs = await api('GET', query);
+    if (!movs.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhuma movimentação encontrada</p></div></td></tr>';
+      return;
+    }
+    const tipoLabel = { venda: 'Venda', devolucao: 'Devolução', ajuste: 'Ajuste', entrada: 'Entrada', saida: 'Saída' };
+    const tipoCor = { venda: 'var(--red)', devolucao: 'var(--green)', ajuste: 'var(--amber)', entrada: 'var(--green)', saida: 'var(--red)' };
+    tbody.innerHTML = movs.map(m =>
+      '<tr>' +
+        '<td style="white-space:nowrap">' + new Date(m.criado_em).toLocaleString('pt-BR') + '</td>' +
+        '<td><strong>' + (m.produto_cod||'') + '</strong> ' + (m.produto_nome||'') + '</td>' +
+        '<td><span class="badge" style="background:' + (tipoCor[m.tipo]||'var(--text2)') + '20;color:' + (tipoCor[m.tipo]||'var(--text2)') + '">' + (tipoLabel[m.tipo]||m.tipo) + '</span></td>' +
+        '<td style="text-align:center;font-weight:700;color:' + (m.tipo==='venda'||m.tipo==='saida' ? 'var(--red)' : 'var(--green)') + '">' +
+          (m.tipo==='venda'||m.tipo==='saida' ? '-' : '+') + m.quantidade +
+        '</td>' +
+        '<td style="text-align:center">' + (m.estoque_anterior||0) + '</td>' +
+        '<td style="text-align:center;font-weight:600">' + (m.estoque_posterior||0) + '</td>' +
+        '<td style="color:var(--text2);font-size:12px">' + (m.motivo||'—') + '</td>' +
+        '<td style="font-size:12px">' + (m.usuario_nome||'—') + '</td>' +
+      '</tr>'
+    ).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--red)">Erro: ' + e.message + '</td></tr>';
+  }
+}
+
+function limparFiltrosHistorico() {
+  document.getElementById('hist-prod-filtro').value = '';
+  document.getElementById('hist-tipo-filtro').value = '';
+  document.getElementById('hist-data-ini').value = '';
+  document.getElementById('hist-data-fim').value = '';
+  carregarHistoricoEstoque();
 }
 
 // ===== INIT =====
