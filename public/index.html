@@ -4266,18 +4266,16 @@ async function carregarRelatorioDiario() {
       '</div>';
 
     // Por forma de pagamento
-    const totalCredito = r.porPagamento
-      .filter(p => p.tipo === 'credito')
-      .reduce((a, p) => a + p.total, 0);
+    const { linhas: pgtoLinhas, totalCredito, temCredito } = ordenarPagamentos(r.porPagamento);
 
     const tabelaPagamento =
       '<div class="card" style="margin-bottom:16px">' +
         '<div class="card-title">Por forma de pagamento</div>' +
         '<table><thead><tr><th>Forma</th><th>Total</th></tr></thead><tbody>' +
-        (r.porPagamento.length ? r.porPagamento.map(p =>
+        (pgtoLinhas.length ? pgtoLinhas.map(p =>
           '<tr><td><strong>' + p.label + '</strong></td><td>' + fmtMoeda(p.total) + '</td></tr>'
         ).join('') : '<tr><td colspan="2"><div class="empty-state" style="padding:16px"><p>Sem pagamentos</p></div></td></tr>') +
-        (totalCredito > 0 ? '<tr style="border-top:2px solid var(--border);font-weight:700"><td>Total Cartão de Crédito</td><td>' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
+        (temCredito ? '<tr style="background:var(--bg2);font-weight:700;border-top:2px solid var(--border)"><td>💳 Total Cartão de Crédito</td><td>' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
         '</tbody></table>' +
       '</div>';
 
@@ -4285,6 +4283,24 @@ async function carregarRelatorioDiario() {
     el.innerHTML = cards + tabelaVendedor + tabelaPagamento;
 
   } catch(e) { el.innerHTML = '<div class="empty-state"><p>Erro: ' + e.message + '</p></div>'; }
+}
+
+function ordenarPagamentos(porPagamento) {
+  const naoCredito = ['dinheiro', 'pix', 'debito', 'cheque', 'cheque_pre'];
+  const resultado = [];
+
+  naoCredito.forEach(tipo => {
+    const p = porPagamento.find(x => x.tipo === tipo);
+    if (p) resultado.push(p);
+  });
+
+  const creditos = porPagamento
+    .filter(p => p.tipo === 'credito')
+    .sort((a, b) => a.parcelas - b.parcelas);
+  creditos.forEach(p => resultado.push(p));
+
+  const totalCredito = creditos.reduce((a, p) => a + p.total, 0);
+  return { linhas: resultado, totalCredito, temCredito: creditos.length > 0 };
 }
 
 function imprimirRelatorioDiario() {
@@ -4324,9 +4340,7 @@ function imprimirRelatorioDiario() {
     '</div>';
 
   // Por forma de pagamento
-  const totalCredito = r.porPagamento
-    .filter(p => p.tipo === 'credito')
-    .reduce((a, p) => a + p.total, 0);
+  const { linhas: pgtoLinhas, totalCredito, temCredito } = ordenarPagamentos(r.porPagamento);
 
   const tabelaPagamento =
     '<div style="border:1px solid #ddd;border-radius:6px;margin-bottom:16px;overflow:hidden">' +
@@ -4334,10 +4348,10 @@ function imprimirRelatorioDiario() {
       '<table style="width:100%;border-collapse:collapse">' +
         '<thead><tr><th style="' + thStyle + '">Forma</th><th style="' + thStyle + '">Total</th></tr></thead>' +
         '<tbody>' +
-        (r.porPagamento.length ? r.porPagamento.map(p =>
+        (pgtoLinhas.length ? pgtoLinhas.map(p =>
           '<tr><td style="' + tdStyle + '"><strong>' + p.label + '</strong></td><td style="' + tdStyle + '">' + fmtMoeda(p.total) + '</td></tr>'
         ).join('') : '<tr><td colspan="2" style="' + tdStyle + ';text-align:center;color:#999">Sem pagamentos</td></tr>') +
-        (totalCredito > 0 ? '<tr style="border-top:2px solid #ddd"><td style="' + tdStyle + ';font-weight:700">Total Cartão de Crédito</td><td style="' + tdStyle + ';font-weight:700">' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
+        (temCredito ? '<tr style="background:#f5f5f5;border-top:2px solid #ddd"><td style="' + tdStyle + ';font-weight:700">💳 Total Cartão de Crédito</td><td style="' + tdStyle + ';font-weight:700">' + fmtMoeda(totalCredito) + '</td></tr>' : '') +
         '</tbody>' +
       '</table>' +
     '</div>';
