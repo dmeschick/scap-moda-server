@@ -1440,13 +1440,15 @@ async function carregarProdutos() {
 }
 
 async function gerarCodigoProduto(catId) {
+  console.log('gerarCodigoProduto chamado com catId:', catId);
   if (!catId) return;
-  const id = document.getElementById('prod-id').value;
-  if (id) return; // editando — não sobrescrever
+  const id = document.getElementById('prod-id')?.value;
+  if (id) return;
   try {
     const r = await api('GET', '/api/produtos/proximo-codigo?categoriaId=' + catId);
+    console.log('código gerado:', r.cod);
     document.getElementById('prod-cod').value = r.cod;
-  } catch(e) {}
+  } catch(e) { console.error('erro:', e); }
 }
 
 async function abrirModalProduto(id) {
@@ -2637,7 +2639,7 @@ async function carregarEstoque() {
     let filtrado = prods;
     if (filtro === 'baixo') filtrado = prods.filter(p => p.est > 0 && p.est <= p.estmin);
     if (filtro === 'zerado') filtrado = prods.filter(p => p.est <= 0);
-    filtrado.sort((a,b) => a.est - b.est);
+    filtrado.sort((a,b) => new Date(b.criado_em) - new Date(a.criado_em));
     const tb = document.getElementById('tabela-estoque');
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>'; return; }
     renderMobileCardsEstoque(filtrado);

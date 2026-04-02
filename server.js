@@ -426,8 +426,8 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
     const { categoriaId } = req.query;
     if (!categoriaId) return res.status(400).json({ erro: 'Informe a categoria' });
 
-    // Busca sufixo da categoria
-    const cat = await pool.query('SELECT nome, sufixo FROM categorias WHERE id=$1', [categoriaId]);
+    // Busca sufixo da categoria (categoriaId recebe o nome, pois o select usa value=nome)
+    const cat = await pool.query('SELECT nome, sufixo FROM categorias WHERE nome=$1', [categoriaId]);
     if (!cat.rows.length) return res.status(404).json({ erro: 'Categoria não encontrada' });
 
     // Mapeamento fixo de sufixos
