@@ -1877,11 +1877,22 @@ function renderEnderecos() {
         </div>
       </div>
       <div class="form-grid" style="gap:8px">
-        <div class="form-group">
-          <label>CEP</label>
-          <div style="display:flex;gap:6px">
-            <input value="${e.cep||''}" onblur="buscarCEP(${i})" onchange="enderecosTemp[${i}].cep=this.value" oninput="mascaraCEP(this)" placeholder="00000-000" maxlength="9" id="end-cep-${i}" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-            <button class="btn btn-sm" onclick="buscarCEP(${i})">🔍</button>
+        <div class="form-group" style="grid-column:1/-1">
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <div style="flex:1">
+              <label>CEP</label>
+              <div style="display:flex;gap:6px">
+                <input value="${e.cep||''}" onblur="buscarCEP(${i})" onchange="enderecosTemp[${i}].cep=this.value" oninput="mascaraCEP(this)" placeholder="00000-000" maxlength="9" id="end-cep-${i}" style="flex:1;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+                <button class="btn btn-sm" onclick="buscarCEP(${i})">🔍</button>
+              </div>
+            </div>
+            <div style="width:90px">
+              <label>Estado (UF)</label>
+              <select id="end-estado-${i}" onchange="enderecosTemp[${i}].estado=this.value" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+                <option value="">UF</option>
+                ${['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => `<option value="${uf}"${(e.estado||'')=== uf?' selected':''}>${uf}</option>`).join('')}
+              </select>
+            </div>
           </div>
         </div>
         <div class="form-group">
@@ -1903,10 +1914,6 @@ function renderEnderecos() {
         <div class="form-group">
           <label>Cidade</label>
           <input id="end-cidade-${i}" value="${e.cidade||''}" oninput="enderecosTemp[${i}].cidade=this.value" placeholder="Cidade" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
-        </div>
-        <div class="form-group">
-          <label>Estado</label>
-          <input id="end-estado-${i}" value="${e.estado||''}" oninput="enderecosTemp[${i}].estado=this.value" placeholder="RJ" maxlength="2" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);text-transform:uppercase">
         </div>
       </div>
     </div>`).join('');
