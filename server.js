@@ -75,7 +75,10 @@ function auth(req, res, next) {
   if (!token) return res.status(401).json({ erro: 'Não autorizado' });
   if (tokenBlacklist.has(token)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { res.status(401).json({ erro: 'Token inválido' }); }
+  catch (err) {
+    if (err.name === 'TokenExpiredError') return res.status(401).json({ erro: 'Sessão expirada. Faça login novamente.' });
+    res.status(401).json({ erro: 'Token inválido' });
+  }
 }
 
 async function initDB() {
