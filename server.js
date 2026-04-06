@@ -361,6 +361,13 @@ async function initDB() {
     usuario_nome TEXT,
     criado_em TIMESTAMP DEFAULT NOW()
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS bling_tokens (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    access_token TEXT,
+    refresh_token TEXT,
+    expires_at TIMESTAMP,
+    atualizado_em TIMESTAMP DEFAULT NOW()
+  )`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -1704,6 +1711,111 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
     res.json({ num });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
+// ─── BLING OAUTH 2.0 ─────────────────────────────────────────────────────────
+const BLING_CLIENT_ID = process.env.BLING_CLIENT_ID;
+const BLING_CLIENT_SECRET = process.env.BLING_CLIENT_SECRET;
+const BLING_REDIRECT_URI = 'https://scap-moda-server-production.up.railway.app/api/bling/callback';
+const BLING_AUTH_URL = 'https://www.bling.com.br/Api/v3/oauth/authorize';
+const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
+
+// Rota para iniciar autorização — redireciona para o Bling
+app.get('/api/bling/autorizar', auth, (req, res) => {
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: BLING_CLIENT_ID,
+    redirect_uri: BLING_REDIRECT_URI,
+    state: 'scap-moda'
+  });
+  res.redirect(BLING_AUTH_URL + '?' + params.toString());
+});
+
+// Callback — Bling redireciona aqui com o código
+app.get('/api/bling/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) {
+    return res.redirect('/?bling=erro');
+  }
+  try {
+    const credentials = Buffer.from(BLING_CLIENT_ID + ':' + BLING_CLIENT_SECRET).toString('base64');
+    const response = await fetch(BLING_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + credentials
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: BLING_REDIRECT_URI
+      })
+    });
+    const data = await response.json();
+    if (!data.access_token) throw new Error('Token não retornado');
+
+    const expiresAt = new Date(Date.now() + (data.expires_in || 21600) * 1000);
+
+    await pool.query(
+      `INSERT INTO bling_tokens (id, access_token, refresh_token, expires_at, atualizado_em)
+       VALUES (1, $1, $2, $3, NOW())
+       ON CONFLICT (id) DO UPDATE SET access_token=$1, refresh_token=$2, expires_at=$3, atualizado_em=NOW()`,
+      [data.access_token, data.refresh_token, expiresAt]
+    );
+    res.redirect('/?bling=conectado');
+  } catch (err) {
+    console.error('Erro Bling OAuth:', err.message);
+    res.redirect('/?bling=erro');
+  }
+});
+
+// Função para obter token válido (renova se expirado)
+async function getBlingToken() {
+  const r = await pool.query('SELECT * FROM bling_tokens WHERE id=1');
+  if (!r.rows.length) throw new Error('Bling não autorizado. Conecte o Bling em Configurações.');
+
+  const token = r.rows[0];
+  const agora = new Date();
+
+  // Renova se expirado ou expira em menos de 5 minutos
+  if (new Date(token.expires_at) <= new Date(agora.getTime() + 5 * 60000)) {
+    const credentials = Buffer.from(BLING_CLIENT_ID + ':' + BLING_CLIENT_SECRET).toString('base64');
+    const response = await fetch(BLING_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + credentials
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: token.refresh_token
+      })
+    });
+    const data = await response.json();
+    if (!data.access_token) throw new Error('Erro ao renovar token do Bling');
+
+    const expiresAt = new Date(Date.now() + (data.expires_in || 21600) * 1000);
+    await pool.query(
+      `UPDATE bling_tokens SET access_token=$1, refresh_token=$2, expires_at=$3, atualizado_em=NOW() WHERE id=1`,
+      [data.access_token, data.refresh_token, expiresAt]
+    );
+    return data.access_token;
+  }
+  return token.access_token;
+}
+
+// Rota para verificar status da conexão com Bling
+app.get('/api/bling/status', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT expires_at, atualizado_em FROM bling_tokens WHERE id=1');
+    if (!r.rows.length) return res.json({ conectado: false });
+    res.json({
+      conectado: true,
+      expiresAt: r.rows[0].expires_at,
+      atualizadoEm: r.rows[0].atualizado_em
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
