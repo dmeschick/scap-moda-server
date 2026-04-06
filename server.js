@@ -1905,7 +1905,7 @@ const BLING_AUTH_URL = 'https://www.bling.com.br/Api/v3/oauth/authorize';
 const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
 
 // Rota para iniciar autorização — redireciona para o Bling
-app.get('/api/bling/autorizar', auth, (req, res) => {
+app.get('/api/bling/autorizar', (req, res) => {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: BLING_CLIENT_ID,
