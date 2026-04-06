@@ -912,6 +912,14 @@ tr:hover td{background:var(--bg)}
             </div>
           </div>
         </div>
+        <div class="card" style="margin-top:16px;max-width:800px">
+          <div class="card-title">Integração Bling</div>
+          <div id="bling-status-info" style="margin-bottom:12px;font-size:13px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="conectarBling()">🔗 Conectar com Bling</button>
+            <button class="btn btn-sm" onclick="verificarStatusBling()">Verificar conexão</button>
+          </div>
+        </div>
         <div class="card" style="margin-top:16px;max-width:800px" id="card-auditoria">
           <div class="card-title">Log de Auditoria</div>
           <div id="auditoria-lista" style="max-height:400px;overflow-y:auto"></div>
@@ -1234,6 +1242,8 @@ tr:hover td{background:var(--bg)}
     <div class="modal-body" id="romaneio-body"></div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('modal-romaneio')">Fechar</button>
+      <button class="btn btn-sm" onclick="emitirNFe(_vendaAtual?.id)" id="btn-nfe">📄 NF-e</button>
+      <button class="btn btn-sm" onclick="emitirNFCe(_vendaAtual?.id)" id="btn-nfce">🧾 NFC-e</button>
       <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Notinha de crédito</button>
       <button class="btn btn-primary" onclick="imprimirRomaneio()">🖨 Imprimir</button>
     </div>
@@ -2835,6 +2845,58 @@ async function salvarAjusteEstoque() {
   await confirmarAcao('ajustar estoque', 'Ajuste de estoque', () => salvarAjusteEstoqueReal());
 }
 
+// ===== BLING =====
+async function verificarStatusBling() {
+  try {
+    const r = await api('GET', '/api/bling/status');
+    const el = document.getElementById('bling-status-info');
+    if (r.conectado) {
+      const exp = new Date(r.expiresAt).toLocaleString('pt-BR');
+      el.innerHTML = '<span style="color:var(--green)">✅ Conectado</span> — token expira em ' + exp;
+    } else {
+      el.innerHTML = '<span style="color:var(--red)">❌ Não conectado</span> — clique em "Conectar com Bling"';
+    }
+  } catch(e) { toast('Erro ao verificar Bling', 'error'); }
+}
+
+function conectarBling() {
+  window.location.href = '/api/bling/autorizar';
+}
+
+async function emitirNFe(vendaId) {
+  if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
+  const btn = document.getElementById('btn-nfe');
+  if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
+  try {
+    const r = await api('POST', '/api/bling/nfe', { vendaId });
+    toast('NF-e emitida com sucesso! Nº ' + (r.nfe?.numero || ''));
+  } catch(e) { toast('Erro ao emitir NF-e: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '📄 NF-e'; } }
+}
+
+async function emitirNFCe(vendaId) {
+  if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
+  const btn = document.getElementById('btn-nfce');
+  if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
+  try {
+    const r = await api('POST', '/api/bling/nfce', { vendaId });
+    toast('NFC-e emitida com sucesso! Nº ' + (r.nfce?.numero || ''));
+  } catch(e) { toast('Erro ao emitir NFC-e: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🧾 NFC-e'; } }
+}
+
+// Verificar se voltou do Bling com sucesso
+window.addEventListener('load', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('bling') === 'conectado') {
+    toast('Bling conectado com sucesso! ✅');
+    window.history.replaceState({}, '', '/');
+  } else if (params.get('bling') === 'erro') {
+    toast('Erro ao conectar com Bling', 'error');
+    window.history.replaceState({}, '', '/');
+  }
+});
+
 // ===== CONFIGURAÇÕES =====
 async function carregarConfiguracoes() {
   await carregarCategoriasGlobal();
@@ -2849,6 +2911,7 @@ async function carregarConfiguracoes() {
   const cardRestaurar = document.getElementById('card-restaurar');
   if (cardRestaurar) cardRestaurar.style.display = CARGO_ATUAL === 'Administrador' ? 'block' : 'none';
   if (CARGO_ATUAL === 'Administrador') carregarAuditoria();
+  verificarStatusBling();
 }
 
 async function carregarAuditoria() {
