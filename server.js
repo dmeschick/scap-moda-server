@@ -1756,12 +1756,11 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     // Monta payload da NF-e para o Bling
     const payload = {
       tipo: 1, // 1 = Saída
-      natureza_operacao: cfop === '5102' ? 'Venda de Mercadoria' : 'Venda Interestadual',
       cfop: parseInt(cfop),
       cliente: {
         nome: venda.cli_nome || 'Consumidor Final',
-        cpf_cnpj: venda.cnpj || venda.cpf || '',
-        ie: 'ISENTO',
+        cpf_cnpj: (venda.cnpj || venda.cpf || '').replace(/\D/g, ''),
+        ie: '9',
         endereco: venda.logradouro || '',
         numero: venda.numero || 'S/N',
         bairro: venda.bairro || '',
@@ -1780,7 +1779,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         quantidade: item.qty,
         valor_unitario: parseFloat(item.preco),
         valor_total: parseFloat(item.preco) * item.qty,
-        csosn: item.csosn || '102'
+        csosn: parseInt(item.csosn || '102')
       })),
       parcelas: [{
         dias: 0,
@@ -1857,7 +1856,8 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       cfop: 5102,
       cliente: {
         nome: venda.cli_nome || 'Consumidor Final',
-        cpf_cnpj: venda.cpf || ''
+        cpf_cnpj: (venda.cpf || '').replace(/\D/g, ''),
+        ie: '9'
       },
       itens: itensRes.rows.map((item, idx) => ({
         item: idx + 1,
@@ -1869,7 +1869,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         quantidade: item.qty,
         valor_unitario: parseFloat(item.preco),
         valor_total: parseFloat(item.preco) * item.qty,
-        csosn: item.csosn || '102'
+        csosn: parseInt(item.csosn || '102')
       })),
       parcelas: [{
         dias: 0,
