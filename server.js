@@ -12,6 +12,7 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -1791,7 +1792,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       obs_internas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
     };
 
-    const response = await fetch('https://www.bling.com.br/Api/v3/nfe', {
+    const response = await fetch('https://api.bling.com.br/Api/v3/nfe', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1876,7 +1877,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       }]
     };
 
-    const response = await fetch('https://www.bling.com.br/Api/v3/nfce', {
+    const response = await fetch('https://api.bling.com.br/Api/v3/nfce', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
