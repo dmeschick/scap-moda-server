@@ -10,7 +10,6 @@ const cors = require('cors');
 require('dotenv').config();
 const crypto = require('crypto');
 const { Resend } = require('resend');
-const { Bling } = require('bling-erp-api');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
@@ -1729,10 +1728,7 @@ function calcularCFOP(ufCliente, tipoPessoa) {
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
-    const token = await getBlingToken();
-    const bling = new Bling(token);
 
-    // Busca dados da venda
     const vendaRes = await pool.query(
       `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo,
               e.logradouro, e.numero, e.bairro, e.cidade, e.uf, e.cep
@@ -1753,7 +1749,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       [vendaId]
     );
 
-    const cfop = calcularCFOP(venda.uf, venda.cli_tipo);
+    const token = await getBlingToken();
 
     const payload = {
       tipo: 1,
@@ -1778,7 +1774,6 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         valor: parseFloat(item.preco),
         tipo: 'P',
         codigoProduto: item.cod || '',
-        produto: { id: 0 },
         tributos: {
           icms: {
             cst: item.csosn || '102',
@@ -1795,26 +1790,42 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         data: new Date().toLocaleDateString('pt-BR'),
         valor: parseFloat(venda.tot),
         obs: venda.pag || ''
-      }],
-      obs: venda.obs || '',
-      obsInternas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
+      }]
     };
 
     console.log('Payload NF-e:', JSON.stringify(payload, null, 2));
-    const r = await bling.nfe.create({ data: payload });
-    console.log('Bling NF-e resposta:', JSON.stringify(r, null, 2));
 
-    if (r?.data?.id) {
+    const response = await fetch('https://api.bling.com.br/Api/v3/nfe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    console.log('Bling NF-e status:', response.status);
+    console.log('Bling NF-e resposta:', JSON.stringify(data, null, 2));
+
+    if (!response.ok) {
+      return res.status(400).json({
+        erro: data.error?.message || data.message || 'Erro ao emitir NF-e',
+        detalhes: data
+      });
+    }
+
+    if (data.data?.id) {
       await pool.query(
         'UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3',
-        [String(r.data.id), r.data.numero || '', vendaId]
+        [String(data.data.id), data.data.numero || '', vendaId]
       );
     }
 
-    res.json({ ok: true, nfe: r?.data });
+    res.json({ ok: true, nfe: data.data });
   } catch (err) {
     console.error('Erro NF-e:', err);
-    res.status(500).json({ erro: err.message, detalhes: err });
+    res.status(500).json({ erro: err.message });
   }
 });
 
