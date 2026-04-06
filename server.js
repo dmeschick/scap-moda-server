@@ -9,6 +9,7 @@ const cors = require('cors');
 require('dotenv').config();
 const crypto = require('crypto');
 const { Resend } = require('resend');
+const { Bling } = require('bling-erp-api');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
@@ -1727,8 +1728,10 @@ function calcularCFOP(ufCliente, tipoPessoa) {
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
+    const token = await getBlingToken();
+    const bling = new Bling(token);
 
-    // Busca dados completos da venda
+    // Busca dados da venda
     const vendaRes = await pool.query(
       `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo,
               e.logradouro, e.numero, e.bairro, e.cidade, e.uf, e.cep
@@ -1741,7 +1744,6 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
     const venda = vendaRes.rows[0];
 
-    // Busca itens da venda
     const itensRes = await pool.query(
       `SELECT vi.*, p.ncm, p.csosn, p.custo
        FROM venda_itens vi
@@ -1751,36 +1753,42 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     );
 
     const cfop = calcularCFOP(venda.uf, venda.cli_tipo);
-    const token = await getBlingToken();
 
-    // Monta payload da NF-e para o Bling
     const payload = {
-      tipo: 1, // 1 = Saída
-      cfop: parseInt(cfop),
-      cliente: {
+      tipo: 1,
+      contato: {
         nome: venda.cli_nome || 'Consumidor Final',
-        cpf_cnpj: (venda.cnpj || venda.cpf || '').replace(/\D/g, ''),
-        ie: '9',
-        endereco: venda.logradouro || '',
-        numero: venda.numero || 'S/N',
-        bairro: venda.bairro || '',
-        municipio: venda.cidade || '',
-        uf: venda.uf || 'RJ',
-        cep: (venda.cep || '').replace(/\D/g, ''),
-        email: ''
+        tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
+        documento: (venda.cnpj || venda.cpf || '').replace(/\D/g, ''),
+        ie: 'ISENTO',
+        endereco: {
+          endereco: venda.logradouro || '',
+          numero: venda.numero || 'S/N',
+          bairro: venda.bairro || '',
+          municipio: venda.cidade || '',
+          uf: venda.uf || 'RJ',
+          cep: (venda.cep || '').replace(/\D/g, '')
+        }
       },
       itens: itensRes.rows.map((item, idx) => ({
-        item: idx + 1,
-        codigo: item.cod || '',
         descricao: item.nome || '',
-        ncm: (item.ncm || '62034200').replace(/\./g, ''),
-        cfop: parseInt(cfop),
-        un: 'PC',
-        quantidade: item.qty,
-        valor_unitario: parseFloat(item.preco),
-        valor_total: parseFloat(item.preco) * item.qty,
-        csosn: parseInt(item.csosn || '102')
+        unidade: 'PC',
+        quantidade: parseFloat(item.qty),
+        valor: parseFloat(item.preco),
+        tipo: 'P',
+        codigoProduto: item.cod || '',
+        produto: { id: 0 },
+        tributos: {
+          icms: {
+            cst: item.csosn || '102',
+            modBC: 3,
+            baseCalculoIcms: 0,
+            aliquotaIcms: 0,
+            valorIcms: 0
+          }
+        }
       })),
+      transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
         data: new Date().toLocaleDateString('pt-BR'),
@@ -1788,42 +1796,25 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         obs: venda.pag || ''
       }],
       obs: venda.obs || '',
-      obs_internas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
+      obsInternas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
     };
 
-    console.log('Payload NF-e enviado:', JSON.stringify(payload, null, 2));
+    console.log('Payload NF-e:', JSON.stringify(payload, null, 2));
+    const r = await bling.nfe.create({ data: payload });
+    console.log('Bling NF-e resposta:', JSON.stringify(r, null, 2));
 
-    const response = await fetch('https://api.bling.com.br/Api/v3/nfe', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    console.log('Bling NF-e response status:', response.status);
-    console.log('Bling NF-e response data:', JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      console.log('Bling NF-e erro detalhado:', JSON.stringify(data, null, 2));
-      return res.status(400).json({
-        erro: data.error?.message || data.message || 'Problema ao processar sua requisição',
-        detalhes: data
-      });
-    }
-
-    // Salvar número da nota na venda
-    if (data.data?.id) {
+    if (r?.data?.id) {
       await pool.query(
-        `UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3`,
-        [String(data.data.id), data.data.numero || '', vendaId]
+        'UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3',
+        [String(r.data.id), r.data.numero || '', vendaId]
       );
     }
 
-    res.json({ ok: true, nfe: data.data });
-  } catch (err) { res.status(500).json({ erro: err.message }); }
+    res.json({ ok: true, nfe: r?.data });
+  } catch (err) {
+    console.error('Erro NF-e:', err);
+    res.status(500).json({ erro: err.message, detalhes: err });
+  }
 });
 
 // Rota para emitir NFC-e
