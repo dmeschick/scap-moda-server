@@ -1757,7 +1757,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     const payload = {
       tipo: 1, // 1 = Saída
       natureza_operacao: cfop === '5102' ? 'Venda de Mercadoria' : 'Venda Interestadual',
-      cfop,
+      cfop: parseInt(cfop),
       cliente: {
         nome: venda.cli_nome || 'Consumidor Final',
         cpf_cnpj: venda.cnpj || venda.cpf || '',
@@ -1774,8 +1774,8 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         item: idx + 1,
         codigo: item.cod || '',
         descricao: item.nome || '',
-        ncm: item.ncm || '62034200',
-        cfop,
+        ncm: (item.ncm || '62034200').replace(/\./g, ''),
+        cfop: parseInt(cfop),
         un: 'PC',
         quantidade: item.qty,
         valor_unitario: parseFloat(item.preco),
@@ -1854,7 +1854,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
 
     const payload = {
       tipo: 1,
-      cfop: '5102',
+      cfop: 5102,
       cliente: {
         nome: venda.cli_nome || 'Consumidor Final',
         cpf_cnpj: venda.cpf || ''
@@ -1863,8 +1863,8 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         item: idx + 1,
         codigo: item.cod || '',
         descricao: item.nome || '',
-        ncm: item.ncm || '62034200',
-        cfop: '5102',
+        ncm: (item.ncm || '62034200').replace(/\./g, ''),
+        cfop: 5102,
         un: 'PC',
         quantidade: item.qty,
         valor_unitario: parseFloat(item.preco),
