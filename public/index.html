@@ -2870,7 +2870,10 @@ async function emitirNFe(vendaId) {
   try {
     const r = await api('POST', '/api/bling/nfe', { vendaId });
     toast('NF-e emitida com sucesso! Nº ' + (r.nfe?.numero || ''));
-  } catch(e) { toast('Erro ao emitir NF-e: ' + e.message, 'error'); }
+  } catch(e) {
+    console.error('Erro NF-e:', e);
+    toast('Erro ao emitir NF-e: ' + e.message, 'error');
+  }
   finally { if (btn) { btn.disabled = false; btn.textContent = '📄 NF-e'; } }
 }
 

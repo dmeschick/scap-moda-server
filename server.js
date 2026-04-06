@@ -1792,6 +1792,8 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       obs_internas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
     };
 
+    console.log('Payload NF-e enviado:', JSON.stringify(payload, null, 2));
+
     const response = await fetch('https://api.bling.com.br/Api/v3/nfe', {
       method: 'POST',
       headers: {
@@ -1806,10 +1808,10 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     console.log('Bling NF-e response data:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
+      console.log('Bling NF-e erro detalhado:', JSON.stringify(data, null, 2));
       return res.status(400).json({
-        erro: data.error?.message || data.message || 'Erro ao emitir NF-e',
-        detalhes: data,
-        status: response.status
+        erro: data.error?.message || data.message || 'Problema ao processar sua requisição',
+        detalhes: data
       });
     }
 
