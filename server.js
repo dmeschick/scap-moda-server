@@ -334,6 +334,10 @@ async function initDB() {
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_id TEXT`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_numero TEXT`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_id TEXT`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_numero TEXT`);
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`CREATE TABLE IF NOT EXISTS auditoria (
@@ -1711,6 +1715,187 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
     res.json({ num });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
+// ─── BLING NF-e / NFC-e ──────────────────────────────────────────────────────
+function calcularCFOP(ufCliente, tipoPessoa) {
+  if (!ufCliente || ufCliente.toUpperCase() === 'RJ') return '5102';
+  if (tipoPessoa === 'PJ') return '6102';
+  return '6108';
+}
+
+app.post('/api/bling/nfe', auth, async (req, res) => {
+  try {
+    const { vendaId } = req.body;
+
+    // Busca dados completos da venda
+    const vendaRes = await pool.query(
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo,
+              e.logradouro, e.numero, e.bairro, e.cidade, e.uf, e.cep
+       FROM vendas v
+       LEFT JOIN clientes c ON c.id = v.cliente_id
+       LEFT JOIN enderecos_cliente e ON e.cliente_id = v.cliente_id AND e.principal = true
+       WHERE v.id = $1`,
+      [vendaId]
+    );
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    const venda = vendaRes.rows[0];
+
+    // Busca itens da venda
+    const itensRes = await pool.query(
+      `SELECT vi.*, p.ncm, p.csosn, p.custo
+       FROM venda_itens vi
+       LEFT JOIN produtos p ON p.id = vi.produto_id
+       WHERE vi.venda_id = $1 AND vi.tipo != 'devolvido'`,
+      [vendaId]
+    );
+
+    const cfop = calcularCFOP(venda.uf, venda.cli_tipo);
+    const token = await getBlingToken();
+
+    // Monta payload da NF-e para o Bling
+    const payload = {
+      tipo: 1, // 1 = Saída
+      natureza_operacao: cfop === '5102' ? 'Venda de Mercadoria' : 'Venda Interestadual',
+      cfop,
+      cliente: {
+        nome: venda.cli_nome || 'Consumidor Final',
+        cpf_cnpj: venda.cnpj || venda.cpf || '',
+        ie: 'ISENTO',
+        endereco: venda.logradouro || '',
+        numero: venda.numero || 'S/N',
+        bairro: venda.bairro || '',
+        municipio: venda.cidade || '',
+        uf: venda.uf || 'RJ',
+        cep: (venda.cep || '').replace(/\D/g, ''),
+        email: ''
+      },
+      itens: itensRes.rows.map((item, idx) => ({
+        item: idx + 1,
+        codigo: item.cod || '',
+        descricao: item.nome || '',
+        ncm: item.ncm || '62034200',
+        cfop,
+        un: 'PC',
+        quantidade: item.qty,
+        valor_unitario: parseFloat(item.preco),
+        valor_total: parseFloat(item.preco) * item.qty,
+        csosn: item.csosn || '102'
+      })),
+      parcelas: [{
+        dias: 0,
+        data: new Date().toLocaleDateString('pt-BR'),
+        valor: parseFloat(venda.tot),
+        obs: venda.pag || ''
+      }],
+      obs: venda.obs || '',
+      obs_internas: 'Venda ' + venda.num + ' — Sistema Scap Moda'
+    };
+
+    const response = await fetch('https://www.bling.com.br/Api/v3/nfe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(400).json({ erro: data.error?.message || 'Erro ao emitir NF-e', detalhes: data });
+    }
+
+    // Salvar número da nota na venda
+    if (data.data?.id) {
+      await pool.query(
+        `UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3`,
+        [String(data.data.id), data.data.numero || '', vendaId]
+      );
+    }
+
+    res.json({ ok: true, nfe: data.data });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// Rota para emitir NFC-e
+app.post('/api/bling/nfce', auth, async (req, res) => {
+  try {
+    const { vendaId } = req.body;
+
+    const vendaRes = await pool.query(
+      `SELECT v.*, c.nome as cli_nome, c.cpf
+       FROM vendas v
+       LEFT JOIN clientes c ON c.id = v.cliente_id
+       WHERE v.id = $1`,
+      [vendaId]
+    );
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    const venda = vendaRes.rows[0];
+
+    const itensRes = await pool.query(
+      `SELECT vi.*, p.ncm, p.csosn
+       FROM venda_itens vi
+       LEFT JOIN produtos p ON p.id = vi.produto_id
+       WHERE vi.venda_id = $1 AND vi.tipo != 'devolvido'`,
+      [vendaId]
+    );
+
+    const token = await getBlingToken();
+
+    const payload = {
+      tipo: 1,
+      cfop: '5102',
+      cliente: {
+        nome: venda.cli_nome || 'Consumidor Final',
+        cpf_cnpj: venda.cpf || ''
+      },
+      itens: itensRes.rows.map((item, idx) => ({
+        item: idx + 1,
+        codigo: item.cod || '',
+        descricao: item.nome || '',
+        ncm: item.ncm || '62034200',
+        cfop: '5102',
+        un: 'PC',
+        quantidade: item.qty,
+        valor_unitario: parseFloat(item.preco),
+        valor_total: parseFloat(item.preco) * item.qty,
+        csosn: item.csosn || '102'
+      })),
+      parcelas: [{
+        dias: 0,
+        data: new Date().toLocaleDateString('pt-BR'),
+        valor: parseFloat(venda.tot),
+        obs: venda.pag || ''
+      }]
+    };
+
+    const response = await fetch('https://www.bling.com.br/Api/v3/nfce', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(400).json({ erro: data.error?.message || 'Erro ao emitir NFC-e', detalhes: data });
+    }
+
+    if (data.data?.id) {
+      await pool.query(
+        `UPDATE vendas SET nfce_id=$1, nfce_numero=$2 WHERE id=$3`,
+        [String(data.data.id), data.data.numero || '', vendaId]
+      );
+    }
+
+    res.json({ ok: true, nfce: data.data });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── BLING OAUTH 2.0 ─────────────────────────────────────────────────────────
 const BLING_CLIENT_ID = process.env.BLING_CLIENT_ID;
