@@ -341,7 +341,9 @@ async function initDB() {
     UPDATE enderecos_cliente
     SET cMun = '3304557'
     WHERE cMun = '9999999'
-    AND REGEXP_REPLACE(cep, '[^0-9]', '', 'g') BETWEEN '25600000' AND '25799999'
+    AND estado = 'RJ'
+    AND REPLACE(cep, '-', '') >= '25600000'
+    AND REPLACE(cep, '-', '') <= '25799999'
   `);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
