@@ -336,19 +336,12 @@ async function initDB() {
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS cMun TEXT DEFAULT '9999999'`);
-  // Corrigir cMun para Petrópolis — cobre variações de digitação e acento
+  // Corrigir cMun via CEP (sem problema de encoding/acento) — faixa Petrópolis 25600000–25799999
   await pool.query(`
     UPDATE enderecos_cliente
     SET cMun = '3304557'
     WHERE cMun = '9999999'
-    AND estado = 'RJ'
-    AND (
-      cidade = 'Petrópolis'
-      OR cidade = 'Petropolis'
-      OR cidade = 'PETRÓPOLIS'
-      OR cidade = 'petrópolis'
-      OR LOWER(cidade) LIKE '%petrop%'
-    )
+    AND REGEXP_REPLACE(cep, '[^0-9]', '', 'g') BETWEEN '25600000' AND '25799999'
   `);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
@@ -1826,7 +1819,12 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           <xLgr>${(endereco.logradouro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xLgr>
           <nro>${(endereco.numero || 'S/N').substring(0,60)}</nro>
           <xBairro>${(endereco.bairro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xBairro>
-          <cMun>${endereco.cMun || '9999999'}</cMun>
+          <cMun>${(() => {
+            if (endereco.cMun && endereco.cMun !== '9999999') return endereco.cMun;
+            const cepNum = (endereco.cep || '').replace(/\D/g, '');
+            if (cepNum >= '25600000' && cepNum <= '25799999') return '3304557';
+            return '9999999';
+          })()}</cMun>
           <xMun>${(endereco.cidade || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xMun>
           <UF>${endereco.uf || 'RJ'}</UF>
           <CEP>${(endereco.cep || '25625022').replace(/\D/g,'')}</CEP>
