@@ -1926,6 +1926,28 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
       </transp>
       ${(() => {
         const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
+        const creditoParcelado = lista.filter(p => p.tipo === 'credito' && parseInt(p.parcelas) > 1);
+        if (!creditoParcelado.length) return '';
+        const p = creditoParcelado[0];
+        const n = parseInt(p.parcelas);
+        const valorTotal = parseFloat(p.valor);
+        const vParcBase = Math.floor((valorTotal / n) * 100) / 100;
+        const vUltima = parseFloat((valorTotal - vParcBase * (n - 1)).toFixed(2));
+        const nNFPad = String(venda.num || '1').replace('#', '').padStart(6, '0');
+        let dups = '';
+        for (let i = 0; i < n; i++) {
+          const vParc = i < n - 1 ? vParcBase : vUltima;
+          const dtVenc = new Date();
+          dtVenc.setDate(dtVenc.getDate() + (30 * (i + 1)));
+          const ano = dtVenc.getFullYear();
+          const mes = String(dtVenc.getMonth() + 1).padStart(2, '0');
+          const dia = String(dtVenc.getDate()).padStart(2, '0');
+          dups += `<dup><nDup>${String(i + 1).padStart(3, '0')}</nDup><dVenc>${ano}-${mes}-${dia}</dVenc><vDup>${vParc.toFixed(2)}</vDup></dup>`;
+        }
+        return `<cobr><fat><nFat>${nNFPad}</nFat><vOrig>${valorTotal.toFixed(2)}</vOrig><vDesc>0</vDesc><vLiq>${valorTotal.toFixed(2)}</vLiq></fat>${dups}</cobr>`;
+      })()}
+      ${(() => {
+        const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
         let pagXML = '<pag>';
         if (lista.length > 0) {
           for (const p of lista) {
