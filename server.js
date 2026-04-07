@@ -10,6 +10,7 @@ const cors = require('cors');
 require('dotenv').config();
 const crypto = require('crypto');
 const { Resend } = require('resend');
+const archiver = require('archiver');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
@@ -1717,6 +1718,297 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
     res.json({ num });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
+// ─── EXPORTAÇÃO XML NF-e ─────────────────────────────────────────────────────
+const EMITENTE = {
+  cnpj: '03670225000143',
+  xNome: 'Scap Comercio de Malhas LTDA ME',
+  xLgr: 'Rua Teresa',
+  nro: '297',
+  xBairro: 'Centro',
+  cMun: '3304557',
+  xMun: 'Petropolis',
+  uf: 'RJ',
+  cep: '25625022',
+  ie: '76180245',
+  crt: '1'
+};
+
+function gerarXMLNFe(venda, itens, cliente, endereco) {
+  const cfop = calcularCFOP(endereco?.uf, cliente?.tipo);
+  const dhEmi = new Date(venda.data).toISOString().replace('Z', '-03:00').substring(0, 22) + ':00';
+  const nNF = String(venda.num || '1').replace('#', '').padStart(9, '0');
+  const cNF = String(Math.floor(Math.random() * 99999999)).padStart(8, '0');
+
+  const tpPagMap = {
+    'dinheiro': '01',
+    'cheque': '02',
+    'cheque_pre': '02',
+    'cartao_credito': '03',
+    'credito': '03',
+    'cartao_debito': '04',
+    'debito': '04',
+    'pix': '17'
+  };
+  const tpPag = tpPagMap[venda.pag?.toLowerCase()] || '99';
+
+  const vProd = itens.reduce((a, i) => a + (parseFloat(i.preco) * parseInt(i.qty)), 0);
+  const vNF = parseFloat(venda.tot) || vProd;
+
+  const itensXML = itens.map((item, idx) => {
+    const vItem = parseFloat(item.preco) * parseInt(item.qty);
+    const ncm = (item.ncm || '62034200').replace(/\./g, '');
+    return `
+      <det nItem="${idx + 1}">
+        <prod>
+          <cProd>${item.cod || String(idx+1).padStart(6,'0')}</cProd>
+          <cEAN>SEM GTIN</cEAN>
+          <xProd>${(item.nome || '').substring(0, 120).replace(/[&<>"']/g, ' ')}</xProd>
+          <NCM>${ncm}</NCM>
+          <CFOP>${cfop}</CFOP>
+          <uCom>PC</uCom>
+          <qCom>${parseFloat(item.qty).toFixed(4)}</qCom>
+          <vUnCom>${parseFloat(item.preco).toFixed(2)}</vUnCom>
+          <vProd>${vItem.toFixed(2)}</vProd>
+          <cEANTrib>SEM GTIN</cEANTrib>
+          <uTrib>PC</uTrib>
+          <qTrib>${parseFloat(item.qty).toFixed(4)}</qTrib>
+          <vUnTrib>${parseFloat(item.preco).toFixed(2)}</vUnTrib>
+          <indTot>1</indTot>
+        </prod>
+        <imposto>
+          <ICMS>
+            <ICMSSN102>
+              <orig>0</orig>
+              <CSOSN>${item.csosn || '102'}</CSOSN>
+            </ICMSSN102>
+          </ICMS>
+          <PIS>
+            <PISNT>
+              <CST>07</CST>
+            </PISNT>
+          </PIS>
+          <COFINS>
+            <COFINSNT>
+              <CST>07</CST>
+            </COFINSNT>
+          </COFINS>
+        </imposto>
+      </det>`;
+  }).join('');
+
+  const docDest = cliente?.cnpj
+    ? `<CNPJ>${(cliente.cnpj || '').replace(/\D/g, '')}</CNPJ>`
+    : `<CPF>${(cliente?.cpf || '').replace(/\D/g, '')}</CPF>`;
+
+  const nomeDest = (cliente?.nome || 'Consumidor Final').substring(0, 60).replace(/[&<>"']/g, ' ');
+
+  const endDest = endereco ? `
+        <enderDest>
+          <xLgr>${(endereco.logradouro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xLgr>
+          <nro>${(endereco.numero || 'S/N').substring(0,60)}</nro>
+          <xBairro>${(endereco.bairro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xBairro>
+          <cMun>3304557</cMun>
+          <xMun>${(endereco.cidade || 'Petropolis').substring(0,60).replace(/[&<>"']/g,' ')}</xMun>
+          <UF>${endereco.uf || 'RJ'}</UF>
+          <CEP>${(endereco.cep || '25625022').replace(/\D/g,'')}</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+        </enderDest>` : '';
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe versao="4.00" Id="NFe33${new Date(venda.data).toISOString().substring(0,10).replace(/-/g,'')}${EMITENTE.cnpj}5500100000${nNF.substring(0,5)}${cNF}8">
+      <ide>
+        <cUF>33</cUF>
+        <cNF>${cNF}</cNF>
+        <natOp>Venda de Mercadoria</natOp>
+        <mod>55</mod>
+        <serie>1</serie>
+        <nNF>${parseInt(nNF)}</nNF>
+        <dhEmi>${dhEmi}</dhEmi>
+        <tpNF>1</tpNF>
+        <idDest>${endereco?.uf && endereco.uf !== 'RJ' ? '2' : '1'}</idDest>
+        <cMunFG>3304557</cMunFG>
+        <tpImp>1</tpImp>
+        <tpEmis>1</tpEmis>
+        <cDV>8</cDV>
+        <tpAmb>2</tpAmb>
+        <finNFe>1</finNFe>
+        <indFinal>1</indFinal>
+        <indPres>1</indPres>
+        <procEmi>3</procEmi>
+        <verProc>1.0</verProc>
+      </ide>
+      <emit>
+        <CNPJ>${EMITENTE.cnpj}</CNPJ>
+        <xNome>${EMITENTE.xNome}</xNome>
+        <enderEmit>
+          <xLgr>${EMITENTE.xLgr}</xLgr>
+          <nro>${EMITENTE.nro}</nro>
+          <xBairro>${EMITENTE.xBairro}</xBairro>
+          <cMun>${EMITENTE.cMun}</cMun>
+          <xMun>${EMITENTE.xMun}</xMun>
+          <UF>${EMITENTE.uf}</UF>
+          <CEP>${EMITENTE.cep}</CEP>
+          <cPais>1058</cPais>
+          <xPais>Brasil</xPais>
+        </enderEmit>
+        <IE>${EMITENTE.ie}</IE>
+        <CRT>${EMITENTE.crt}</CRT>
+      </emit>
+      <dest>
+        ${docDest}
+        <xNome>${nomeDest}</xNome>
+        ${endDest}
+        <indIEDest>9</indIEDest>
+      </dest>
+      ${itensXML}
+      <total>
+        <ICMSTot>
+          <vBC>0.00</vBC>
+          <vICMS>0.00</vICMS>
+          <vICMSDeson>0.00</vICMSDeson>
+          <vFCP>0.00</vFCP>
+          <vBCST>0.00</vBCST>
+          <vST>0.00</vST>
+          <vFCPST>0.00</vFCPST>
+          <vFCPSTRet>0.00</vFCPSTRet>
+          <vProd>${vProd.toFixed(2)}</vProd>
+          <vFrete>0.00</vFrete>
+          <vSeg>0.00</vSeg>
+          <vDesc>${(vProd - vNF).toFixed(2)}</vDesc>
+          <vII>0.00</vII>
+          <vIPI>0.00</vIPI>
+          <vIPIDevol>0.00</vIPIDevol>
+          <vPIS>0.00</vPIS>
+          <vCOFINS>0.00</vCOFINS>
+          <vOutro>0.00</vOutro>
+          <vNF>${vNF.toFixed(2)}</vNF>
+        </ICMSTot>
+      </total>
+      <transp>
+        <modFrete>9</modFrete>
+      </transp>
+      <pag>
+        <detPag>
+          <tPag>${tpPag}</tPag>
+          <vPag>${vNF.toFixed(2)}</vPag>
+        </detPag>
+      </pag>
+      ${venda.obs ? `<infAdic><infCpl>${venda.obs.substring(0,500).replace(/[&<>"']/g,' ')}</infCpl></infAdic>` : ''}
+    </infNFe>
+  </NFe>
+</nfeProc>`;
+
+  return xml;
+}
+
+// EXPORTAR XML NF-e — individual
+app.get('/api/vendas/:id/xml', auth, async (req, res) => {
+  try {
+    const vendaRes = await pool.query(
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo
+       FROM vendas v
+       LEFT JOIN clientes c ON c.id = v.cliente_id
+       WHERE v.id = $1`,
+      [req.params.id]
+    );
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    const venda = vendaRes.rows[0];
+
+    const itensRes = await pool.query(
+      `SELECT vi.*, p.ncm, p.csosn
+       FROM venda_itens vi
+       LEFT JOIN produtos p ON p.id = vi.produto_id
+       WHERE vi.venda_id = $1 AND vi.tipo != 'devolvido'`,
+      [req.params.id]
+    );
+
+    const endRes = await pool.query(
+      `SELECT * FROM enderecos_cliente WHERE cliente_id = $1 AND principal = true LIMIT 1`,
+      [venda.cliente_id]
+    );
+
+    const cliente = {
+      nome: venda.cli_nome,
+      cpf: venda.cpf,
+      cnpj: venda.cnpj,
+      tipo: venda.cli_tipo
+    };
+    const endereco = endRes.rows[0] || null;
+
+    const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco);
+    const nomeArquivo = `nfe-${(venda.num || 'S-N').replace('#', '')}-${new Date(venda.data).toISOString().split('T')[0]}.xml`;
+
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+    res.send(xml);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// EXPORTAR XML NF-e — lote do dia (ZIP)
+app.get('/api/vendas/xml-lote', auth, async (req, res) => {
+  try {
+    const { data } = req.query;
+    const dataFiltro = data || new Date().toISOString().split('T')[0];
+
+    const vendasRes = await pool.query(
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo
+       FROM vendas v
+       LEFT JOIN clientes c ON c.id = v.cliente_id
+       WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
+         AND v.status = 'pago'
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
+      [dataFiltro]
+    );
+
+    if (!vendasRes.rows.length) {
+      return res.status(404).json({ erro: 'Nenhuma venda encontrada para esta data' });
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="nfe-lote-${dataFiltro}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    for (const venda of vendasRes.rows) {
+      const itensRes = await pool.query(
+        `SELECT vi.*, p.ncm, p.csosn
+         FROM venda_itens vi
+         LEFT JOIN produtos p ON p.id = vi.produto_id
+         WHERE vi.venda_id = $1 AND vi.tipo != 'devolvido'`,
+        [venda.id]
+      );
+
+      if (!itensRes.rows.length) continue;
+
+      const endRes = await pool.query(
+        `SELECT * FROM enderecos_cliente WHERE cliente_id = $1 AND principal = true LIMIT 1`,
+        [venda.cliente_id]
+      );
+
+      const cliente = {
+        nome: venda.cli_nome,
+        cpf: venda.cpf,
+        cnpj: venda.cnpj,
+        tipo: venda.cli_tipo
+      };
+      const endereco = endRes.rows[0] || null;
+
+      const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco);
+      const nomeArquivo = `nfe-${(venda.num || 'S-N').replace('#', '')}.xml`;
+      archive.append(xml, { name: nomeArquivo });
+    }
+
+    await archive.finalize();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ erro: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── BLING NF-e / NFC-e ──────────────────────────────────────────────────────
 function calcularCFOP(ufCliente, tipoPessoa) {
