@@ -1890,42 +1890,46 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
       <transp>
         <modFrete>9</modFrete>
       </transp>
-      <pag>
-        ${(() => {
-          const pagamentos = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [{ tipo: venda.pag || '99', valor: vNF, parcelas: 1 }];
-          return pagamentos.map(p => {
-            const cod = tpPagMap[p.tipo?.toLowerCase()] || '99';
-            const nParcelas = (cod === '03' && parseInt(p.parcelas) > 1) ? parseInt(p.parcelas) : 1;
-            const vTotal = parseFloat(p.valor) || vNF;
-            const vParcela = (vTotal / nParcelas).toFixed(2);
-            if (nParcelas > 1) {
-              return `<detPag>
-          <indPag>1</indPag>
-          <tPag>${cod}</tPag>
-          <vPag>${vTotal.toFixed(2)}</vPag>
-          <card>
-            <tpIntegra>2</tpIntegra>
-          </card>
+      ${(() => {
+        const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
+        let pagXML = '<pag>';
+        if (lista.length > 0) {
+          for (const p of lista) {
+            const tpPag = p.tipo === 'dinheiro' ? '01' :
+                          p.tipo === 'cheque' || p.tipo === 'cheque_pre' ? '02' :
+                          p.tipo === 'credito' ? '03' :
+                          p.tipo === 'debito' ? '04' :
+                          p.tipo === 'pix' ? '17' : '99';
+            const parcelas = parseInt(p.parcelas) || 1;
+            const vlParcela = parseFloat(p.vl_parcela) || (parseFloat(p.valor) / parcelas);
+            for (let i = 0; i < parcelas; i++) {
+              const dtVenc = new Date();
+              dtVenc.setDate(dtVenc.getDate() + (30 * (i + 1)));
+              pagXML += `
+        <detPag>
+          <indPag>${parcelas > 1 ? '1' : '0'}</indPag>
+          <tPag>${tpPag}</tPag>
+          <vPag>${vlParcela.toFixed(2)}</vPag>
+          <dPag>${dtVenc.toISOString().split('T')[0]}</dPag>
         </detPag>`;
             }
-            return `<detPag>
-          <indPag>0</indPag>
-          <tPag>${cod}</tPag>
-          <vPag>${vTotal.toFixed(2)}</vPag>
-        </detPag>`;
-          }).join('\n        ');
-        })()}
-      </pag>
+          }
+        } else {
+          pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vNF.toFixed(2)}</vPag></detPag>`;
+        }
+        pagXML += '\n      </pag>';
+        return pagXML;
+      })()}
       ${(() => {
-        const pagamentos = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [{ tipo: venda.pag || '99', valor: vNF, parcelas: 1 }];
-        const infPag = pagamentos
-          .filter(p => tpPagMap[p.tipo?.toLowerCase()] === '03' && parseInt(p.parcelas) > 1)
+        const partes = [];
+        const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
+        const infPag = lista
+          .filter(p => p.tipo === 'credito' && parseInt(p.parcelas) > 1)
           .map(p => {
             const n = parseInt(p.parcelas);
-            const vParc = (parseFloat(p.valor) / n).toFixed(2).replace('.', ',');
+            const vParc = (parseFloat(p.vl_parcela) || parseFloat(p.valor) / n).toFixed(2).replace('.', ',');
             return `${n}x de R$ ${vParc}`;
           }).join(', ');
-        const partes = [];
         if (infPag) partes.push('Pagamento: ' + infPag);
         if (venda.obs) partes.push(venda.obs.substring(0, 400).replace(/[&<>"']/g, ' '));
         return partes.length ? `<infAdic><infCpl>${partes.join(' | ')}</infCpl></infAdic>` : '';
@@ -1964,7 +1968,7 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
     );
 
     const pgtoRes = await pool.query(
-      `SELECT tipo, valor, parcelas FROM venda_pagamentos WHERE venda_id = $1`,
+      `SELECT tipo, valor, parcelas, vl_parcela FROM venda_pagamentos WHERE venda_id = $1`,
       [req.params.id]
     );
 
@@ -2028,7 +2032,7 @@ app.get('/api/vendas/xml-lote', auth, async (req, res) => {
       );
 
       const pgtoRes = await pool.query(
-        `SELECT tipo, valor, parcelas FROM venda_pagamentos WHERE venda_id = $1`,
+        `SELECT tipo, valor, parcelas, vl_parcela FROM venda_pagamentos WHERE venda_id = $1`,
         [venda.id]
       );
 
