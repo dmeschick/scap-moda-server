@@ -1770,6 +1770,8 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
 
   const vProd = itens.reduce((a, i) => a + (parseFloat(i.preco) * parseInt(i.qty)), 0);
   const vNF = parseFloat(venda.tot) || vProd;
+  // Fator para escalar vPag ao bruto quando há desconto (Bling compara vPag com vProd)
+  const fatorDesc = (vProd > 0 && vNF < vProd) ? vProd / vNF : 1;
 
   const itensXML = itens.map((item, idx) => {
     const vItem = parseFloat(item.preco) * parseInt(item.qty);
@@ -1894,14 +1896,14 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           <vProd>${vProd.toFixed(2)}</vProd>
           <vFrete>0.00</vFrete>
           <vSeg>0.00</vSeg>
-          <vDesc>${(vProd - vNF).toFixed(2)}</vDesc>
+          <vDesc>0.00</vDesc>
           <vII>0.00</vII>
           <vIPI>0.00</vIPI>
           <vIPIDevol>0.00</vIPIDevol>
           <vPIS>0.00</vPIS>
           <vCOFINS>0.00</vCOFINS>
           <vOutro>0.00</vOutro>
-          <vNF>${vNF.toFixed(2)}</vNF>
+          <vNF>${vProd.toFixed(2)}</vNF>
         </ICMSTot>
       </total>
       <transp>
@@ -1911,14 +1913,21 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
         const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
         let pagXML = '<pag>';
         if (lista.length > 0) {
-          for (const p of lista) {
+          let restante = vProd;
+          for (let i = 0; i < lista.length; i++) {
+            const p = lista[i];
             const tpPag = p.tipo === 'dinheiro'    ? '01' :
                           p.tipo === 'cheque' || p.tipo === 'cheque_pre' ? '02' :
                           p.tipo === 'credito'     ? '03' :
                           p.tipo === 'debito'      ? '04' :
                           p.tipo === 'pix'         ? '17' : '99';
             const parcelas = parseInt(p.parcelas) || 1;
-            const valorTotal = parseFloat(p.valor);
+            const isLast = i === lista.length - 1;
+            // Escalar vPag ao bruto; última parcela absorve arredondamento
+            const valorAjustado = isLast
+              ? parseFloat(restante.toFixed(2))
+              : Math.round(parseFloat(p.valor) * fatorDesc * 100) / 100;
+            restante -= valorAjustado;
             const indPag = (p.tipo === 'credito' && parcelas > 1) ? '1' : '0';
 
             let cardXML = '';
@@ -1934,11 +1943,11 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
       <detPag>
         <indPag>${indPag}</indPag>
         <tPag>${tpPag}</tPag>
-        <vPag>${valorTotal.toFixed(2)}</vPag>${cardXML}
+        <vPag>${valorAjustado.toFixed(2)}</vPag>${cardXML}
       </detPag>`;
           }
         } else {
-          pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vNF.toFixed(2)}</vPag></detPag>`;
+          pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vProd.toFixed(2)}</vPag></detPag>`;
         }
         pagXML += '\n      </pag>';
         return pagXML;
@@ -1950,7 +1959,8 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           .filter(p => p.tipo === 'credito' && parseInt(p.parcelas) > 1)
           .map(p => {
             const n = parseInt(p.parcelas);
-            const valorTotal = parseFloat(p.valor);
+            // Escalar ao bruto para bater com vProd no totalizador
+            const valorTotal = Math.round(parseFloat(p.valor) * fatorDesc * 100) / 100;
             // Calcula parcela base e ajusta última para absorver diferença de centavo
             const vParcBase = Math.floor((valorTotal / n) * 100) / 100;
             const vUltima = parseFloat((valorTotal - vParcBase * (n - 1)).toFixed(2));
