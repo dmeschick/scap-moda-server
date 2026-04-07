@@ -1734,7 +1734,7 @@ const EMITENTE = {
   crt: '1'
 };
 
-function gerarXMLNFe(venda, itens, cliente, endereco) {
+function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
   const cfop = calcularCFOP(endereco?.uf, cliente?.tipo);
   const dhEmi = new Date(venda.data).toISOString().replace('Z', '-03:00').substring(0, 22) + ':00';
   const nNF = String(venda.num || '1').replace('#', '').padStart(9, '0');
@@ -1744,13 +1744,12 @@ function gerarXMLNFe(venda, itens, cliente, endereco) {
     'dinheiro': '01',
     'cheque': '02',
     'cheque_pre': '02',
-    'cartao_credito': '03',
     'credito': '03',
-    'cartao_debito': '04',
     'debito': '04',
-    'pix': '17'
+    'pix': '17',
+    'vale_funcionaria': '99'
   };
-  const tpPag = tpPagMap[venda.pag?.toLowerCase()] || '99';
+  const hoje = new Date();
 
   const vProd = itens.reduce((a, i) => a + (parseFloat(i.preco) * parseInt(i.qty)), 0);
   const vNF = parseFloat(venda.tot) || vProd;
@@ -1892,10 +1891,29 @@ function gerarXMLNFe(venda, itens, cliente, endereco) {
         <modFrete>9</modFrete>
       </transp>
       <pag>
-        <detPag>
-          <tPag>${tpPag}</tPag>
-          <vPag>${vNF.toFixed(2)}</vPag>
-        </detPag>
+        ${(() => {
+          const pagamentos = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [{ tipo: venda.pag || '99', valor: vNF, parcelas: 1 }];
+          return pagamentos.map(p => {
+            const cod = tpPagMap[p.tipo?.toLowerCase()] || '99';
+            const nParcelas = (cod === '03' && parseInt(p.parcelas) > 1) ? parseInt(p.parcelas) : 1;
+            const vTotal = parseFloat(p.valor) || vNF;
+            const vParcela = (vTotal / nParcelas).toFixed(2);
+            if (nParcelas > 1) {
+              return Array.from({ length: nParcelas }, (_, i) => {
+                const dtVenc = new Date(hoje);
+                dtVenc.setDate(dtVenc.getDate() + (i + 1) * 30);
+                return `<detPag>
+          <tPag>${cod}</tPag>
+          <vPag>${vParcela}</vPag>
+        </detPag>`;
+              }).join('\n        ');
+            }
+            return `<detPag>
+          <tPag>${cod}</tPag>
+          <vPag>${vTotal.toFixed(2)}</vPag>
+        </detPag>`;
+          }).join('\n        ');
+        })()}
       </pag>
       ${venda.obs ? `<infAdic><infCpl>${venda.obs.substring(0,500).replace(/[&<>"']/g,' ')}</infCpl></infAdic>` : ''}
     </infNFe>
@@ -1931,6 +1949,11 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
       [venda.cliente_id]
     );
 
+    const pgtoRes = await pool.query(
+      `SELECT tipo, valor, parcelas FROM venda_pagamentos WHERE venda_id = $1`,
+      [req.params.id]
+    );
+
     const cliente = {
       nome: venda.cli_nome,
       cpf: venda.cpf,
@@ -1939,7 +1962,7 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
     };
     const endereco = endRes.rows[0] || null;
 
-    const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco);
+    const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco, pgtoRes.rows);
     const nomeArquivo = `nfe-${(venda.num || 'S-N').replace('#', '')}-${new Date(venda.data).toISOString().split('T')[0]}.xml`;
 
     res.setHeader('Content-Type', 'application/xml');
@@ -1990,6 +2013,11 @@ app.get('/api/vendas/xml-lote', auth, async (req, res) => {
         [venda.cliente_id]
       );
 
+      const pgtoRes = await pool.query(
+        `SELECT tipo, valor, parcelas FROM venda_pagamentos WHERE venda_id = $1`,
+        [venda.id]
+      );
+
       const cliente = {
         nome: venda.cli_nome,
         cpf: venda.cpf,
@@ -1998,7 +2026,7 @@ app.get('/api/vendas/xml-lote', auth, async (req, res) => {
       };
       const endereco = endRes.rows[0] || null;
 
-      const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco);
+      const xml = gerarXMLNFe(venda, itensRes.rows, cliente, endereco, pgtoRes.rows);
       const nomeArquivo = `nfe-${(venda.num || 'S-N').replace('#', '')}.xml`;
       archive.append(xml, { name: nomeArquivo });
     }
