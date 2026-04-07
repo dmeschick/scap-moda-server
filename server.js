@@ -1788,8 +1788,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       parcelas: [{
         dias: 0,
         data: new Date().toLocaleDateString('pt-BR'),
-        valor: parseFloat(venda.tot),
-        obs: venda.pag || ''
+        valor: parseFloat(venda.tot)
       }]
     };
 
@@ -1877,8 +1876,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       parcelas: [{
         dias: 0,
         data: new Date().toLocaleDateString('pt-BR'),
-        valor: parseFloat(venda.tot),
-        obs: venda.pag || ''
+        valor: parseFloat(venda.tot)
       }]
     };
 
