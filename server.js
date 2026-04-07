@@ -1744,7 +1744,9 @@ const EMITENTE = {
 
 function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
   const cfop = calcularCFOP(endereco?.uf, cliente?.tipo);
-  const dhEmi = new Date(venda.data).toISOString().replace('Z', '-03:00').substring(0, 22) + ':00';
+  const d = new Date(venda.data);
+  const pad = n => String(n).padStart(2, '0');
+  const dhEmi = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}-03:00`;
   const nNF = String(venda.num || '1').replace('#', '').padStart(9, '0');
   const cNF = String(Math.floor(Math.random() * 99999999)).padStart(8, '0');
 
