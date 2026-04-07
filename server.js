@@ -1934,8 +1934,15 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           .filter(p => p.tipo === 'credito' && parseInt(p.parcelas) > 1)
           .map(p => {
             const n = parseInt(p.parcelas);
-            const vParc = (parseFloat(p.vl_parcela) || parseFloat(p.valor) / n).toFixed(2).replace('.', ',');
-            return `${n}x de R$ ${vParc}`;
+            const valorTotal = parseFloat(p.valor);
+            // Calcula parcela base e ajusta última para absorver diferença de centavo
+            const vParcBase = Math.floor((valorTotal / n) * 100) / 100;
+            const vUltima = parseFloat((valorTotal - vParcBase * (n - 1)).toFixed(2));
+            const vParc = vParcBase.toFixed(2).replace('.', ',');
+            if (Math.abs(vUltima - vParcBase) < 0.005) {
+              return `${n}x de R$ ${vParc}`;
+            }
+            return `${n - 1}x de R$ ${vParc} + 1x de R$ ${vUltima.toFixed(2).replace('.', ',')}`;
           }).join(', ');
         if (infPag) partes.push('Pagamento: ' + infPag);
         if (venda.obs) partes.push(venda.obs.substring(0, 400).replace(/[&<>"']/g, ' '));
