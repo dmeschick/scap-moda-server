@@ -336,12 +336,19 @@ async function initDB() {
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS cMun TEXT DEFAULT '9999999'`);
-  // Popular cMun para endereços de Petrópolis/RJ já cadastrados
+  // Corrigir cMun para Petrópolis — cobre variações de digitação e acento
   await pool.query(`
     UPDATE enderecos_cliente
     SET cMun = '3304557'
     WHERE cMun = '9999999'
-    AND (LOWER(cidade) LIKE '%petr%' OR (cMun = '9999999' AND estado = 'RJ'))
+    AND estado = 'RJ'
+    AND (
+      cidade = 'Petrópolis'
+      OR cidade = 'Petropolis'
+      OR cidade = 'PETRÓPOLIS'
+      OR cidade = 'petrópolis'
+      OR LOWER(cidade) LIKE '%petrop%'
+    )
   `);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
