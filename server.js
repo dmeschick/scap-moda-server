@@ -1902,15 +1902,22 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
                           p.tipo === 'pix' ? '17' : '99';
             const parcelas = parseInt(p.parcelas) || 1;
             const vlParcela = parseFloat(p.vl_parcela) || (parseFloat(p.valor) / parcelas);
+            console.log(`[XML pagamento] tipo=${p.tipo} tpPag=${tpPag} parcelas=${parcelas} (typeof=${typeof p.parcelas}) vlParcela=${vlParcela.toFixed(2)}`);
             for (let i = 0; i < parcelas; i++) {
               const dtVenc = new Date();
               dtVenc.setDate(dtVenc.getDate() + (30 * (i + 1)));
+              // Formatar data no fuso local (evita virar dia anterior com toISOString UTC)
+              const ano = dtVenc.getFullYear();
+              const mes = String(dtVenc.getMonth() + 1).padStart(2, '0');
+              const dia = String(dtVenc.getDate()).padStart(2, '0');
+              const dtStr = `${ano}-${mes}-${dia}`;
+              console.log(`[XML pagamento] parcela ${i + 1}/${parcelas} dtVenc=${dtStr} vPag=${vlParcela.toFixed(2)}`);
               pagXML += `
         <detPag>
           <indPag>${parcelas > 1 ? '1' : '0'}</indPag>
           <tPag>${tpPag}</tPag>
           <vPag>${vlParcela.toFixed(2)}</vPag>
-          <dPag>${dtVenc.toISOString().split('T')[0]}</dPag>
+          <dPag>${dtStr}</dPag>
         </detPag>`;
             }
           }
