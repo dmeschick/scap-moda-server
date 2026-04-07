@@ -564,6 +564,7 @@ tr:hover td{background:var(--bg)}
           <select id="venda-status"><option value="">Todos os status</option><option value="pago">Pago</option><option value="cancelada">Cancelada</option></select>
           <button class="btn" onclick="carregarVendas()">Filtrar</button>
           <button class="btn" onclick="limparFiltroVendas()">Limpar</button>
+          <button class="btn btn-sm" onclick="abrirModalExportarLote()">📦 Exportar XMLs do dia</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -1244,8 +1245,32 @@ tr:hover td{background:var(--bg)}
       <button class="btn" onclick="fecharModal('modal-romaneio')">Fechar</button>
       <button class="btn btn-sm" onclick="emitirNFe(_vendaAtual?.id)" id="btn-nfe">📄 NF-e</button>
       <button class="btn btn-sm" onclick="emitirNFCe(_vendaAtual?.id)" id="btn-nfce">🧾 NFC-e</button>
+      <button class="btn btn-sm" onclick="exportarXMLVenda(_vendaAtual?.id)" id="btn-xml">📄 Exportar XML</button>
       <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Notinha de crédito</button>
       <button class="btn btn-primary" onclick="imprimirRomaneio()">🖨 Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Exportar XML Lote -->
+<div class="modal-backdrop" id="modal-xml-lote">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h3>Exportar XMLs do dia</h3>
+      <button class="modal-close" onclick="fecharModal('modal-xml-lote')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="xml-lote-data" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:8px">
+        Baixa um arquivo ZIP com os XMLs de todas as vendas do dia selecionado para importar no Bling.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-xml-lote')">Cancelar</button>
+      <button class="btn btn-primary" onclick="exportarXMLLote()">⬇ Baixar ZIP</button>
     </div>
   </div>
 </div>
@@ -2843,6 +2868,24 @@ async function salvarAjusteEstoque() {
   const qtd = parseInt(document.getElementById('est-qtd').value)||0;
   if (qtd <= 0) { toast('Informe uma quantidade válida', 'warn'); return; }
   await confirmarAcao('ajustar estoque', 'Ajuste de estoque', () => salvarAjusteEstoqueReal());
+}
+
+// ===== EXPORTAR XML =====
+function exportarXMLVenda(vendaId) {
+  if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
+  window.open(API + '/api/vendas/' + vendaId + '/xml?token=' + TOKEN, '_blank');
+}
+
+function abrirModalExportarLote() {
+  document.getElementById('xml-lote-data').value = new Date().toISOString().split('T')[0];
+  abrirModal('modal-xml-lote');
+}
+
+function exportarXMLLote() {
+  const data = document.getElementById('xml-lote-data').value;
+  if (!data) { toast('Selecione a data', 'warn'); return; }
+  fecharModal('modal-xml-lote');
+  window.open(API + '/api/vendas/xml-lote?data=' + data + '&token=' + TOKEN, '_blank');
 }
 
 // ===== BLING =====
