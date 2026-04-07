@@ -1928,43 +1928,33 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
         const lista = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [];
         let pagXML = '<pag>';
         if (lista.length > 0) {
-          let restante = vProd;
-          for (let i = 0; i < lista.length; i++) {
-            const p = lista[i];
+          for (const p of lista) {
             const tpPag = p.tipo === 'dinheiro'    ? '01' :
                           p.tipo === 'cheque' || p.tipo === 'cheque_pre' ? '02' :
                           p.tipo === 'credito'     ? '03' :
                           p.tipo === 'debito'      ? '04' :
                           p.tipo === 'pix'         ? '17' : '99';
             const parcelas = parseInt(p.parcelas) || 1;
-            const isLast = i === lista.length - 1;
-            // Escalar vPag ao bruto; última parcela absorve arredondamento
-            const valorAjustado = isLast
-              ? parseFloat(restante.toFixed(2))
-              : Math.round(parseFloat(p.valor) * fatorDesc * 100) / 100;
-            restante -= valorAjustado;
-            const indPag = (p.tipo === 'credito' && parcelas > 1) ? '1' : '0';
+            const valorTotal = parseFloat(p.valor);
+            const indPag = (p.tipo === 'credito' || p.tipo === 'debito') && parcelas > 1 ? '1' : '0';
 
-            let cardXML = '';
             if (p.tipo === 'credito' && parcelas > 1) {
-              cardXML = `
-          <card>
-            <tBand>02</tBand>
-            <cAut>0</cAut>
-          </card>`;
+              // Um detPag por parcela com tpIntegra — conforme XML oficial SEFAZ
+              const vParcBase = Math.floor((valorTotal / parcelas) * 100) / 100;
+              const vUltima = parseFloat((valorTotal - vParcBase * (parcelas - 1)).toFixed(2));
+              for (let i = 0; i < parcelas; i++) {
+                const vParc = i < parcelas - 1 ? vParcBase : vUltima;
+                pagXML += `<detPag><indPag>1</indPag><tPag>03</tPag><vPag>${vParc.toFixed(2)}</vPag><card><tpIntegra>2</tpIntegra><tBand>02</tBand></card></detPag>`;
+              }
+            } else {
+              // Demais formas: único detPag com valor total
+              pagXML += `<detPag><indPag>${indPag}</indPag><tPag>${tpPag}</tPag><vPag>${valorTotal.toFixed(2)}</vPag></detPag>`;
             }
-
-            pagXML += `
-      <detPag>
-        <indPag>${indPag}</indPag>
-        <tPag>${tpPag}</tPag>
-        <vPag>${valorAjustado.toFixed(2)}</vPag>${cardXML}
-      </detPag>`;
           }
         } else {
-          pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vProd.toFixed(2)}</vPag></detPag>`;
+          pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vNF.toFixed(2)}</vPag></detPag>`;
         }
-        pagXML += '\n      </pag>';
+        pagXML += '</pag>';
         return pagXML;
       })()}
       ${(() => {
