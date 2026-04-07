@@ -1765,8 +1765,6 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
 
   const vProd = itens.reduce((a, i) => a + (parseFloat(i.preco) * parseInt(i.qty)), 0);
   const vNF = parseFloat(venda.tot) || vProd;
-  // Fator para escalar vPag ao bruto quando há desconto (Bling compara vPag com vProd)
-  const fatorDesc = (vProd > 0 && vNF < vProd) ? vProd / vNF : 1;
 
   const itensXML = itens.map((item, idx) => {
     const vItem = parseFloat(item.preco) * parseInt(item.qty);
@@ -1986,8 +1984,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           .filter(p => p.tipo === 'credito' && parseInt(p.parcelas) > 1)
           .map(p => {
             const n = parseInt(p.parcelas);
-            // Escalar ao bruto para bater com vProd no totalizador
-            const valorTotal = Math.round(parseFloat(p.valor) * fatorDesc * 100) / 100;
+            const valorTotal = parseFloat(p.valor);
             // Calcula parcela base e ajusta última para absorver diferença de centavo
             const vParcBase = Math.floor((valorTotal / n) * 100) / 100;
             const vUltima = parseFloat((valorTotal - vParcBase * (n - 1)).toFixed(2));
