@@ -1949,7 +1949,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
             if (p.tipo === 'credito' && parcelas > 1) {
               cardXML = `
           <card>
-            <tBand>99</tBand>
+            <tBand>02</tBand>
             <cAut>0</cAut>
           </card>`;
             }
