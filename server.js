@@ -1816,18 +1816,33 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
 
   const nomeDest = (cliente?.nome || 'Consumidor Final').substring(0, 60).replace(/[&<>"']/g, ' ');
 
+  // Mapeamento cMun → xMun oficial IBGE
+  const nomeMunMap = {
+    '3304557': 'Petrópolis',
+    '3304100': 'Nova Friburgo',
+    '3303302': 'Niterói',
+    '3304904': 'Rio de Janeiro',
+    '3301009': 'Campos dos Goytacazes',
+  };
+
+  const enderecoCMun = (() => {
+    if (!endereco) return '9999999';
+    if (endereco.cMun && endereco.cMun !== '9999999') return endereco.cMun;
+    const cepNum = (endereco.cep || '').replace(/\D/g, '');
+    if (cepNum >= '25600000' && cepNum <= '25799999') return '3304557';
+    return '9999999';
+  })();
+
+  const xMunDest = nomeMunMap[enderecoCMun] ||
+    (endereco?.cidade || 'Nao Informado').substring(0, 60).replace(/[&<>"]/g, ' ');
+
   const endDest = endereco ? `
         <enderDest>
           <xLgr>${(endereco.logradouro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xLgr>
           <nro>${(endereco.numero || 'S/N').substring(0,60)}</nro>
           <xBairro>${(endereco.bairro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xBairro>
-          <cMun>${(() => {
-            if (endereco.cMun && endereco.cMun !== '9999999') return endereco.cMun;
-            const cepNum = (endereco.cep || '').replace(/\D/g, '');
-            if (cepNum >= '25600000' && cepNum <= '25799999') return '3304557';
-            return '9999999';
-          })()}</cMun>
-          <xMun>${(endereco.cidade || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xMun>
+          <cMun>${enderecoCMun}</cMun>
+          <xMun>${xMunDest}</xMun>
           <UF>${endereco.uf || 'RJ'}</UF>
           <CEP>${(endereco.cep || '25625022').replace(/\D/g,'')}</CEP>
           <cPais>1058</cPais>
