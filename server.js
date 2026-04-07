@@ -1736,7 +1736,7 @@ const EMITENTE = {
   xLgr: 'Rua Teresa',
   nro: '297',
   xBairro: 'Centro',
-  cMun: '3304557',
+  cMun: '3303906',
   xMun: 'Petropolis',
   uf: 'RJ',
   cep: '25625022',
@@ -1863,7 +1863,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
         <dhEmi>${dhEmi}</dhEmi>
         <tpNF>1</tpNF>
         <idDest>${endereco?.uf && endereco.uf !== 'RJ' ? '2' : '1'}</idDest>
-        <cMunFG>3304557</cMunFG>
+        <cMunFG>3303906</cMunFG>
         <tpImp>1</tpImp>
         <tpEmis>1</tpEmis>
         <cDV>8</cDV>
