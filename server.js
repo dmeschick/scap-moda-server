@@ -1911,14 +1911,14 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           <vProd>${vProd.toFixed(2)}</vProd>
           <vFrete>0.00</vFrete>
           <vSeg>0.00</vSeg>
-          <vDesc>0.00</vDesc>
+          <vDesc>${(vProd - vNF).toFixed(2)}</vDesc>
           <vII>0.00</vII>
           <vIPI>0.00</vIPI>
           <vIPIDevol>0.00</vIPIDevol>
           <vPIS>0.00</vPIS>
           <vCOFINS>0.00</vCOFINS>
           <vOutro>0.00</vOutro>
-          <vNF>${vProd.toFixed(2)}</vNF>
+          <vNF>${vNF.toFixed(2)}</vNF>
         </ICMSTot>
       </total>
       <transp>
