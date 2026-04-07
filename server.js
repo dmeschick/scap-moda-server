@@ -335,6 +335,7 @@ async function initDB() {
   // Adiciona colunas que podem não existir em bancos criados antes dessas definições
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS cMun TEXT DEFAULT '9999999'`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito_gerado NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desc_pct NUMERIC(5,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_id TEXT`);
@@ -1807,8 +1808,8 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           <xLgr>${(endereco.logradouro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xLgr>
           <nro>${(endereco.numero || 'S/N').substring(0,60)}</nro>
           <xBairro>${(endereco.bairro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xBairro>
-          <cMun>3304557</cMun>
-          <xMun>${(endereco.cidade || 'Petropolis').substring(0,60).replace(/[&<>"']/g,' ')}</xMun>
+          <cMun>${endereco.cMun || '9999999'}</cMun>
+          <xMun>${(endereco.cidade || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xMun>
           <UF>${endereco.uf || 'RJ'}</UF>
           <CEP>${(endereco.cep || '25625022').replace(/\D/g,'')}</CEP>
           <cPais>1058</cPais>
@@ -1895,31 +1896,30 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
         let pagXML = '<pag>';
         if (lista.length > 0) {
           for (const p of lista) {
-            const tpPag = p.tipo === 'dinheiro' ? '01' :
+            const tpPag = p.tipo === 'dinheiro'    ? '01' :
                           p.tipo === 'cheque' || p.tipo === 'cheque_pre' ? '02' :
-                          p.tipo === 'credito' ? '03' :
-                          p.tipo === 'debito' ? '04' :
-                          p.tipo === 'pix' ? '17' : '99';
+                          p.tipo === 'credito'     ? '03' :
+                          p.tipo === 'debito'      ? '04' :
+                          p.tipo === 'pix'         ? '17' : '99';
             const parcelas = parseInt(p.parcelas) || 1;
-            const vlParcela = parseFloat(p.vl_parcela) || (parseFloat(p.valor) / parcelas);
-            console.log(`[XML pagamento] tipo=${p.tipo} tpPag=${tpPag} parcelas=${parcelas} (typeof=${typeof p.parcelas}) vlParcela=${vlParcela.toFixed(2)}`);
-            for (let i = 0; i < parcelas; i++) {
-              const dtVenc = new Date();
-              dtVenc.setDate(dtVenc.getDate() + (30 * (i + 1)));
-              // Formatar data no fuso local (evita virar dia anterior com toISOString UTC)
-              const ano = dtVenc.getFullYear();
-              const mes = String(dtVenc.getMonth() + 1).padStart(2, '0');
-              const dia = String(dtVenc.getDate()).padStart(2, '0');
-              const dtStr = `${ano}-${mes}-${dia}`;
-              console.log(`[XML pagamento] parcela ${i + 1}/${parcelas} dtVenc=${dtStr} vPag=${vlParcela.toFixed(2)}`);
-              pagXML += `
-        <detPag>
-          <indPag>${parcelas > 1 ? '1' : '0'}</indPag>
-          <tPag>${tpPag}</tPag>
-          <vPag>${vlParcela.toFixed(2)}</vPag>
-          <dPag>${dtStr}</dPag>
-        </detPag>`;
+            const valorTotal = parseFloat(p.valor);
+            const indPag = (p.tipo === 'credito' && parcelas > 1) ? '1' : '0';
+
+            let cardXML = '';
+            if (p.tipo === 'credito' && parcelas > 1) {
+              cardXML = `
+          <card>
+            <tBand>99</tBand>
+            <cAut>0</cAut>
+          </card>`;
             }
+
+            pagXML += `
+      <detPag>
+        <indPag>${indPag}</indPag>
+        <tPag>${tpPag}</tPag>
+        <vPag>${valorTotal.toFixed(2)}</vPag>${cardXML}
+      </detPag>`;
           }
         } else {
           pagXML += `<detPag><indPag>0</indPag><tPag>99</tPag><vPag>${vNF.toFixed(2)}</vPag></detPag>`;
@@ -1978,6 +1978,13 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
       `SELECT tipo, valor, parcelas, vl_parcela FROM venda_pagamentos WHERE venda_id = $1`,
       [req.params.id]
     );
+
+    if (!itensRes.rows.length) {
+      return res.status(400).json({ erro: 'Venda sem itens — XML não gerado.' });
+    }
+    if (!venda.tot || parseFloat(venda.tot) <= 0) {
+      return res.status(400).json({ erro: 'Total da venda inválido — XML não gerado.' });
+    }
 
     const cliente = {
       nome: venda.cli_nome,
