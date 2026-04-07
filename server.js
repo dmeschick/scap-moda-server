@@ -1899,23 +1899,37 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
             const vTotal = parseFloat(p.valor) || vNF;
             const vParcela = (vTotal / nParcelas).toFixed(2);
             if (nParcelas > 1) {
-              return Array.from({ length: nParcelas }, (_, i) => {
-                const dtVenc = new Date(hoje);
-                dtVenc.setDate(dtVenc.getDate() + (i + 1) * 30);
-                return `<detPag>
+              return `<detPag>
+          <indPag>1</indPag>
           <tPag>${cod}</tPag>
-          <vPag>${vParcela}</vPag>
+          <vPag>${vTotal.toFixed(2)}</vPag>
+          <card>
+            <tpIntegra>2</tpIntegra>
+          </card>
         </detPag>`;
-              }).join('\n        ');
             }
             return `<detPag>
+          <indPag>0</indPag>
           <tPag>${cod}</tPag>
           <vPag>${vTotal.toFixed(2)}</vPag>
         </detPag>`;
           }).join('\n        ');
         })()}
       </pag>
-      ${venda.obs ? `<infAdic><infCpl>${venda.obs.substring(0,500).replace(/[&<>"']/g,' ')}</infCpl></infAdic>` : ''}
+      ${(() => {
+        const pagamentos = Array.isArray(pgtoItens) && pgtoItens.length ? pgtoItens : [{ tipo: venda.pag || '99', valor: vNF, parcelas: 1 }];
+        const infPag = pagamentos
+          .filter(p => tpPagMap[p.tipo?.toLowerCase()] === '03' && parseInt(p.parcelas) > 1)
+          .map(p => {
+            const n = parseInt(p.parcelas);
+            const vParc = (parseFloat(p.valor) / n).toFixed(2).replace('.', ',');
+            return `${n}x de R$ ${vParc}`;
+          }).join(', ');
+        const partes = [];
+        if (infPag) partes.push('Pagamento: ' + infPag);
+        if (venda.obs) partes.push(venda.obs.substring(0, 400).replace(/[&<>"']/g, ' '));
+        return partes.length ? `<infAdic><infCpl>${partes.join(' | ')}</infCpl></infAdic>` : '';
+      })()}
     </infNFe>
   </NFe>
 </nfeProc>`;
