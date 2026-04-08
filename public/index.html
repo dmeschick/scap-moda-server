@@ -3270,7 +3270,7 @@ function filtrarPDV() {
       <div style="font-weight:600;font-size:13px;margin:2px 0;line-height:1.3">${p.nome}</div>
       <div style="font-size:11px;color:var(--text2)">${p.cod}</div>
       <div style="font-size:14px;font-weight:700;color:var(--pink-dark);margin-top:4px">${fmtMoeda(p.venda)}</div>
-      <div style="font-size:11px;color:${(()=>{const exibido=(parseInt(p.est)||0)-(carrinho.find(x=>x.id===p.id)?.qty||0);return exibido<=0?'var(--red)':exibido<=(parseInt(p.estmin)||0)?'var(--amber)':'var(--text3)'})()}">Est: ${(parseInt(p.est)||0)-(carrinho.find(x=>x.id===p.id)?.qty||0)}</div>
+      <div style="font-size:11px;color:${(()=>{const exibido=modoTroca?p.est+carrinhoTroca.filter(i=>i.id===p.id).reduce((a,i)=>a+i.qty,0):p.est-carrinho.filter(i=>i.id===p.id).reduce((a,i)=>a+i.qty,0);return exibido<=0?'var(--red)':exibido<=(parseInt(p.estmin)||0)?'var(--amber)':'var(--text3)'})()}">Est: ${modoTroca?p.est+carrinhoTroca.filter(i=>i.id===p.id).reduce((a,i)=>a+i.qty,0):p.est-carrinho.filter(i=>i.id===p.id).reduce((a,i)=>a+i.qty,0)}</div>
     </div>`).join('');
 }
 
