@@ -2201,7 +2201,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
-        data: new Date().toLocaleDateString('pt-BR'),
+        data: new Date(venda.data).toISOString().split('T')[0],
         valor: parseFloat(venda.tot)
       }]
     };
