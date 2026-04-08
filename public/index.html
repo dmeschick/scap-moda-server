@@ -1256,6 +1256,7 @@ tr:hover td{background:var(--bg)}
       <button class="btn btn-sm" onclick="emitirNFCe(_vendaAtual?.id)" id="btn-nfce">🧾 NFC-e</button>
       <button class="btn btn-sm" onclick="exportarXMLVenda(_vendaAtual?.id)" id="btn-xml">📄 Exportar XML</button>
       <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Notinha de crédito</button>
+      <button class="btn btn-sm" onclick="enviarWhatsApp()" title="Enviar resumo pelo WhatsApp">📱 WhatsApp</button>
       <button class="btn btn-primary" onclick="imprimirRomaneio()">🖨 Imprimir</button>
     </div>
   </div>
@@ -3725,7 +3726,46 @@ async function finalizarVenda() {
   } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; } _finalizandoVenda = false; }
 }
 
+function enviarWhatsApp() {
+  const v = _vendaAtual;
+  if (!v) { toast('Nenhuma venda carregada', 'warn'); return; }
+  const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
+  const sub = parseFloat(v.subtotal || v.sub || 0) || itens.reduce((a, i) => a + parseFloat(i.preco) * parseInt(i.qty), 0);
+  const desc = parseFloat(v.desconto || v.desc || 0);
+  const pct = parseFloat(v.desc_pct || v.descPct || 0);
+  const tot = parseFloat(v.tot || 0);
+  const data = new Date(v.data).toLocaleDateString('pt-BR');
+  const pgtoItensArr = v.pgto_itens || v.pgtoItens || [];
+  const _labelsWa = { dinheiro:'Dinheiro', pix:'PIX', debito:'Débito', cheque:'Cheque à vista', cheque_pre:'Cheque pré-datado' };
+  const pagLabel = pgtoItensArr.length
+    ? pgtoItensArr.map(p => {
+        if (p.tipo === 'credito') {
+          const n = parseInt(p.parcelas) || 1;
+          if (n > 1) return 'Crédito ' + n + 'x de ' + fmtMoeda((parseFloat(p.vl_parcela || p.vlParcela) || parseFloat(p.valor) / n));
+          return 'Crédito à vista';
+        }
+        return _labelsWa[p.tipo] || p.tipo;
+      }).join(' + ')
+    : (v.pag || '');
+  const linhasItens = itens.map(i => parseInt(i.qty) + 'x ' + i.nome + ' — ' + fmtMoeda(parseFloat(i.preco))).join('\n');
+  let texto = '*SCAP MODA FEMININA*\n';
+  texto += 'Romaneio ' + (v.num || '') + ' — ' + data + '\n\n';
+  texto += '*Itens:*\n' + linhasItens + '\n\n';
+  if (desc > 0) {
+    texto += '*Subtotal:* ' + fmtMoeda(sub) + '\n';
+    texto += '*Desconto (' + pct + '%):* -' + fmtMoeda(desc) + '\n';
+  }
+  texto += '*TOTAL: ' + fmtMoeda(tot) + '*\n';
+  texto += '*Pagamento:* ' + pagLabel + '\n\n';
+  texto += 'Obrigada pela preferência! 🛍️';
+  const cli = _clientesCache.find(c => c.id === v.cliente_id);
+  const tel = (cli?.tel || '').replace(/\D/g, '');
+  const base = tel ? 'https://wa.me/55' + tel : 'https://wa.me/';
+  window.open(base + '?text=' + encodeURIComponent(texto), '_blank');
+}
+
 async function abrirRomaneio(v, cliNome) {
+  _vendaAtual = v;
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
   const sub = v.sub || v.subtotal || 0;
   const desc = v.desc || v.desconto || 0;
