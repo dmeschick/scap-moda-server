@@ -3318,11 +3318,11 @@ function mostrarInfoProduto(p, modoDevolvido) {
   const precoDesc = descPct > 0 ? Math.round(p.venda*(1-descPct/100)*100)/100 : p.venda;
   let estoqueExibido;
   if (modoDevolvido) {
-    const qtdNoCarrinhoTroca = carrinhoTroca.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
-    estoqueExibido = (parseInt(p.est) || 0) + qtdNoCarrinhoTroca;
+    const qtdDevolvida = carrinhoTroca.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
+    estoqueExibido = p.est + qtdDevolvida;
   } else {
-    const qtyNoCarrinho = carrinho.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
-    estoqueExibido = (parseInt(p.est) || 0) - qtyNoCarrinho;
+    const qtdNoCarrinho = carrinho.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
+    estoqueExibido = p.est - qtdNoCarrinho;
   }
   const corEst = estoqueExibido <= 0 ? 'var(--red)' : estoqueExibido <= (parseInt(p.estmin) || 0) ? 'var(--amber)' : 'var(--text2)';
   const labelAcao = modoDevolvido
