@@ -3316,7 +3316,7 @@ function adicionarAoCarrinho(id) {
 
 function mostrarInfoProduto(p, modoDevolvido) {
   const precoDesc = descPct > 0 ? Math.round(p.venda*(1-descPct/100)*100)/100 : p.venda;
-  const qtyNoCarrinho = carrinho.find(x => x.id === p.id)?.qty || 0;
+  const qtyNoCarrinho = carrinho.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
   const estoqueExibido = (parseInt(p.est) || 0) - qtyNoCarrinho;
   const corEst = estoqueExibido <= 0 ? 'var(--red)' : estoqueExibido <= (parseInt(p.estmin) || 0) ? 'var(--amber)' : 'var(--text2)';
   const labelAcao = modoDevolvido
