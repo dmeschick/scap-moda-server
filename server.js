@@ -2169,6 +2169,11 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const vProd = itensRes.rows.reduce((a, i) => a + parseFloat(i.preco) * parseInt(i.qty), 0);
     const vNF = parseFloat(venda.tot);
+    const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
+
+    const somaItensComDesc = itensRes.rows.reduce((a, i) => {
+      return a + Math.round(parseFloat(i.preco) * fatorDesc * 100) / 100 * parseInt(i.qty);
+    }, 0);
 
     const payload = {
       tipo: 1,
@@ -2188,28 +2193,31 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
           cep: (venda.cep || '').replace(/\D/g, '')
         }
       },
-      itens: itensRes.rows.map(item => ({
-        codigo: item.cod || '',
-        descricao: item.nome || '',
-        unidade: 'PC',
-        quantidade: parseFloat(item.qty),
-        valor: parseFloat(item.preco),
-        tipo: 'P',
-        tributos: {
-          icms: {
-            cst: item.csosn || '102',
-            modBC: 3,
-            baseCalculoIcms: 0,
-            aliquotaIcms: 0,
-            valorIcms: 0
+      itens: itensRes.rows.map(item => {
+        const precoComDesc = Math.round(parseFloat(item.preco) * fatorDesc * 100) / 100;
+        return {
+          codigo: item.cod || '',
+          descricao: item.nome || '',
+          unidade: 'PC',
+          quantidade: parseFloat(item.qty),
+          valor: precoComDesc,
+          tipo: 'P',
+          tributos: {
+            icms: {
+              cst: item.csosn || '102',
+              modBC: 3,
+              baseCalculoIcms: 0,
+              aliquotaIcms: 0,
+              valorIcms: 0
+            }
           }
-        }
-      })),
+        };
+      }),
       transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
         data: dataOperacao,
-        valor: vProd
+        valor: Math.round(somaItensComDesc * 100) / 100
       }]
     };
 
