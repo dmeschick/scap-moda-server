@@ -2175,10 +2175,17 @@ async function abrirModalCliente(id) {
 async function salvarCliente() {
   const nome = document.getElementById('cli-nome').value.trim();
   if (!nome) { toast('Informe o nome', 'warn'); return; }
+  const cpfDigitado = document.getElementById('cli-cpf').value.trim();
+  const idAtual = document.getElementById('cli-id').value;
+  if (cpfDigitado) {
+    const cpfLimpo = cpfDigitado.replace(/\D/g, '');
+    const duplicado = _clientesCache.find(c => c.cpf && c.cpf.replace(/\D/g, '') === cpfLimpo && c.id !== idAtual);
+    if (duplicado) { toast('CPF já cadastrado para: ' + duplicado.nome, 'warn'); return; }
+  }
   const btn = event?.target || document.querySelector('[onclick="salvarCliente()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const cli = {
-    id: document.getElementById('cli-id').value || uid(),
+    id: idAtual || uid(),
     nome, tipo: document.getElementById('cli-tipo').value,
     cpf: document.getElementById('cli-cpf').value,
     cnpj: document.getElementById('cli-cnpj').value,
