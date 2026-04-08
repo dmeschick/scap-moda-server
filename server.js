@@ -2167,14 +2167,16 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
 
+    const descVal = parseFloat(venda.desc || 0);
+
     const payload = {
       tipo: 1,
       numero: parseInt((venda.num || '1').replace('#', '')),
-      data: dataOperacao,
+      dataOperacao: dataOperacao,
       contato: {
         nome: venda.cli_nome || 'Consumidor Final',
         tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
-        documento: (venda.cpf || venda.cnpj || '').replace(/\D/g, ''),
+        numeroDocumento: (venda.cpf || venda.cnpj || '').replace(/\D/g, ''),
         ie: 'ISENTO',
         endereco: {
           endereco: venda.logradouro || '',
@@ -2202,6 +2204,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
           }
         }
       })),
+      ...(descVal > 0 ? { desconto: { valor: descVal, unidade: 'REAL' } } : {}),
       transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
