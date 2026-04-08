@@ -570,6 +570,7 @@ tr:hover td{background:var(--bg)}
           <label style="font-size:11px;font-weight:600;color:var(--text2)">ATÉ</label>
           <input type="date" id="venda-ate">
           <select id="venda-status"><option value="">Todos os status</option><option value="pago">Pago</option><option value="cancelada">Cancelada</option></select>
+          <select id="venda-vendedor" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas as vendedoras</option></select>
           <button class="btn" onclick="carregarVendas()">Filtrar</button>
           <button class="btn" onclick="limparFiltroVendas()">Limpar</button>
           <button class="btn btn-sm" onclick="abrirModalExportarLote()">📦 Exportar XMLs do dia</button>
@@ -2716,14 +2717,17 @@ function calcularHorasPonto(registros) {
 
 // ===== VENDAS =====
 async function carregarVendas() {
+  popularVendedoresFiltro('venda-vendedor');
   const de = document.getElementById('venda-de')?.value || '';
   const ate = document.getElementById('venda-ate')?.value || '';
   const status = document.getElementById('venda-status')?.value || '';
+  const vendedorId = document.getElementById('venda-vendedor')?.value || '';
   try {
     let url = '/api/vendas?';
     if (de) url += `de=${de}&`;
     if (ate) url += `ate=${ate}&`;
     if (status) url += `status=${status}&`;
+    if (vendedorId) url += `vendedor_id=${vendedorId}&`;
     const vendas = await api('GET', url);
     const tb = document.getElementById('tabela-vendas');
     if (!vendas.length) { tb.innerHTML = '<tr><td colspan="9"><div class="empty-state" style="padding:24px"><div class="icon">🧾</div><p>Nenhuma venda</p></div></td></tr>'; return; }
@@ -2754,6 +2758,7 @@ function limparFiltroVendas() {
   document.getElementById('venda-de').value = '';
   document.getElementById('venda-ate').value = '';
   document.getElementById('venda-status').value = '';
+  const _selVend = document.getElementById('venda-vendedor'); if (_selVend) _selVend.value = '';
   carregarVendas();
 }
 

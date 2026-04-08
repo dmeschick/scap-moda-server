@@ -802,13 +802,14 @@ app.patch('/api/creditos/:id/usar', auth, async (req, res) => {
 // VENDAS
 app.get('/api/vendas', auth, async (req, res) => {
   try {
-    const { de, ate, status, limit, offset } = req.query;
+    const { de, ate, status, limit, offset, vendedor_id } = req.query;
     let where = ['1=1'];
     let params = [];
     let i = 1;
     if (de) { where.push(`DATE(data) >= $${i++}`); params.push(de); }
     if (ate) { where.push(`DATE(data) <= $${i++}`); params.push(ate); }
     if (status) { where.push(`v.status = $${i++}`); params.push(status); }
+    if (vendedor_id) { where.push(`v.vendedor_id = $${i++}`); params.push(vendedor_id); }
     const sql = `
       SELECT v.*,
         COALESCE(json_agg(DISTINCT jsonb_build_object('id',vi.id,'nome',vi.nome,'cod',vi.cod,'preco',vi.preco,'qty',vi.qty,'tipo',vi.tipo)) FILTER (WHERE vi.id IS NOT NULL),'[]') as itens,
