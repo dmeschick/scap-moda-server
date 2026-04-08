@@ -3270,7 +3270,7 @@ function filtrarPDV() {
       <div style="font-weight:600;font-size:13px;margin:2px 0;line-height:1.3">${p.nome}</div>
       <div style="font-size:11px;color:var(--text2)">${p.cod}</div>
       <div style="font-size:14px;font-weight:700;color:var(--pink-dark);margin-top:4px">${fmtMoeda(p.venda)}</div>
-      <div style="font-size:11px;color:${p.est<=0?'var(--red)':p.est<=p.estmin?'var(--amber)':'var(--text3)'}">Est: ${p.est}</div>
+      <div style="font-size:11px;color:${(()=>{const exibido=(parseInt(p.est)||0)-(carrinho.find(x=>x.id===p.id)?.qty||0);return exibido<=0?'var(--red)':exibido<=(parseInt(p.estmin)||0)?'var(--amber)':'var(--text3)'})()}">Est: ${Math.max(0,(parseInt(p.est)||0)-(carrinho.find(x=>x.id===p.id)?.qty||0))}</div>
     </div>`).join('');
 }
 
@@ -3346,6 +3346,7 @@ function renderCarrinho() {
   if (!carrinho.length && !carrinhoTroca.length) {
     items.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
     totais.style.display = 'none';
+    filtrarPDV();
     return;
   }
   if (!carrinho.length && carrinhoTroca.length) {
@@ -3396,6 +3397,7 @@ function renderCarrinho() {
       '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--pink-dark)">' + fmtMoeda(tot) + '</span></div>';
   }
   document.getElementById('cart-totais-valores').innerHTML = totaisHTML;
+  filtrarPDV();
 }
 
 function alterarQty(idx, delta) {
