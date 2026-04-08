@@ -366,6 +366,11 @@ tr:hover td{background:var(--bg)}
               </div>
               <button class="btn btn-sm" onclick="abrirModalCliente()" title="Cadastrar novo cliente" style="white-space:nowrap;flex-shrink:0">+ Novo</button>
             </div>
+            <div id="pdv-endereco-row" style="display:none;margin-top:-2px;margin-bottom:6px;font-size:11px;color:var(--text2);display:none;align-items:center;gap:4px;flex-wrap:wrap">
+              <span id="pdv-endereco-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+              <button class="btn btn-sm" onclick="trocarEnderecoPDV()" title="Trocar endereço" style="padding:2px 6px;font-size:11px;flex-shrink:0">✏️</button>
+              <select id="pdv-endereco-select" style="display:none;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)" onchange="confirmarEnderecoPDV()"></select>
+            </div>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
             <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
@@ -1882,6 +1887,7 @@ function mascaraCEST(el) {
 // ===== CLIENTES =====
 let enderecosTemp = [];
 let _clientesCache = [];
+let _pdvEnderecoSelecionado = null; // endereço selecionado no PDV
 let _ultimasFiscais = {};
 let _vendaAtual = null;
 let _creditoGeradoAtual = 0;
@@ -2208,6 +2214,7 @@ async function salvarCliente() {
     if (isNovo && document.getElementById('page-pdv')?.style.display !== 'none') {
       document.getElementById('pdv-cliente-busca').value = cli.nome;
       document.getElementById('pdv-cliente').value = cli.id;
+      carregarEnderecosPDV(cli.id);
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
   } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
@@ -3382,6 +3389,9 @@ function limparCarrinho() {
   document.getElementById('pdv-cliente-busca').value = '';
   document.getElementById('pdv-cliente').value = '';
   document.getElementById('pdv-obs').value = '';
+  _pdvEnderecoSelecionado = null;
+  const _endRow = document.getElementById('pdv-endereco-row');
+  if (_endRow) { _endRow.style.display = 'none'; document.getElementById('pdv-endereco-select').style.display = 'none'; }
   document.getElementById('pgto-tipo').value = '';
   document.getElementById('pgto-campo').innerHTML = '';
   document.getElementById('pgto-lista').innerHTML = '';
@@ -3656,7 +3666,8 @@ async function finalizarVenda() {
     tipo: 'venda', status: 'pago',
     itens: todosItens,
     pgtoItens: pgtoItens.map(p => ({...p})),
-    devolvidos: []
+    devolvidos: [],
+    enderecoId: _pdvEnderecoSelecionado?.id || null
   };
   try {
     await api('POST', '/api/vendas', venda);
@@ -4570,6 +4581,59 @@ function selecionarClientePDV(id, nome) {
   document.getElementById('pdv-cliente-busca').value = nome;
   document.getElementById('pdv-cliente-sugestoes').style.display = 'none';
   verificarCreditoCliente(id);
+  carregarEnderecosPDV(id);
+}
+
+function _fmtEnderecoLabel(e) {
+  const partes = [e.logradouro, e.numero, e.bairro, (e.cidade && e.uf ? e.cidade + '/' + e.uf : e.cidade || e.uf)].filter(Boolean);
+  return '📍 ' + partes.join(' — ');
+}
+
+function carregarEnderecosPDV(cliId) {
+  _pdvEnderecoSelecionado = null;
+  const row = document.getElementById('pdv-endereco-row');
+  const label = document.getElementById('pdv-endereco-label');
+  const sel = document.getElementById('pdv-endereco-select');
+  row.style.display = 'none';
+  sel.style.display = 'none';
+
+  const cli = _clientesCache.find(c => c.id === cliId);
+  const enderecos = (cli && cli.enderecos) ? cli.enderecos.filter(e => e && e.id) : [];
+  if (!enderecos.length) return;
+
+  if (enderecos.length === 1) {
+    _pdvEnderecoSelecionado = enderecos[0];
+    label.textContent = _fmtEnderecoLabel(enderecos[0]);
+    row.style.display = 'flex';
+  } else {
+    // Múltiplos endereços — principal primeiro, depois mostra select direto
+    const ordenados = [...enderecos].sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0));
+    _pdvEnderecoSelecionado = ordenados[0];
+    label.textContent = _fmtEnderecoLabel(ordenados[0]);
+    sel.innerHTML = ordenados.map(e =>
+      '<option value="' + e.id + '">' + _fmtEnderecoLabel(e).replace('📍 ', '') + (e.principal ? ' (principal)' : '') + '</option>'
+    ).join('');
+    sel.value = ordenados[0].id;
+    row.style.display = 'flex';
+  }
+}
+
+function trocarEnderecoPDV() {
+  const sel = document.getElementById('pdv-endereco-select');
+  sel.style.display = sel.style.display === 'none' ? 'block' : 'none';
+}
+
+function confirmarEnderecoPDV() {
+  const sel = document.getElementById('pdv-endereco-select');
+  const cliId = document.getElementById('pdv-cliente').value;
+  const cli = _clientesCache.find(c => c.id === cliId);
+  const enderecos = (cli && cli.enderecos) || [];
+  const end = enderecos.find(e => e.id === sel.value);
+  if (end) {
+    _pdvEnderecoSelecionado = end;
+    document.getElementById('pdv-endereco-label').textContent = _fmtEnderecoLabel(end);
+  }
+  sel.style.display = 'none';
 }
 
 function fecharSugestoes() {
