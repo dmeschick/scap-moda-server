@@ -594,6 +594,7 @@ tr:hover td{background:var(--bg)}
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <span style="font-size:13px;font-weight:600;color:var(--text2)">Data:</span>
               <input type="date" id="rel-dia-data" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              <select id="rel-dia-vendedor" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas as vendedoras</option></select>
               <button class="btn btn-primary btn-sm" onclick="carregarRelatorioDiario()">Atualizar</button>
               <button class="btn btn-sm" onclick="imprimirRelatorioDiario()">🖨️ Imprimir</button>
             </div>
@@ -4719,13 +4720,31 @@ function tabRel(btn, id) {
   }
 }
 
+async function popularVendedoresFiltro(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || sel.options.length > 1) return;
+  try {
+    const funcs = await api('GET', '/api/funcionarios');
+    funcs.filter(f => f.status !== 'inativo').forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = f.nome;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
 async function carregarRelatorioDiario() {
   const data = document.getElementById('rel-dia-data').value;
   if (!data) return;
+  popularVendedoresFiltro('rel-dia-vendedor');
+  const vendedorId = document.getElementById('rel-dia-vendedor')?.value || '';
   const el = document.getElementById('rel-diario-content');
   el.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
   try {
-    const r = await api('GET', '/api/relatorios/diario?data=' + data);
+    let url = '/api/relatorios/diario?data=' + data;
+    if (vendedorId) url += '&vendedor_id=' + vendedorId;
+    const r = await api('GET', url);
 
     const fmtPct = v => v.toFixed(1) + '%';
 

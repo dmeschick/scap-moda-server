@@ -1606,8 +1606,10 @@ const agendarBackupDiario = () => {
 // RELATÓRIO DIÁRIO
 app.get('/api/relatorios/diario', auth, async (req, res) => {
   try {
-    const { data } = req.query;
+    const { data, vendedor_id } = req.query;
     if (!data) return res.status(400).json({ erro: 'Informe a data' });
+
+    const vendFiltro = vendedor_id ? ` AND v.vendedor_id = '${vendedor_id.replace(/'/g,"''")}'` : '';
 
     // Vendas do dia (exceto canceladas)
     const vendas = await pool.query(
@@ -1617,7 +1619,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        LEFT JOIN funcionarios f ON f.id = v.vendedor_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
          AND v.status != 'cancelada'
-         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))${vendFiltro}`,
       [data]
     );
 
@@ -1629,7 +1631,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        LEFT JOIN produtos p ON p.id = vi.produto_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
          AND v.status != 'cancelada'
-         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))${vendFiltro}`,
       [data]
     );
 
@@ -1640,7 +1642,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
        JOIN vendas v ON v.id = vp.venda_id
        WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
          AND v.status != 'cancelada'
-         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
+         AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))${vendFiltro}`,
       [data]
     );
 
