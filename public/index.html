@@ -751,7 +751,11 @@ tr:hover td{background:var(--bg)}
               <option value="compensado">Compensado</option>
               <option value="devolvido">Devolvido</option>
             </select>
-            <input type="month" id="fin-cheq-mes">
+            <input type="month" id="fin-cheq-mes" title="Mês de compensação">
+            <label style="font-size:11px;font-weight:600;color:var(--text2)">Comp. de</label>
+            <input type="date" id="fin-cheq-de" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+            <label style="font-size:11px;font-weight:600;color:var(--text2)">até</label>
+            <input type="date" id="fin-cheq-ate" style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
             <button class="btn" onclick="carregarCheques()">Filtrar</button>
             <button class="btn btn-primary" onclick="abrirModalCheque()">+ Novo Cheque</button>
           </div>
@@ -5408,18 +5412,30 @@ async function carregarCheques() {
   const tipo = document.getElementById('fin-cheq-tipo')?.value || '';
   const status = document.getElementById('fin-cheq-status')?.value || '';
   const mes = document.getElementById('fin-cheq-mes')?.value || '';
+  const de = document.getElementById('fin-cheq-de')?.value || '';
+  const ate = document.getElementById('fin-cheq-ate')?.value || '';
   try {
     let url = '/api/financeiro/cheques?';
     if (tipo) url += 'tipo=' + tipo + '&';
     if (status) url += 'status=' + status + '&';
     if (mes) url += 'mes=' + mes + '&';
+    if (de) url += 'de=' + de + '&';
+    if (ate) url += 'ate=' + ate + '&';
     const cheques = await api('GET', url);
     const tb = document.getElementById('tabela-cheques');
     if (!cheques.length) { tb.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhum cheque</p></div></td></tr>'; return; }
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const em7dias = new Date(hoje); em7dias.setDate(hoje.getDate() + 7);
     tb.innerHTML = cheques.map(c => {
       const stBadge = c.status === 'compensado' ? 'badge-green' : c.status === 'devolvido' ? 'badge-red' : 'badge-amber';
       const tipoBadge = c.tipo === 'recebido' ? 'badge-green' : 'badge-blue';
-      return '<tr>' +
+      let rowStyle = '';
+      if (c.status === 'pendente' && c.data_compensacao) {
+        const dtComp = new Date(c.data_compensacao + 'T12:00:00');
+        if (dtComp < hoje) rowStyle = 'background:#fff0f0'; // atrasado
+        else if (dtComp <= em7dias) rowStyle = 'background:#fffbe6'; // vence em 7 dias
+      }
+      return '<tr style="' + rowStyle + '">' +
         '<td><span class="badge ' + tipoBadge + '">' + (c.tipo === 'recebido' ? '⬇ Recebido' : '⬆ Emitido') + '</span></td>' +
         '<td><strong>' + c.nome + '</strong></td>' +
         '<td><strong>' + fmtMoeda(c.valor) + '</strong></td>' +

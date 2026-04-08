@@ -1291,13 +1291,15 @@ app.get('/api/financeiro/dre', auth, async (req, res) => {
 // FINANCEIRO — CHEQUES
 app.get('/api/financeiro/cheques', auth, async (req, res) => {
   try {
-    const { tipo, status, mes } = req.query;
+    const { tipo, status, mes, de, ate } = req.query;
     let where = ['1=1'];
     let params = [];
     let i = 1;
     if (tipo) { where.push(`tipo=$${i++}`); params.push(tipo); }
     if (status) { where.push(`status=$${i++}`); params.push(status); }
     if (mes) { where.push(`TO_CHAR(data_compensacao,'YYYY-MM')=$${i++}`); params.push(mes); }
+    if (de) { where.push(`data_compensacao >= $${i++}`); params.push(de); }
+    if (ate) { where.push(`data_compensacao <= $${i++}`); params.push(ate); }
     const r = await pool.query(
       `SELECT * FROM cheques WHERE ${where.join(' AND ')} ORDER BY data_compensacao`,
       params
