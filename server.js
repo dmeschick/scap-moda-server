@@ -2289,7 +2289,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       })),
       parcelas: [{
         dias: 0,
-        data: new Date().toLocaleDateString('pt-BR'),
+        data: new Date(venda.data).toISOString().split('T')[0],
         valor: parseFloat(venda.tot)
       }]
     };
