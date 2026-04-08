@@ -3756,7 +3756,12 @@ function enviarWhatsApp() {
         return _labelsWa[p.tipo] || p.tipo;
       }).join(' + ')
     : (v.pag || '');
-  const linhasItens = itens.map(i => parseInt(i.qty) + 'x ' + i.nome + ' — ' + fmtMoeda(parseFloat(i.preco))).join('\n');
+  const linhasItens = itens.map(i => {
+    const precoOriginal = parseFloat(i.preco);
+    const precoDesc = pct > 0 ? Math.round(precoOriginal * (1 - pct / 100) * 100) / 100 : null;
+    const precoStr = precoDesc !== null ? fmtMoeda(precoOriginal) + ' / ' + fmtMoeda(precoDesc) : fmtMoeda(precoOriginal);
+    return parseInt(i.qty) + 'x ' + i.nome + ' — ' + precoStr;
+  }).join('\n');
   let texto = '*SCAP MODA FEMININA*\n';
   texto += 'Romaneio ' + (v.num || '') + ' — ' + data + '\n\n';
   texto += '*Itens:*\n' + linhasItens + '\n\n';
