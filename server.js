@@ -2169,14 +2169,12 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const vProd = itensRes.rows.reduce((a, i) => a + parseFloat(i.preco) * parseInt(i.qty), 0);
     const vNF = parseFloat(venda.tot);
-    const valorDesconto = Math.round((vProd - vNF) * 100) / 100;
-    const temDesconto = valorDesconto > 0;
+    const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
 
     const payload = {
       tipo: 1,
       numero: parseInt((venda.num || '1').replace('#', '')),
       dataOperacao: dataOperacao,
-      ...(temDesconto && { desconto: { valor: valorDesconto, unidade: 'REAL' } }),
       contato: {
         nome: venda.cli_nome || 'Consumidor Final',
         tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
@@ -2191,23 +2189,28 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
           cep: (venda.cep || '').replace(/\D/g, '')
         }
       },
-      itens: itensRes.rows.map(item => ({
-        codigo: item.cod || '',
-        descricao: item.nome || '',
-        unidade: 'PC',
-        quantidade: parseFloat(item.qty),
-        valor: parseFloat(item.preco),
-        tipo: 'P',
-        tributos: {
-          icms: {
-            cst: item.csosn || '102',
-            modBC: 3,
-            baseCalculoIcms: 0,
-            aliquotaIcms: 0,
-            valorIcms: 0
+      itens: itensRes.rows.map(item => {
+        const precoOriginal = parseFloat(item.preco);
+        const descontoItem = Math.round(precoOriginal * (1 - fatorDesc) * 100) / 100;
+        return {
+          codigo: item.cod || '',
+          descricao: item.nome || '',
+          unidade: 'PC',
+          quantidade: parseFloat(item.qty),
+          valor: precoOriginal,
+          desconto: descontoItem,
+          tipo: 'P',
+          tributos: {
+            icms: {
+              cst: item.csosn || '102',
+              modBC: 3,
+              baseCalculoIcms: 0,
+              aliquotaIcms: 0,
+              valorIcms: 0
+            }
           }
-        }
-      })),
+        };
+      }),
       transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
