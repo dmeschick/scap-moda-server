@@ -3292,17 +3292,19 @@ function pdvKeyDown(e) {
 function adicionarAoCarrinho(id) {
   const p = todosProds.find(x => x.id === id);
   if (!p) return;
+  // Aviso de estoque zerado — antes de adicionar
+  if ((parseInt(p.est) || 0) <= 0) {
+    toast('⚠️ Estoque zerado: ' + p.nome + ' — verifique!', 'error');
+  }
   mostrarInfoProduto(p);
   const idx = carrinho.findIndex(x => x.id === id);
   if (idx > -1) { carrinho[idx].qty++; }
   else { carrinho.push({ id: p.id, nome: p.nome, cod: p.cod, preco: p.venda, qty: 1 }); }
-  // Alerta de estoque mínimo
+  // Alerta de estoque mínimo (só quando est > 0)
   const qtyNoCarrinho = carrinho.find(x => x.id === id)?.qty || 0;
   const estoqueRestante = (parseInt(p.est) || 0) - qtyNoCarrinho;
   const estmin = parseInt(p.estmin) || 0;
-  if (estoqueRestante <= 0) {
-    toast('⚠️ Último item: ' + p.nome, 'error');
-  } else if (estmin > 0 && estoqueRestante <= estmin) {
+  if ((parseInt(p.est) || 0) > 0 && estmin > 0 && estoqueRestante <= estmin) {
     toast('⚠️ Estoque baixo: ' + p.nome + ' — restam ' + estoqueRestante + ' unidades', 'warn');
   }
   renderCarrinho();
