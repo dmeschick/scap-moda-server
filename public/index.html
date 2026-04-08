@@ -3296,10 +3296,10 @@ function adicionarAoCarrinho(id) {
   if ((parseInt(p.est) || 0) <= 0) {
     toast('⚠️ Estoque zerado: ' + p.nome + ' — verifique!', 'error');
   }
-  mostrarInfoProduto(p);
   const idx = carrinho.findIndex(x => x.id === id);
   if (idx > -1) { carrinho[idx].qty++; }
   else { carrinho.push({ id: p.id, nome: p.nome, cod: p.cod, preco: p.venda, qty: 1 }); }
+  mostrarInfoProduto(p);
   // Alertas pós-adição (só quando est > 0 antes de adicionar)
   const qtyNoCarrinho = carrinho.find(x => x.id === id)?.qty || 0;
   const estoqueRestante = (parseInt(p.est) || 0) - qtyNoCarrinho;
@@ -3314,8 +3314,14 @@ function adicionarAoCarrinho(id) {
   renderCarrinho();
 }
 
-function mostrarInfoProduto(p) {
+function mostrarInfoProduto(p, modoDevolvido) {
   const precoDesc = descPct > 0 ? Math.round(p.venda*(1-descPct/100)*100)/100 : p.venda;
+  const qtyNoCarrinho = carrinho.find(x => x.id === p.id)?.qty || 0;
+  const estoqueExibido = (parseInt(p.est) || 0) - qtyNoCarrinho;
+  const corEst = estoqueExibido <= 0 ? 'var(--red)' : estoqueExibido <= (parseInt(p.estmin) || 0) ? 'var(--amber)' : 'var(--text2)';
+  const labelAcao = modoDevolvido
+    ? '<div style="color:var(--red);font-weight:600;margin-top:6px;font-size:13px">↩ Adicionado à devolução</div>'
+    : '<div style="color:var(--green);font-weight:600;margin-top:6px;font-size:13px">✓ Adicionado ao carrinho</div>';
   document.getElementById('pdv-produto-info').style.display = 'block';
   document.getElementById('pdv-produto-info').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -3326,10 +3332,10 @@ function mostrarInfoProduto(p) {
           ${descPct>0?`<div><div style="font-size:10px;color:var(--text2)">PREÇO CHEIO</div><div style="text-decoration:line-through;color:var(--text3)">${fmtMoeda(p.venda)}</div></div>`:''}
           <div><div style="font-size:10px;color:var(--text2)">${descPct>0?'COM DESCONTO':'PREÇO'}</div><div style="font-size:20px;font-weight:700;color:var(--green)">${fmtMoeda(precoDesc)}</div></div>
         </div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px">
-          ${p.tam?'Tamanhos: '+p.tam+' · ':''}Est: ${p.est} un · ${p.cod}
+        <div style="font-size:12px;color:${corEst};margin-top:4px">
+          ${p.tam?'Tamanhos: '+p.tam+' · ':''}Est: ${estoqueExibido} un · ${p.cod}
         </div>
-        <div style="color:var(--green);font-weight:600;margin-top:6px;font-size:13px">✓ Adicionado ao carrinho</div>
+        ${labelAcao}
       </div>
       <button onclick="document.getElementById('pdv-produto-info').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>
     </div>`;
@@ -4589,6 +4595,7 @@ function adicionarItemTroca(prod) {
   const idx = carrinhoTroca.findIndex(x => x.id === prod.id);
   if (idx > -1) { carrinhoTroca[idx].qty++; }
   else { carrinhoTroca.push({ id: prod.id, nome: prod.nome, cod: prod.cod, preco: prod.venda, qty: 1, tipo: 'devolvido' }); }
+  mostrarInfoProduto(prod, true);
   renderTroca();
   renderCarrinho();
 }
