@@ -3316,8 +3316,14 @@ function adicionarAoCarrinho(id) {
 
 function mostrarInfoProduto(p, modoDevolvido) {
   const precoDesc = descPct > 0 ? Math.round(p.venda*(1-descPct/100)*100)/100 : p.venda;
-  const qtyNoCarrinho = carrinho.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
-  const estoqueExibido = (parseInt(p.est) || 0) - qtyNoCarrinho;
+  let estoqueExibido;
+  if (modoDevolvido) {
+    const qtdNoCarrinhoTroca = carrinhoTroca.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
+    estoqueExibido = (parseInt(p.est) || 0) + qtdNoCarrinhoTroca;
+  } else {
+    const qtyNoCarrinho = carrinho.filter(i => i.id === p.id).reduce((a, i) => a + i.qty, 0);
+    estoqueExibido = (parseInt(p.est) || 0) - qtyNoCarrinho;
+  }
   const corEst = estoqueExibido <= 0 ? 'var(--red)' : estoqueExibido <= (parseInt(p.estmin) || 0) ? 'var(--amber)' : 'var(--text2)';
   const labelAcao = modoDevolvido
     ? '<div style="color:var(--red);font-weight:600;margin-top:6px;font-size:13px">↩ Adicionado à devolução</div>'
