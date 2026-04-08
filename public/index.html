@@ -3808,6 +3808,22 @@ async function abrirRomaneio(v, cliNome) {
     secaoCheques += '</div>';
   }
 
+  // Monta label de pagamento com parcelamento quando disponível
+  const _labelsBase = { dinheiro:'Dinheiro', pix:'PIX', debito:'Débito', cheque:'Cheque à vista', cheque_pre:'Cheque pré-datado' };
+  const pagamentoLabel = pgtoItensArr.length
+    ? pgtoItensArr.map(p => {
+        if (p.tipo === 'credito') {
+          const n = parseInt(p.parcelas) || 1;
+          if (n > 1) {
+            const vParc = parseFloat(p.vl_parcela || p.vlParcela) || parseFloat(p.valor) / n;
+            return 'Crédito ' + n + 'x de ' + fmtMoeda(vParc);
+          }
+          return 'Crédito à vista';
+        }
+        return _labelsBase[p.tipo] || p.label || p.tipo;
+      }).join(' + ')
+    : (v.pag || '');
+
   document.getElementById('romaneio-body').innerHTML =
     '<div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">' +
       '<div style="font-weight:bold;font-size:14px">SCAP MODA FEMININA</div>' +
@@ -3841,7 +3857,7 @@ async function abrirRomaneio(v, cliNome) {
           (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
-      (creditoGerado > 0 ? '' : '<div style="margin-top:4px"><b>Pagamento:</b> ' + (v.pag || '') + '</div>') +
+      (creditoGerado > 0 ? '' : '<div style="margin-top:4px"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
     secaoCheques +
