@@ -355,13 +355,16 @@ tr:hover td{background:var(--bg)}
             <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
               🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
             </div>
-            <div style="position:relative;margin-bottom:6px">
-              <input type="text" id="pdv-cliente-busca" placeholder="Buscar cliente por nome ou CPF..."
-                style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
-                oninput="buscarClientePDV(this.value)"
-                onblur="setTimeout(()=>fecharSugestoes(),200)">
-              <input type="hidden" id="pdv-cliente" value="">
-              <div id="pdv-cliente-sugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+            <div style="position:relative;margin-bottom:6px;display:flex;gap:6px;align-items:center">
+              <div style="position:relative;flex:1">
+                <input type="text" id="pdv-cliente-busca" placeholder="Buscar cliente por nome ou CPF..."
+                  style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+                  oninput="buscarClientePDV(this.value)"
+                  onblur="setTimeout(()=>fecharSugestoes(),200)">
+                <input type="hidden" id="pdv-cliente" value="">
+                <div id="pdv-cliente-sugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+              </div>
+              <button class="btn btn-sm" onclick="abrirModalCliente()" title="Cadastrar novo cliente" style="white-space:nowrap;flex-shrink:0">+ Novo</button>
             </div>
             <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
             <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
@@ -445,7 +448,7 @@ tr:hover td{background:var(--bg)}
             <option value="">Todos</option>
             <option value="mes">🎂 Aniversariantes do mês</option>
           </select>
-          <button class="btn btn-primary" onclick="abrirModalCliente()">+ Nova Cliente</button>
+          <button class="btn btn-primary" onclick="abrirModalCliente()">+ Novo Cliente</button>
         </div>
         <div id="aniversariantes-banner-cli" style="display:none"></div>
         <div class="table-wrap">
@@ -1052,7 +1055,7 @@ tr:hover td{background:var(--bg)}
 <!-- Modal Cliente -->
 <div class="modal-backdrop" id="modal-cliente">
   <div class="modal" style="max-width:700px">
-    <div class="modal-header"><h3 id="modal-cli-titulo">Nova Cliente</h3><button class="modal-close" onclick="fecharModal('modal-cliente')">×</button></div>
+    <div class="modal-header"><h3 id="modal-cli-titulo">Novo Cliente</h3><button class="modal-close" onclick="fecharModal('modal-cliente')">×</button></div>
     <div class="modal-body">
       <input type="hidden" id="cli-id">
       <div class="tabs" style="margin-bottom:16px">
@@ -2124,7 +2127,7 @@ function tabCliResumo(btn, tabId) {
 }
 
 async function abrirModalCliente(id) {
-  document.getElementById('modal-cli-titulo').textContent = id ? 'Editar Cliente' : 'Nova Cliente';
+  document.getElementById('modal-cli-titulo').textContent = id ? 'Editar Cliente' : 'Novo Cliente';
   // Reset tabs
   document.querySelectorAll('#modal-cliente .tab').forEach((t,i) => t.classList.toggle('active', i===0));
   document.getElementById('tab-cli-dados').style.display = 'block';
@@ -2188,11 +2191,17 @@ async function salvarCliente() {
     status: 'ativo',
     enderecos: enderecosTemp
   };
+  const isNovo = !document.getElementById('cli-id').value;
   try {
     await api('POST', '/api/clientes', cli);
     fecharModal('modal-cliente');
     toast('Cliente salvo!');
     carregarClientes();
+    // Se for cadastro novo e o PDV estiver visível, selecionar o cliente automaticamente
+    if (isNovo && document.getElementById('page-pdv')?.style.display !== 'none') {
+      document.getElementById('pdv-cliente-busca').value = cli.nome;
+      document.getElementById('pdv-cliente').value = cli.id;
+    }
     if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
   } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
