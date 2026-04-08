@@ -2165,29 +2165,33 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const token = await getBlingToken();
 
+    const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
+
     const payload = {
       tipo: 1,
+      numero: parseInt((venda.num || '1').replace('#', '')),
+      data: dataOperacao,
       contato: {
         nome: venda.cli_nome || 'Consumidor Final',
         tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
-        documento: (venda.cnpj || venda.cpf || '').replace(/\D/g, ''),
+        documento: (venda.cpf || venda.cnpj || '').replace(/\D/g, ''),
         ie: 'ISENTO',
         endereco: {
           endereco: venda.logradouro || '',
           numero: venda.numero || 'S/N',
           bairro: venda.bairro || '',
-          municipio: venda.cidade || '',
+          municipio: venda.cidade || 'Petrópolis',
           uf: venda.uf || 'RJ',
           cep: (venda.cep || '').replace(/\D/g, '')
         }
       },
-      itens: itensRes.rows.map((item, idx) => ({
+      itens: itensRes.rows.map(item => ({
+        codigo: item.cod || '',
         descricao: item.nome || '',
         unidade: 'PC',
         quantidade: parseFloat(item.qty),
         valor: parseFloat(item.preco),
         tipo: 'P',
-        codigoProduto: item.cod || '',
         tributos: {
           icms: {
             cst: item.csosn || '102',
@@ -2201,7 +2205,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       transporte: { fretePorConta: 9 },
       parcelas: [{
         dias: 0,
-        data: new Date(venda.data).toISOString().split('T')[0],
+        data: dataOperacao,
         valor: parseFloat(venda.tot)
       }]
     };
