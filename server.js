@@ -883,19 +883,6 @@ app.post('/api/vendas', auth, async (req, res) => {
     if (v.clienteId) {
       await client.query('UPDATE clientes SET total_compras=total_compras+$1,ult_compra=CURRENT_DATE WHERE id=$2', [v.tot, v.clienteId]);
     }
-    const pgtoVale = (v.pgtoItens||[]).find(p => p.tipo === 'vale_funcionaria');
-    if (pgtoVale) {
-      const mes = new Date(v.data).toISOString().slice(0,7);
-      const parcelas = pgtoVale.parcelas || 1;
-      const vlParcela = pgtoVale.vlParcela || v.tot;
-      const descParc = parcelas > 1 ? ' (' + parcelas + 'x de R$ ' + parseFloat(vlParcela).toFixed(2).replace('.',',') + ')' : '';
-      await client.query(
-        `INSERT INTO vales_funcionarios (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, venda_id)
-         VALUES ($1,$2,$3,$4,'roupa',$5,$6,$7)`,
-        [uid(), v.vendedorId||v.clienteId, v.vendedorNome||v.clienteNome, v.tot,
-         'Vale roupa — ' + (v.num||'') + descParc, mes, v.id]
-      );
-    }
     await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
