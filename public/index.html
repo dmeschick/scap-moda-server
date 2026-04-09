@@ -5307,7 +5307,6 @@ async function carregarVales() {
             (v.status==='descontado' ? 'Descontado' : 'Pendente') +
           '</span></td>' +
           '<td style="display:flex;gap:4px">' +
-            (v.status !== 'descontado' ? '<button class="btn btn-sm btn-primary" onclick="marcarDescontado(\'' + v.id + '\')">✓</button>' : '') +
             '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">✕</button>' +
           '</td>' +
         '</tr>' + itensHtml;
@@ -5332,14 +5331,6 @@ function valesToggleHistorico() {
   label.textContent = label.textContent.replace(aberto ? '▼' : '▶', aberto ? '▶' : '▼');
 }
 
-async function marcarDescontado(id) {
-  if (!confirm('Marcar vale como descontado do salário?')) return;
-  try {
-    await api('PATCH', '/api/vales/' + id + '/descontar', {});
-    toast('Vale marcado como descontado!');
-    carregarVales();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
-}
 
 async function descontarFuncionaria(funcId, funcNome) {
   const mes = document.getElementById('vales-mes').value;
