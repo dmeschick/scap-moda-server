@@ -351,6 +351,7 @@ async function initDB() {
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS parcelas INTEGER DEFAULT 1;
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS vl_parcela NUMERIC(10,2);
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS mes_desconto TEXT;
+    ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS parcelas_pagas INTEGER DEFAULT 0;
   `);
   // Popula mes_desconto nos vales antigos que não têm o campo preenchido
   await pool.query(`
