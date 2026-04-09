@@ -1751,7 +1751,7 @@ const EMITENTE = {
 };
 
 function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
-  const cfop = calcularCFOP(endereco?.uf, cliente?.tipo);
+  const cfop = calcularCFOP(endereco?.uf, cliente?.tipo, cliente?.ie);
   const d = new Date(venda.data);
   const pad = n => String(n).padStart(2, '0');
   const dhEmi = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}-03:00`;
@@ -2134,9 +2134,10 @@ app.get('/api/vendas/xml-lote', auth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── BLING NF-e / NFC-e ──────────────────────────────────────────────────────
-function calcularCFOP(ufCliente, tipoPessoa) {
+function calcularCFOP(ufCliente, tipoPessoa, ie) {
   if (!ufCliente || ufCliente.toUpperCase() === 'RJ') return '5102';
-  if (tipoPessoa === 'PJ') return '6102';
+  const isContribuinte = tipoPessoa === 'PJ' && ie && ie.trim() !== '' && ie.toUpperCase() !== 'ISENTO';
+  if (isContribuinte) return '6102';
   return '6108';
 }
 
@@ -2167,6 +2168,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     const token = await getBlingToken();
 
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
+    const cfop = parseInt(calcularCFOP(venda.uf, venda.cli_tipo, venda.ie));
 
     const vProd = itensRes.rows.reduce((a, i) => a + parseFloat(i.preco) * parseInt(i.qty), 0);
     const vNF = parseFloat(venda.tot);
@@ -2202,6 +2204,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
           unidade: 'PC',
           quantidade: parseFloat(item.qty),
           valor: precoComDesc,
+          cfop,
           tipo: 'P',
           tributos: {
             icms: {
