@@ -1115,6 +1115,33 @@ app.post('/api/vales/roupa', auth, async (req, res) => {
   } finally { client.release(); }
 });
 
+// VALES — Descontar todos os vales pendentes de uma funcionária no mês
+app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
+  try {
+    const { funcionarioId, mes } = req.body;
+    if (!funcionarioId || !mes) return res.status(400).json({ erro: 'Dados incompletos' });
+
+    const r = await pool.query(
+      `UPDATE vales_funcionarios
+       SET status = 'descontado'
+       WHERE funcionario_id = $1
+         AND status != 'descontado'
+         AND mes_desconto IS NOT NULL
+         AND (
+           (COALESCE(parcelas,1) = 1 AND mes_desconto = $2)
+           OR
+           (COALESCE(parcelas,1) > 1
+            AND TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($2 || '-01', 'YYYY-MM-DD')
+            AND TO_DATE($2 || '-01', 'YYYY-MM-DD') <=
+                (TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(parcelas,1) - 1) * INTERVAL '1 month'))
+           )
+         )`,
+      [funcionarioId, mes]
+    );
+    res.json({ ok: true, atualizados: r.rowCount });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // VALES — Marcar como descontado
 app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
   try {
