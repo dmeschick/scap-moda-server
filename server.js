@@ -352,6 +352,23 @@ async function initDB() {
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS vl_parcela NUMERIC(10,2);
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS mes_desconto TEXT;
   `);
+  // Popula mes_desconto nos vales antigos que não têm o campo preenchido
+  await pool.query(`
+    UPDATE vales_funcionarios
+    SET mes_desconto = (
+      CASE
+        WHEN tipo = 'dinheiro' THEN
+          TO_CHAR(DATE_TRUNC('month', criado_em) + INTERVAL '1 month', 'YYYY-MM')
+        WHEN tipo = 'roupa' AND EXTRACT(DAY FROM criado_em) < 20 THEN
+          TO_CHAR(DATE_TRUNC('month', criado_em) + INTERVAL '1 month', 'YYYY-MM')
+        WHEN tipo = 'roupa' AND EXTRACT(DAY FROM criado_em) >= 20 THEN
+          TO_CHAR(DATE_TRUNC('month', criado_em) + INTERVAL '2 months', 'YYYY-MM')
+        ELSE
+          TO_CHAR(DATE_TRUNC('month', criado_em) + INTERVAL '1 month', 'YYYY-MM')
+      END
+    )
+    WHERE mes_desconto IS NULL
+  `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
     DELETE FROM vendas WHERE id NOT IN (
