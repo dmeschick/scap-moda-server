@@ -1755,6 +1755,13 @@ async function salvarProduto() {
   const venda = parseFloat(document.getElementById('prod-venda').value)||0;
   if (!nome) { toast('Informe o nome do produto', 'warn'); return; }
   if (!cat) { toast('Selecione a categoria', 'warn'); return; }
+  const ncm = document.getElementById('prod-ncm').value.trim();
+  if (!ncm) {
+    toast('Informe o NCM do produto', 'warn');
+    const btnFiscal = document.querySelector('#modal-produto .tab:nth-child(2)');
+    if (btnFiscal) tabProd(btnFiscal, 'tab-prod-fiscal');
+    return;
+  }
   const btn = event?.target || document.querySelector('[onclick="salvarProduto()"]');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   const isNovo = !document.getElementById('prod-id').value;
