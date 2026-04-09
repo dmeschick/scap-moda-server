@@ -1001,10 +1001,12 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
 app.post('/api/vales', auth, async (req, res) => {
   try {
     const { id, funcionarioId, funcionarioNome, valor, tipo, descricao, mes, vendaId } = req.body;
+    const mesDesconto = calcularMesDesconto('dinheiro', new Date());
     await pool.query(
-      `INSERT INTO vales_funcionarios (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, venda_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, funcionarioId, funcionarioNome, valor, tipo||'dinheiro', descricao||'', mes, vendaId||null]
+      `INSERT INTO vales_funcionarios
+         (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, venda_id, mes_desconto)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, funcionarioId, funcionarioNome, valor, tipo||'dinheiro', descricao||'', mes, vendaId||null, mesDesconto]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
