@@ -23,7 +23,7 @@ app.use(express.json({ limit: '50mb' }));
 const limiterGeral = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
-  message: { erro: 'Muitas requisições. Tente novamente em 15 minutos.' },
+  message: { erro: 'Muitas requisiÃ§Ãµes. Tente novamente em 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -89,12 +89,12 @@ function criptografarBackup(jsonStr) {
 
 function auth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
-  if (!token) return res.status(401).json({ erro: 'Não autorizado' });
-  if (tokenBlacklist.has(token)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
+  if (!token) return res.status(401).json({ erro: 'NÃ£o autorizado' });
+  if (tokenBlacklist.has(token)) return res.status(401).json({ erro: 'SessÃ£o encerrada. FaÃ§a login novamente.' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
   catch (err) {
-    if (err.name === 'TokenExpiredError') return res.status(401).json({ erro: 'Sessão expirada. Faça login novamente.' });
-    res.status(401).json({ erro: 'Token inválido' });
+    if (err.name === 'TokenExpiredError') return res.status(401).json({ erro: 'SessÃ£o expirada. FaÃ§a login novamente.' });
+    res.status(401).json({ erro: 'Token invÃ¡lido' });
   }
 }
 
@@ -352,7 +352,7 @@ async function initDB() {
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS vl_parcela NUMERIC(10,2);
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS mes_desconto TEXT;
   `);
-  // Popula mes_desconto nos vales antigos que não têm o campo preenchido
+  // Popula mes_desconto nos vales antigos que nÃ£o tÃªm o campo preenchido
   await pool.query(`
     UPDATE vales_funcionarios
     SET mes_desconto = (
@@ -369,18 +369,29 @@ async function initDB() {
     )
     WHERE mes_desconto IS NULL
   `);
-  // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
+  // Corrige vales roupa antigos criados via PDV que têm parcelas na descrição mas não nos campos
+  await pool.query(`
+    UPDATE vales_funcionarios
+    SET
+      parcelas = (regexp_match(descricao, '(\\d+)x de R\\$'))[1]::integer,
+      vl_parcela = replace((regexp_match(descricao, 'R\\$\\s*([\\d,]+)'))[1], ',', '.')::numeric
+    WHERE tipo = 'roupa'
+      AND (parcelas IS NULL OR parcelas <= 1)
+      AND (vl_parcela IS NULL OR vl_parcela = 0)
+      AND descricao ~ '\\dx de R\\$'
+  `);
+  // Remove vendas duplicadas por nÃºmero (mantÃ©m a mais antiga) antes de criar Ã­ndice Ãºnico
   await pool.query(`
     DELETE FROM vendas WHERE id NOT IN (
       SELECT DISTINCT ON (num) id FROM vendas ORDER BY num, data ASC
     )
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num)`);
-  // Adiciona colunas que podem não existir em bancos criados antes dessas definições
+  // Adiciona colunas que podem nÃ£o existir em bancos criados antes dessas definiÃ§Ãµes
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS cMun TEXT DEFAULT '9999999'`);
-  // Corrigir cMun via CEP (sem problema de encoding/acento) — faixa Petrópolis 25600000–25799999
+  // Corrigir cMun via CEP (sem problema de encoding/acento) â faixa PetrÃ³polis 25600000â25799999
   await pool.query(`
     UPDATE enderecos_cliente
     SET cMun = '3304557'
@@ -445,7 +456,7 @@ app.post('/api/login', async (req, res) => {
   try {
     const { funcId, senha } = req.body;
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1 AND status=$2', [funcId, 'ativo']);
-    if (!r.rows.length) return res.status(401).json({ erro: 'Funcionário não encontrado' });
+    if (!r.rows.length) return res.status(401).json({ erro: 'FuncionÃ¡rio nÃ£o encontrado' });
     const func = r.rows[0];
     let senhaValida = false;
     if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
@@ -465,20 +476,20 @@ app.post('/api/login', async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// Logout — invalidar token
+// Logout â invalidar token
 app.post('/api/logout', auth, (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (token) tokenBlacklist.add(token);
   res.json({ ok: true });
 });
 
-// AUTH — Validar senha do próprio usuário
+// AUTH â Validar senha do prÃ³prio usuÃ¡rio
 app.post('/api/auth/validar-senha', auth, async (req, res) => {
   try {
     const { senha } = req.body;
     const usuario = req.user;
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1', [usuario.id]);
-    if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'Usuário não encontrado' });
+    if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'UsuÃ¡rio nÃ£o encontrado' });
     const func = r.rows[0];
     let senhaCorreta = false;
     if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
@@ -497,7 +508,7 @@ app.post('/api/auth/validar-senha', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// AUDITORIA — Registrar
+// AUDITORIA â Registrar
 app.post('/api/auditoria', auth, async (req, res) => {
   try {
     const { acao, detalhes } = req.body;
@@ -511,7 +522,7 @@ app.post('/api/auditoria', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// AUDITORIA — Buscar log
+// AUDITORIA â Buscar log
 app.get('/api/auditoria', auth, async (req, res) => {
   try {
     const r = await pool.query(`SELECT * FROM auditoria ORDER BY criado_em DESC LIMIT 200`);
@@ -519,7 +530,7 @@ app.get('/api/auditoria', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FUNCIONÁRIOS
+// FUNCIONÃRIOS
 app.get('/api/funcionarios', async (req, res) => {
   try {
     const { todos, login } = req.query;
@@ -643,7 +654,7 @@ app.delete('/api/produtos/:id', auth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-// PRODUTOS — Próximo código por categoria
+// PRODUTOS â PrÃ³ximo cÃ³digo por categoria
 app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
   try {
     const { categoriaId } = req.query;
@@ -651,7 +662,7 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
 
     // Busca sufixo da categoria (categoriaId recebe o nome, pois o select usa value=nome)
     const cat = await pool.query('SELECT nome, sufixo FROM categorias WHERE nome=$1', [categoriaId]);
-    if (!cat.rows.length) return res.status(404).json({ erro: 'Categoria não encontrada' });
+    if (!cat.rows.length) return res.status(404).json({ erro: 'Categoria nÃ£o encontrada' });
 
     // Mapeamento fixo de sufixos
     const sufixosFixos = {
@@ -668,7 +679,7 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
     const nomeNorm = cat.rows[0].nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const sufixo = cat.rows[0].sufixo || sufixosFixos[nomeNorm] || cat.rows[0].nome.charAt(0).toUpperCase();
 
-    // Busca último código desta categoria
+    // Busca Ãºltimo cÃ³digo desta categoria
     const r = await pool.query(
       `SELECT cod FROM produtos WHERE cod LIKE $1 ORDER BY cod DESC LIMIT 1`,
       ['%' + sufixo]
@@ -686,7 +697,7 @@ app.get('/api/produtos/proximo-codigo', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// ESTOQUE — Histórico de movimentações
+// ESTOQUE â HistÃ³rico de movimentaÃ§Ãµes
 app.get('/api/estoque/movimentos', auth, async (req, res) => {
   try {
     const { produtoId, produtoCod, tipo, dataInicio, dataFim, limit } = req.query;
@@ -706,11 +717,11 @@ app.get('/api/estoque/movimentos', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// PRODUTOS — Última entrada de estoque
+// PRODUTOS â Ãltima entrada de estoque
 app.get('/api/produtos/:id/ultima-entrada', auth, async (req, res) => {
   try {
     const prod = await pool.query('SELECT est FROM produtos WHERE id=$1', [req.params.id]);
-    if (!prod.rows.length) return res.status(404).json({ erro: 'Produto não encontrado' });
+    if (!prod.rows.length) return res.status(404).json({ erro: 'Produto nÃ£o encontrado' });
 
     let ultimaEntrada = prod.rows[0].est;
 
@@ -722,7 +733,7 @@ app.get('/api/produtos/:id/ultima-entrada', auth, async (req, res) => {
         [req.params.id]
       );
       if (mov.rows.length) ultimaEntrada = mov.rows[0].quantidade;
-    } catch(e) {} // tabela pode não existir
+    } catch(e) {} // tabela pode nÃ£o existir
 
     res.json({ ultimaEntrada });
   } catch (err) { res.status(500).json({ erro: err.message }); }
@@ -784,7 +795,7 @@ app.post('/api/clientes', auth, async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT (id) DO UPDATE SET nome=$2,tipo=$3,cpf=$4,cnpj=$5,ie=$6,nasc=$7,tel=$8,email=$9,ig=$10,tam=$11,obs=$12,total_compras=$13,ult_compra=$14,status=$15`,
       [c.id,c.nome,c.tipo||'PF',c.cpf,c.cnpj,c.ie||'',c.nasc||null,c.tel,c.email,c.ig,c.tam,c.obs,c.totalCompras||c.total_compras||0,c.ultCompra||c.ult_compra||null,c.status||'ativo']);
-    // Salva endereços
+    // Salva endereÃ§os
     if (c.enderecos !== undefined) {
       await client.query('DELETE FROM enderecos_cliente WHERE cliente_id=$1', [c.id]);
       for (const e of (c.enderecos||[])) {
@@ -807,7 +818,7 @@ app.delete('/api/clientes/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// CRÉDITOS DE CLIENTES
+// CRÃDITOS DE CLIENTES
 app.get('/api/creditos/:clienteId', auth, async (req, res) => {
   try {
     const r = await pool.query(
@@ -893,7 +904,7 @@ app.post('/api/vendas', auth, async (req, res) => {
           produtoId: item.id, produtoNome: item.nome, produtoCod: item.cod,
           tipo: 'devolucao', quantidade: item.qty,
           estoqueAnterior, estoquePosteriror: estoqueAnterior + item.qty,
-          motivo: 'Devolução venda ' + v.num, vendaId: v.id,
+          motivo: 'DevoluÃ§Ã£o venda ' + v.num, vendaId: v.id,
           usuarioId: v.vendedorId, usuarioNome: v.vendedorNome
         });
       } else {
@@ -927,7 +938,7 @@ app.patch('/api/vendas/:id/cancelar', auth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const r = await client.query('SELECT * FROM vendas WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    if (!r.rows.length) return res.status(404).json({ erro: 'Venda nÃ£o encontrada' });
     const venda = r.rows[0];
     await client.query("UPDATE vendas SET status='cancelada',cancelada_em=NOW() WHERE id=$1", [req.params.id]);
     const itens = await client.query('SELECT * FROM venda_itens WHERE venda_id=$1 AND tipo!=\'devolvido\'', [req.params.id]);
@@ -945,7 +956,7 @@ app.patch('/api/vendas/:id/cancelar', auth, async (req, res) => {
   } finally { client.release(); }
 });
 
-// CONFIGURAÇÕES
+// CONFIGURAÃÃES
 app.get('/api/config/:chave', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT valor FROM configuracoes WHERE chave=$1', [req.params.chave]);
@@ -960,7 +971,7 @@ app.post('/api/config/:chave', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Buscar detalhes de uma funcionária no mês (para romaneio)
+// VALES â Buscar detalhes de uma funcionÃ¡ria no mÃªs (para romaneio)
 app.get('/api/vales/funcionaria', auth, async (req, res) => {
   try {
     const { funcionarioId, mes } = req.query;
@@ -1002,7 +1013,7 @@ app.get('/api/vales/funcionaria', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Listar por funcionário e mês
+// VALES â Listar por funcionÃ¡rio e mÃªs
 app.get('/api/vales', auth, async (req, res) => {
   try {
     const { funcionarioId, mes } = req.query;
@@ -1016,7 +1027,7 @@ app.get('/api/vales', auth, async (req, res) => {
     }
 
     if (mes) {
-      // Filtra pelo mes_desconto: mostra vales cujo intervalo de desconto inclui o mês filtrado
+      // Filtra pelo mes_desconto: mostra vales cujo intervalo de desconto inclui o mÃªs filtrado
       conditions.push(`(
         v.mes_desconto IS NOT NULL
         AND (
@@ -1064,7 +1075,7 @@ app.get('/api/vales', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Resumo mensal por funcionário
+// VALES â Resumo mensal por funcionÃ¡rio
 app.get('/api/vales/resumo', auth, async (req, res) => {
   try {
     const { mes } = req.query;
@@ -1101,7 +1112,7 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Registrar vale em dinheiro
+// VALES â Registrar vale em dinheiro
 app.post('/api/vales', auth, async (req, res) => {
   try {
     const { id, funcionarioId, funcionarioNome, valor, tipo, descricao, mes, vendaId } = req.body;
@@ -1157,7 +1168,7 @@ app.post('/api/vales/roupa', auth, async (req, res) => {
   } finally { client.release(); }
 });
 
-// VALES — Descontar todos os vales pendentes de uma funcionária no mês
+// VALES â Descontar todos os vales pendentes de uma funcionÃ¡ria no mÃªs
 app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
   try {
     const { funcionarioId, mes } = req.body;
@@ -1184,7 +1195,7 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Marcar como descontado
+// VALES â Marcar como descontado
 app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
   try {
     await pool.query(`UPDATE vales_funcionarios SET status='descontado' WHERE id=$1`, [req.params.id]);
@@ -1192,7 +1203,7 @@ app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Excluir
+// VALES â Excluir
 app.delete('/api/vales/:id', auth, async (req, res) => {
   try {
     await pool.query(`DELETE FROM vales_funcionarios WHERE id=$1`, [req.params.id]);
@@ -1200,7 +1211,7 @@ app.delete('/api/vales/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// RELATÓRIOS
+// RELATÃRIOS
 app.get('/api/relatorios/mensal', auth, async (req, res) => {
   try {
     const { mes } = req.query;
@@ -1246,12 +1257,12 @@ app.post('/api/ponto', auth, async (req, res) => {
     const { funcionarioId, funcionarioNome, tipo, obs } = req.body;
     const now = new Date();
     const data = now.toISOString().split('T')[0];
-    // Verifica se já existe registro do mesmo tipo hoje
+    // Verifica se jÃ¡ existe registro do mesmo tipo hoje
     const existe = await pool.query(
       'SELECT id FROM ponto WHERE funcionario_id=$1 AND data=$2 AND tipo=$3',
       [funcionarioId, data, tipo]
     );
-    if (existe.rows.length) return res.status(400).json({ erro: `Registro de "${tipo}" já feito hoje` });
+    if (existe.rows.length) return res.status(400).json({ erro: `Registro de "${tipo}" jÃ¡ feito hoje` });
     await pool.query(
       'INSERT INTO ponto (funcionario_id,funcionario_nome,data,tipo,horario,obs) VALUES ($1,$2,$3,$4,$5,$6)',
       [funcionarioId, funcionarioNome, data, tipo, now, obs||'']
@@ -1271,7 +1282,7 @@ app.get('/api/ponto/hoje', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// SENHA FUNCIONÁRIO
+// SENHA FUNCIONÃRIO
 app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
   try {
     const hash = await bcrypt.hash(req.body.senha, SALT_ROUNDS);
@@ -1280,7 +1291,7 @@ app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FOTO FUNCIONÁRIO
+// FOTO FUNCIONÃRIO
 app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
   try {
     await pool.query('UPDATE funcionarios SET foto=$1 WHERE id=$2', [req.body.foto, req.params.id]);
@@ -1309,7 +1320,7 @@ app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
 
 
 
-// COMISSÕES — METAS
+// COMISSÃES â METAS
 app.get('/api/comissoes/metas', auth, async (req, res) => {
   try {
     const r = await pool.query(`SELECT * FROM metas_comissao ORDER BY mes DESC`);
@@ -1337,11 +1348,11 @@ app.delete('/api/comissoes/metas/:mes', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// COMISSÕES — CÁLCULO DO MÊS
+// COMISSÃES â CÃLCULO DO MÃS
 app.get('/api/comissoes/calcular', auth, async (req, res) => {
   try {
     const { mes } = req.query;
-    if (!mes) return res.status(400).json({ erro: 'Informe o mês' });
+    if (!mes) return res.status(400).json({ erro: 'Informe o mÃªs' });
 
     const metaRes = await pool.query(
       `SELECT * FROM metas_comissao WHERE mes=$1`, [mes]
@@ -1395,7 +1406,7 @@ app.get('/api/comissoes/calcular', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FINANCEIRO — PROJEÇÃO 30 DIAS
+// FINANCEIRO â PROJEÃÃO 30 DIAS
 app.get('/api/financeiro/projecao', auth, async (req, res) => {
   try {
     const hoje = new Date().toISOString().split('T')[0];
@@ -1441,20 +1452,20 @@ app.get('/api/financeiro/projecao', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FINANCEIRO — DRE MENSAL
+// FINANCEIRO â DRE MENSAL
 app.get('/api/financeiro/dre', auth, async (req, res) => {
   try {
     const { mes } = req.query; // formato YYYY-MM
-    if (!mes) return res.status(400).json({ erro: 'Informe o mês' });
+    if (!mes) return res.status(400).json({ erro: 'Informe o mÃªs' });
 
-    // Receita bruta (vendas pagas no mês)
+    // Receita bruta (vendas pagas no mÃªs)
     const vendas = await pool.query(
       `SELECT COALESCE(SUM(tot),0) as receita, COUNT(*) as qtd_vendas
        FROM vendas WHERE TO_CHAR(data,'YYYY-MM')=$1 AND status='pago'`,
       [mes]
     );
 
-    // CMV — custo dos produtos vendidos
+    // CMV â custo dos produtos vendidos
     const cmv = await pool.query(
       `SELECT COALESCE(SUM(vi.qty * p.custo),0) as cmv
        FROM venda_itens vi
@@ -1494,7 +1505,7 @@ app.get('/api/financeiro/dre', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FINANCEIRO — CHEQUES
+// FINANCEIRO â CHEQUES
 app.get('/api/financeiro/cheques', auth, async (req, res) => {
   try {
     const { tipo, status, mes, de, ate } = req.query;
@@ -1542,7 +1553,7 @@ app.delete('/api/financeiro/cheques/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FINANCEIRO — CAIXA
+// FINANCEIRO â CAIXA
 app.get('/api/financeiro/caixa/hoje', auth, async (req, res) => {
   try {
     const hoje = new Date().toISOString().split('T')[0];
@@ -1610,7 +1621,7 @@ app.delete('/api/financeiro/caixa/movimento/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// FINANCEIRO — CONTAS A PAGAR
+// FINANCEIRO â CONTAS A PAGAR
 app.get('/api/financeiro/contas-pagar', auth, async (req, res) => {
   try {
     const { mes, status, categoria } = req.query;
@@ -1695,7 +1706,7 @@ async function gerarBackup() {
   };
 }
 
-// BACKUP — Exportação manual
+// BACKUP â ExportaÃ§Ã£o manual
 app.get('/api/backup/exportar', auth, async (req, res) => {
   try {
     const backup = await gerarBackup();
@@ -1708,7 +1719,7 @@ app.get('/api/backup/exportar', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// BACKUP — Descriptografar
+// BACKUP â Descriptografar
 app.post('/api/backup/descriptografar', auth, async (req, res) => {
   try {
     const { conteudo } = req.body;
@@ -1722,11 +1733,11 @@ app.post('/api/backup/descriptografar', auth, async (req, res) => {
     const backup = JSON.parse(decrypted);
     res.json({ ok: true, backup });
   } catch (err) {
-    res.status(400).json({ ok: false, erro: 'Senha incorreta ou arquivo inválido' });
+    res.status(400).json({ ok: false, erro: 'Senha incorreta ou arquivo invÃ¡lido' });
   }
 });
 
-// BACKUP — Envio manual por e-mail
+// BACKUP â Envio manual por e-mail
 app.post('/api/backup/enviar-email', auth, async (req, res) => {
   try {
     const { email } = req.body;
@@ -1743,17 +1754,17 @@ app.post('/api/backup/enviar-email', auth, async (req, res) => {
     await resend.emails.send({
       from: 'onboarding@resend.dev',
       to: email,
-      subject: `Backup Scap Moda — ${data}`,
+      subject: `Backup Scap Moda â ${data}`,
       html: `
         <h2>Backup Scap Moda Feminina</h2>
         <p>Backup gerado em ${new Date().toLocaleString('pt-BR')}</p>
         <ul>
-          <li>${stats.funcionarios} funcionários</li>
+          <li>${stats.funcionarios} funcionÃ¡rios</li>
           <li>${stats.produtos} produtos</li>
           <li>${stats.clientes} clientes</li>
           <li>${stats.vendas} vendas</li>
         </ul>
-        <p>O arquivo criptografado com todos os dados está em anexo.</p>
+        <p>O arquivo criptografado com todos os dados estÃ¡ em anexo.</p>
       `,
       attachments: [{
         filename: `scap-backup-${data}.enc`,
@@ -1764,7 +1775,7 @@ app.post('/api/backup/enviar-email', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// BACKUP — Automático diário às 23h
+// BACKUP â AutomÃ¡tico diÃ¡rio Ã s 23h
 const agendarBackupDiario = () => {
   const agora = new Date();
   const proximas23h = new Date();
@@ -1784,26 +1795,26 @@ const agendarBackupDiario = () => {
       await resend.emails.send({
         from: 'onboarding@resend.dev',
         to: email,
-        subject: `Backup automático Scap Moda — ${data}`,
+        subject: `Backup automÃ¡tico Scap Moda â ${data}`,
         html: `
-          <h2>Backup automático Scap Moda Feminina</h2>
-          <p>Backup automático gerado em ${new Date().toLocaleString('pt-BR')}</p>
+          <h2>Backup automÃ¡tico Scap Moda Feminina</h2>
+          <p>Backup automÃ¡tico gerado em ${new Date().toLocaleString('pt-BR')}</p>
           <ul>
-            <li>${backup.funcionarios.length} funcionários</li>
+            <li>${backup.funcionarios.length} funcionÃ¡rios</li>
             <li>${backup.produtos.length} produtos</li>
             <li>${backup.clientes.length} clientes</li>
             <li>${backup.vendas.length} vendas</li>
           </ul>
-          <p>O arquivo criptografado com todos os dados está em anexo.</p>
+          <p>O arquivo criptografado com todos os dados estÃ¡ em anexo.</p>
         `,
         attachments: [{
           filename: `scap-backup-${data}.enc`,
           content: Buffer.from(jsonCriptografado).toString('base64')
         }]
       });
-      console.log('Backup diário enviado para', email);
+      console.log('Backup diÃ¡rio enviado para', email);
     } catch (err) {
-      console.error('Erro no backup diário:', err.message);
+      console.error('Erro no backup diÃ¡rio:', err.message);
     }
     agendarBackupDiario();
   }, msAte23h);
@@ -1811,7 +1822,7 @@ const agendarBackupDiario = () => {
 
 
 
-// RELATÓRIO DIÁRIO
+// RELATÃRIO DIÃRIO
 app.get('/api/relatorios/diario', auth, async (req, res) => {
   try {
     const { data, vendedor_id } = req.query;
@@ -1854,7 +1865,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
       [data]
     );
 
-    // --- Cálculos ---
+    // --- CÃ¡lculos ---
 
     // Total geral da loja
     const totalLoja = vendas.rows.reduce((a, v) => a + parseFloat(v.tot || 0) + parseFloat(v.credito_gerado || 0), 0);
@@ -1867,7 +1878,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
       porVendedor[nome].total += parseFloat(v.tot || 0) + parseFloat(v.credito_gerado || 0);
     });
 
-    // Peças por vendedor (itens novos)
+    // PeÃ§as por vendedor (itens novos)
     itens.rows.filter(i => i.tipo !== 'devolvido').forEach(i => {
       // Busca o vendedor da venda
       const venda = vendas.rows.find(v => v.id === i.venda_id);
@@ -1887,27 +1898,27 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
     });
 
     // Labels de pagamento
-    const labels = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'Débito', cheque: 'Cheque à vista', cheque_pre: 'Cheque pré-datado', credito_1x: 'Crédito à vista' };
+    const labels = { dinheiro: 'Dinheiro', pix: 'PIX', debito: 'DÃ©bito', cheque: 'Cheque Ã  vista', cheque_pre: 'Cheque prÃ©-datado', credito_1x: 'CrÃ©dito Ã  vista' };
     Object.keys(porPagamento).forEach(k => {
       if (k.startsWith('credito_') && k !== 'credito_1x') {
         const parc = k.replace('credito_', '').replace('x', '');
-        porPagamento[k].label = 'Crédito ' + parc + 'x';
+        porPagamento[k].label = 'CrÃ©dito ' + parc + 'x';
       } else {
         porPagamento[k].label = labels[k] || k;
       }
     });
 
-    // Total de peças vendidas (itens novos)
+    // Total de peÃ§as vendidas (itens novos)
     const totalPecasVendidas = itens.rows
       .filter(i => i.tipo !== 'devolvido')
       .reduce((a, i) => a + parseInt(i.qty || 0), 0);
 
-    // Total de peças trocadas (itens devolvidos)
+    // Total de peÃ§as trocadas (itens devolvidos)
     const totalPecasTrocadas = itens.rows
       .filter(i => i.tipo === 'devolvido')
       .reduce((a, i) => a + parseInt(i.qty || 0), 0);
 
-    // CMV — custo das mercadorias vendidas
+    // CMV â custo das mercadorias vendidas
     const cmv = itens.rows
       .filter(i => i.tipo !== 'devolvido')
       .reduce((a, i) => a + (parseFloat(i.custo || 0) * parseInt(i.qty || 0)), 0);
@@ -1930,7 +1941,7 @@ app.get('/api/relatorios/diario', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VENDAS — Gerar próximo número
+// VENDAS â Gerar prÃ³ximo nÃºmero
 app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
   try {
     const r = await pool.query(`SELECT NEXTVAL('venda_num_seq') as num`);
@@ -1939,7 +1950,7 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// ─── EXPORTAÇÃO XML NF-e ─────────────────────────────────────────────────────
+// âââ EXPORTAÃÃO XML NF-e âââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const EMITENTE = {
   cnpj: '03670225000143',
   xNome: 'Scap Comercio de Malhas LTDA ME',
@@ -2024,11 +2035,11 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
 
   const nomeDest = (cliente?.nome || 'Consumidor Final').substring(0, 60).replace(/[&<>"']/g, ' ');
 
-  // Mapeamento cMun → xMun oficial IBGE
+  // Mapeamento cMun â xMun oficial IBGE
   const nomeMunMap = {
-    '3304557': 'Petrópolis',
+    '3304557': 'PetrÃ³polis',
     '3304100': 'Nova Friburgo',
-    '3303302': 'Niterói',
+    '3303302': 'NiterÃ³i',
     '3304904': 'Rio de Janeiro',
     '3301009': 'Campos dos Goytacazes',
   };
@@ -2169,7 +2180,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
             const indPag = (p.tipo === 'credito' || p.tipo === 'debito') && parcelas > 1 ? '1' : '0';
 
             if (p.tipo === 'credito' && parcelas > 1) {
-              // Um detPag por parcela com tpIntegra — conforme XML oficial SEFAZ
+              // Um detPag por parcela com tpIntegra â conforme XML oficial SEFAZ
               const vParcBase = Math.floor((valorTotal / parcelas) * 100) / 100;
               const vUltima = parseFloat((valorTotal - vParcBase * (parcelas - 1)).toFixed(2));
               for (let i = 0; i < parcelas; i++) {
@@ -2177,7 +2188,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
                 pagXML += `<detPag><indPag>1</indPag><tPag>03</tPag><vPag>${vParc.toFixed(2)}</vPag><card><tpIntegra>2</tpIntegra><tBand>02</tBand></card></detPag>`;
               }
             } else {
-              // Demais formas: único detPag com valor total
+              // Demais formas: Ãºnico detPag com valor total
               pagXML += `<detPag><indPag>${indPag}</indPag><tPag>${tpPag}</tPag><vPag>${valorTotal.toFixed(2)}</vPag></detPag>`;
             }
           }
@@ -2195,7 +2206,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           .map(p => {
             const n = parseInt(p.parcelas);
             const valorTotal = parseFloat(p.valor);
-            // Calcula parcela base e ajusta última para absorver diferença de centavo
+            // Calcula parcela base e ajusta Ãºltima para absorver diferenÃ§a de centavo
             const vParcBase = Math.floor((valorTotal / n) * 100) / 100;
             const vUltima = parseFloat((valorTotal - vParcBase * (n - 1)).toFixed(2));
             const vParc = vParcBase.toFixed(2).replace('.', ',');
@@ -2215,7 +2226,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
   return xml;
 }
 
-// EXPORTAR XML NF-e — individual
+// EXPORTAR XML NF-e â individual
 app.get('/api/vendas/:id/xml', auth, async (req, res) => {
   try {
     const vendaRes = await pool.query(
@@ -2225,7 +2236,7 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
        WHERE v.id = $1`,
       [req.params.id]
     );
-    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda nÃ£o encontrada' });
     const venda = vendaRes.rows[0];
 
     const itensRes = await pool.query(
@@ -2247,10 +2258,10 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
     );
 
     if (!itensRes.rows.length) {
-      return res.status(400).json({ erro: 'Venda sem itens — XML não gerado.' });
+      return res.status(400).json({ erro: 'Venda sem itens â XML nÃ£o gerado.' });
     }
     if (!venda.tot || parseFloat(venda.tot) <= 0) {
-      return res.status(400).json({ erro: 'Total da venda inválido — XML não gerado.' });
+      return res.status(400).json({ erro: 'Total da venda invÃ¡lido â XML nÃ£o gerado.' });
     }
 
     const cliente = {
@@ -2270,7 +2281,7 @@ app.get('/api/vendas/:id/xml', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// EXPORTAR XML NF-e — lote do dia (ZIP)
+// EXPORTAR XML NF-e â lote do dia (ZIP)
 app.get('/api/vendas/xml-lote', auth, async (req, res) => {
   try {
     const { data } = req.query;
@@ -2335,9 +2346,9 @@ app.get('/api/vendas/xml-lote', auth, async (req, res) => {
     if (!res.headersSent) res.status(500).json({ erro: err.message });
   }
 });
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-// ─── BLING NF-e / NFC-e ──────────────────────────────────────────────────────
+// âââ BLING NF-e / NFC-e ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function calcularCFOP(ufCliente, tipoPessoa, ie) {
   if (!ufCliente || ufCliente.toUpperCase() === 'RJ') return '5102';
   const isContribuinte = tipoPessoa === 'PJ' && ie && ie.trim() !== '' && ie.toUpperCase() !== 'ISENTO';
@@ -2358,7 +2369,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
        WHERE v.id = $1`,
       [vendaId]
     );
-    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda nÃ£o encontrada' });
     const venda = vendaRes.rows[0];
 
     const itensRes = await pool.query(
@@ -2395,7 +2406,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
           endereco: venda.logradouro || '',
           numero: venda.numero || 'S/N',
           bairro: venda.bairro || '',
-          municipio: venda.cidade || 'Petrópolis',
+          municipio: venda.cidade || 'PetrÃ³polis',
           uf: venda.uf || 'RJ',
           cep: (venda.cep || '').replace(/\D/g, '')
         }
@@ -2477,7 +2488,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
        WHERE v.id = $1`,
       [vendaId]
     );
-    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
+    if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda nÃ£o encontrada' });
     const venda = vendaRes.rows[0];
 
     const itensRes = await pool.query(
@@ -2542,16 +2553,16 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     res.json({ ok: true, nfce: data.data });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-// ─── BLING OAUTH 2.0 ─────────────────────────────────────────────────────────
+// âââ BLING OAUTH 2.0 âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const BLING_CLIENT_ID = process.env.BLING_CLIENT_ID;
 const BLING_CLIENT_SECRET = process.env.BLING_CLIENT_SECRET;
 const BLING_REDIRECT_URI = 'https://scap-moda-server-production.up.railway.app/api/bling/callback';
 const BLING_AUTH_URL = 'https://www.bling.com.br/Api/v3/oauth/authorize';
 const BLING_TOKEN_URL = 'https://www.bling.com.br/Api/v3/oauth/token';
 
-// Rota para iniciar autorização — redireciona para o Bling
+// Rota para iniciar autorizaÃ§Ã£o â redireciona para o Bling
 app.get('/api/bling/autorizar', (req, res) => {
   const params = new URLSearchParams({
     response_type: 'code',
@@ -2562,7 +2573,7 @@ app.get('/api/bling/autorizar', (req, res) => {
   res.redirect(BLING_AUTH_URL + '?' + params.toString());
 });
 
-// Callback — Bling redireciona aqui com o código
+// Callback â Bling redireciona aqui com o cÃ³digo
 app.get('/api/bling/callback', async (req, res) => {
   const { code, error } = req.query;
   if (error || !code) {
@@ -2583,7 +2594,7 @@ app.get('/api/bling/callback', async (req, res) => {
       })
     });
     const data = await response.json();
-    if (!data.access_token) throw new Error('Token não retornado');
+    if (!data.access_token) throw new Error('Token nÃ£o retornado');
 
     const expiresAt = new Date(Date.now() + (data.expires_in || 21600) * 1000);
 
@@ -2600,10 +2611,10 @@ app.get('/api/bling/callback', async (req, res) => {
   }
 });
 
-// Função para obter token válido (renova se expirado)
+// FunÃ§Ã£o para obter token vÃ¡lido (renova se expirado)
 async function getBlingToken() {
   const r = await pool.query('SELECT * FROM bling_tokens WHERE id=1');
-  if (!r.rows.length) throw new Error('Bling não autorizado. Conecte o Bling em Configurações.');
+  if (!r.rows.length) throw new Error('Bling nÃ£o autorizado. Conecte o Bling em ConfiguraÃ§Ãµes.');
 
   const token = r.rows[0];
   const agora = new Date();
@@ -2635,7 +2646,7 @@ async function getBlingToken() {
   return token.access_token;
 }
 
-// Rota para verificar status da conexão com Bling
+// Rota para verificar status da conexÃ£o com Bling
 app.get('/api/bling/status', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT expires_at, atualizado_em FROM bling_tokens WHERE id=1');
@@ -2647,7 +2658,7 @@ app.get('/api/bling/status', auth, async (req, res) => {
     });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 initDB().then(() => {
   app.listen(PORT, () => console.log(`Scap Moda rodando na porta ${PORT}`));
