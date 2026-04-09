@@ -981,17 +981,34 @@ app.get('/api/vales', auth, async (req, res) => {
 app.get('/api/vales/resumo', auth, async (req, res) => {
   try {
     const { mes } = req.query;
+    const mesFiltro = mes || new Date().toISOString().slice(0,7);
     const r = await pool.query(
       `SELECT funcionario_id, funcionario_nome,
         SUM(CASE WHEN tipo='dinheiro' THEN valor ELSE 0 END) as total_dinheiro,
-        SUM(CASE WHEN tipo='roupa' THEN valor ELSE 0 END) as total_roupa,
-        SUM(valor) as total,
+        SUM(CASE WHEN tipo='roupa' THEN
+          CASE WHEN COALESCE(parcelas,1) > 1 THEN vl_parcela ELSE valor END
+        ELSE 0 END) as total_roupa,
+        SUM(CASE
+          WHEN tipo='dinheiro' THEN valor
+          WHEN tipo='roupa' AND COALESCE(parcelas,1) > 1 THEN vl_parcela
+          ELSE valor
+        END) as total,
         COUNT(*) as qtd
        FROM vales_funcionarios
-       WHERE mes=$1
+       WHERE status != 'descontado'
+         AND mes_desconto IS NOT NULL
+         AND (
+           (COALESCE(parcelas,1) = 1 AND mes_desconto = $1)
+           OR
+           (COALESCE(parcelas,1) > 1
+            AND TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($1 || '-01', 'YYYY-MM-DD')
+            AND TO_DATE($1 || '-01', 'YYYY-MM-DD') <=
+                (TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(parcelas,1) - 1) * INTERVAL '1 month'))
+           )
+         )
        GROUP BY funcionario_id, funcionario_nome
        ORDER BY total DESC`,
-      [mes || new Date().toISOString().slice(0,7)]
+      [mesFiltro]
     );
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
