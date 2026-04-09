@@ -5336,8 +5336,11 @@ async function descontarFuncionaria(funcId, funcNome) {
   const mes = document.getElementById('vales-mes').value;
   if (!confirm('Marcar todos os vales de ' + funcNome + ' em ' + mes + ' como descontados?')) return;
   try {
+    // Abre romaneio ANTES de descontar (para ter os dados ainda pendentes)
+    await abrirRomaneioVale(funcId, funcNome, mes);
+    // Desconta
     const r = await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
-    toast('✓ ' + (r.atualizados || 0) + ' vale(s) de ' + funcNome + ' marcados como descontados!');
+    toast('✓ ' + (r.atualizados || 0) + ' vale(s) de ' + funcNome + ' descontados!');
     carregarVales();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
