@@ -1025,12 +1025,13 @@ app.post('/api/vales/roupa', auth, async (req, res) => {
     const descParc = parc > 1
       ? ` (${parc}x de R$ ${vlParcela.toFixed(2).replace('.', ',')})`
       : '';
+    const mesDesconto = calcularMesDesconto('roupa', new Date());
     await client.query('BEGIN');
     await client.query(
       `INSERT INTO vales_funcionarios
-         (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, parcelas, vl_parcela, status)
-       VALUES ($1,$2,$3,$4,'roupa',$5,$6,$7,$8,'pendente')`,
-      [id, funcionarioId, funcionarioNome, total, 'Vale roupa' + descParc, mes, parc, vlParcela]
+         (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, parcelas, vl_parcela, status, mes_desconto)
+       VALUES ($1,$2,$3,$4,'roupa',$5,$6,$7,$8,'pendente',$9)`,
+      [id, funcionarioId, funcionarioNome, total, 'Vale roupa' + descParc, mes, parc, vlParcela, mesDesconto]
     );
     for (const item of itens) {
       const itemId = require('crypto').randomUUID();
