@@ -336,6 +336,7 @@ async function initDB() {
     );
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS parcelas INTEGER DEFAULT 1;
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS vl_parcela NUMERIC(10,2);
+    ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS mes_desconto TEXT;
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
