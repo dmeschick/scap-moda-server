@@ -992,6 +992,46 @@ app.post('/api/vales', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+app.post('/api/vales/roupa', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id, funcionarioId, funcionarioNome, mes, parcelas, itens } = req.body;
+    if (!id || !funcionarioId || !mes || !itens || !itens.length) {
+      return res.status(400).json({ erro: 'Dados incompletos' });
+    }
+    const parc = parseInt(parcelas) || 1;
+    const total = itens.reduce((s, i) => s + (parseFloat(i.precoDesc) * i.qty), 0);
+    const vlParcela = Math.round((total / parc) * 100) / 100;
+    const descParc = parc > 1
+      ? ` (${parc}x de R$ ${vlParcela.toFixed(2).replace('.', ',')})`
+      : '';
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO vales_funcionarios
+         (id, funcionario_id, funcionario_nome, valor, tipo, descricao, mes, parcelas, vl_parcela, status)
+       VALUES ($1,$2,$3,$4,'roupa',$5,$6,$7,$8,'pendente')`,
+      [id, funcionarioId, funcionarioNome, total, 'Vale roupa' + descParc, mes, parc, vlParcela]
+    );
+    for (const item of itens) {
+      const itemId = require('crypto').randomUUID();
+      await client.query(
+        `INSERT INTO vale_itens (id, vale_id, produto_id, produto_nome, produto_cod, qty, preco_cheio, preco_desc)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [itemId, id, item.produtoId, item.produtoNome, item.produtoCod, item.qty, item.precoCheio, item.precoDesc]
+      );
+      await client.query(
+        'UPDATE produtos SET est = est - $1, atualizado_em = NOW() WHERE id = $2',
+        [item.qty, item.produtoId]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ erro: err.message });
+  } finally { client.release(); }
+});
+
 // VALES — Marcar como descontado
 app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
   try {
