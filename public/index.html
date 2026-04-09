@@ -5205,15 +5205,21 @@ async function carregarVales() {
       resumoEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
         '<thead><tr>' +
         '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Funcionária</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Dinheiro</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Roupa</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Total</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">💵 Dinheiro</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">👗 Roupa</th>' +
+        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Total a descontar</th>' +
+        '<th style="padding:8px;border-bottom:1px solid var(--border)"></th>' +
         '</tr></thead><tbody>' +
         resumo.map(r =>
-          '<tr><td style="padding:8px;border-bottom:1px solid var(--border)"><strong>' + r.funcionario_nome + '</strong></td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + fmtMoeda(r.total_dinheiro) + '</td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + fmtMoeda(r.total_roupa) + '</td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--pink-dark)">' + fmtMoeda(r.total) + '</td></tr>'
+          '<tr>' +
+          '<td style="padding:8px;border-bottom:1px solid var(--border)"><strong>' + r.funcionario_nome + '</strong></td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + (parseFloat(r.total_dinheiro) > 0 ? fmtMoeda(r.total_dinheiro) : '—') + '</td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + (parseFloat(r.total_roupa) > 0 ? fmtMoeda(r.total_roupa) : '—') + '</td>' +
+          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--pink-dark);font-size:15px">' + fmtMoeda(r.total) + '</td>' +
+          '<td style="padding:8px;border-bottom:1px solid var(--border)">' +
+            '<button class="btn btn-sm btn-primary" onclick="descontarFuncionaria(\'' + r.funcionario_id + '\',\'' + r.funcionario_nome + '\')">✓ Descontar</button>' +
+          '</td>' +
+          '</tr>'
         ).join('') +
         '</tbody></table>';
     }
@@ -5263,6 +5269,16 @@ async function marcarDescontado(id) {
   try {
     await api('PATCH', '/api/vales/' + id + '/descontar', {});
     toast('Vale marcado como descontado!');
+    carregarVales();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function descontarFuncionaria(funcId, funcNome) {
+  const mes = document.getElementById('vales-mes').value;
+  if (!confirm('Marcar todos os vales de ' + funcNome + ' em ' + mes + ' como descontados?')) return;
+  try {
+    const r = await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
+    toast('✓ ' + (r.atualizados || 0) + ' vale(s) de ' + funcNome + ' marcados como descontados!');
     carregarVales();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
