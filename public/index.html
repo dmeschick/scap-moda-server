@@ -409,7 +409,6 @@ tr:hover td{background:var(--bg)}
                 <option value="credito">💳 Crédito</option>
                 <option value="cheque">📝 Cheque à vista</option>
                 <option value="cheque_pre">📅 Cheque pré-datado</option>
-                <option value="vale_funcionaria">👗 Vale Funcionária</option>
               </select>
               <div id="pgto-campo" style="margin-top:6px"></div>
               <div id="pgto-lista" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
@@ -3556,21 +3555,6 @@ function mostrarCampoPgto() {
       btnAdd +
     '</div>';
 
-  } else if (tipo === 'vale_funcionaria') {
-    if (descPct !== 30) {
-      const btnDesc30 = Array.from(document.querySelectorAll('#desc-btns .btn'))
-        .find(b => b.textContent.includes('30'));
-      if (btnDesc30) btnDesc30.click();
-      else descPct = 30;
-    }
-    html = '<div style="display:flex;gap:6px;margin-top:6px">' +
-      inputVal +
-      '<select id="pgto-parc" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
-        [1,2,3,4].map(n => '<option value="' + n + '">' + (n===1?'À vista':n+'x') + '</option>').join('') +
-      '</select>' +
-      btnAdd +
-    '</div>' +
-    '<div style="font-size:12px;color:var(--amber);margin-top:4px">⚠️ Desconto de 30% aplicado automaticamente</div>';
   } else {
     html = '<div style="display:flex;gap:6px;margin-top:6px">' +
       inputVal +
@@ -3591,10 +3575,6 @@ function adicionarPgto() {
     troco = Math.max(0, recebido - val);
     det = troco > 0 ? `Troco: ${fmtMoeda(troco)}` : '';
   } else if (tipo === 'credito') {
-    parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
-    vlParcela = val/parcelas;
-    det = parcelas > 1 ? parcelas + 'x de ' + fmtMoeda(vlParcela) : 'À vista';
-  } else if (tipo === 'vale_funcionaria') {
     parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
     vlParcela = val/parcelas;
     det = parcelas > 1 ? parcelas + 'x de ' + fmtMoeda(vlParcela) : 'À vista';
