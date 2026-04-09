@@ -533,7 +533,8 @@ tr:hover td{background:var(--bg)}
                 <input type="month" id="vales-mes" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
               </div>
               <button class="btn btn-primary btn-sm" onclick="carregarVales()">Filtrar</button>
-              <button class="btn btn-sm btn-primary" onclick="abrirModalVale()">+ Registrar Vale</button>
+              <button class="btn btn-sm btn-primary" onclick="abrirModalVale()">💵 Vale Dinheiro</button>
+              <button class="btn btn-sm btn-primary" onclick="abrirModalValeRoupa()">👗 Vale Roupa</button>
             </div>
           </div>
           <div class="card" style="margin-bottom:16px">
@@ -968,6 +969,54 @@ tr:hover td{background:var(--bg)}
 </div><!-- /app -->
 
 <!-- MODAIS -->
+<!-- Modal Vale Roupa -->
+<div class="modal-backdrop" id="modal-vale-roupa">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <h3>👗 Vale Roupa</h3>
+      <button class="modal-close" onclick="fecharModal('modal-vale-roupa')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Funcionária</label>
+        <select id="vr-func" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Mês de desconto</label>
+        <input type="month" id="vr-mes" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>Adicionar produto</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="vr-busca" placeholder="Código ou nome do produto..." onkeydown="vrBuscaKeyDown(event)"
+            style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+          <button class="btn btn-sm btn-primary" onclick="vrAdicionarProduto()">Adicionar</button>
+        </div>
+        <div id="vr-sugestoes" style="display:none;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);max-height:160px;overflow-y:auto;margin-top:2px"></div>
+      </div>
+      <div id="vr-itens" style="margin-bottom:10px;min-height:60px;border:1px solid var(--border);border-radius:var(--radius);padding:8px">
+        <div id="vr-itens-vazio" style="color:var(--text3);font-size:13px;text-align:center;padding:12px">Nenhum produto adicionado</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+        <div style="font-size:13px;color:var(--text2)">Total com 30% desc:</div>
+        <div id="vr-total" style="font-size:18px;font-weight:700;color:var(--pink-dark)">R$ 0,00</div>
+        <select id="vr-parc" onchange="vrRenderItens()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+          <option value="1">À vista</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+        </select>
+        <div id="vr-parcela-info" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-vale-roupa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarValeRoupa()">💾 Salvar Vale Roupa</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Vale -->
 <div class="modal-backdrop" id="modal-vale">
   <div class="modal" style="max-width:420px">
@@ -5193,6 +5242,160 @@ async function excluirVale(id) {
   try {
     await api('DELETE', '/api/vales/' + id);
     toast('Vale excluído');
+    carregarVales();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function vrToggleDetalhe(id) {
+  const el = document.getElementById('vr-detalhe-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+}
+
+// ===== VALE ROUPA =====
+let _vrItens = [];
+let _vrTodosProds = [];
+
+async function abrirModalValeRoupa() {
+  const sel = document.getElementById('vr-func');
+  sel.innerHTML = '<option value="">Selecione...</option>';
+  try {
+    const funcs = await api('GET', '/api/funcionarios');
+    funcs.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.dataset.nome = f.nome;
+      opt.textContent = f.nome;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+  try {
+    _vrTodosProds = await api('GET', '/api/produtos?status=ativo&limit=500');
+  } catch(e) { _vrTodosProds = []; }
+  _vrItens = [];
+  document.getElementById('vr-mes').value = new Date().toISOString().slice(0,7);
+  document.getElementById('vr-busca').value = '';
+  document.getElementById('vr-sugestoes').style.display = 'none';
+  document.getElementById('vr-parc').value = '1';
+  vrRenderItens();
+  abrirModal('modal-vale-roupa');
+  setTimeout(() => document.getElementById('vr-busca').focus(), 200);
+}
+
+function vrBuscaKeyDown(e) {
+  const q = e.target.value.trim().toLowerCase();
+  if (e.key === 'Enter') {
+    const p = _vrTodosProds.find(x => x.cod.toLowerCase() === q);
+    if (p) { vrAdicionarItem(p); e.target.value = ''; vrEsconderSugestoes(); return; }
+  }
+  if (q.length < 2) { vrEsconderSugestoes(); return; }
+  const res = _vrTodosProds.filter(p =>
+    p.cod.toLowerCase().includes(q) || p.nome.toLowerCase().includes(q)
+  ).slice(0, 8);
+  const box = document.getElementById('vr-sugestoes');
+  if (!res.length) { vrEsconderSugestoes(); return; }
+  box.style.display = 'block';
+  box.innerHTML = res.map(p => `
+    <div onclick="vrAdicionarItemById('${p.id}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"
+      onmouseover="this.style.background='var(--pink-light)'" onmouseout="this.style.background=''">
+      <span><strong>${p.cod}</strong> — ${p.nome}</span>
+      <span style="color:var(--pink-dark);font-weight:700">${fmtMoeda(p.venda)}</span>
+    </div>`).join('');
+}
+
+function vrAdicionarProduto() {
+  const q = document.getElementById('vr-busca').value.trim().toLowerCase();
+  if (!q) return;
+  const p = _vrTodosProds.find(x => x.cod.toLowerCase() === q || x.nome.toLowerCase() === q);
+  if (!p) { toast('Produto não encontrado', 'warn'); return; }
+  vrAdicionarItem(p);
+  document.getElementById('vr-busca').value = '';
+  vrEsconderSugestoes();
+}
+
+function vrAdicionarItemById(id) {
+  const p = _vrTodosProds.find(x => x.id === id);
+  if (p) vrAdicionarItem(p);
+  document.getElementById('vr-busca').value = '';
+  vrEsconderSugestoes();
+}
+
+function vrAdicionarItem(p) {
+  const precoDesc = Math.round(p.venda * 0.7 * 100) / 100;
+  const idx = _vrItens.findIndex(x => x.produtoId === p.id);
+  if (idx > -1) { _vrItens[idx].qty++; }
+  else { _vrItens.push({ produtoId: p.id, produtoNome: p.nome, produtoCod: p.cod, qty: 1, precoCheio: p.venda, precoDesc }); }
+  vrRenderItens();
+}
+
+function vrRemoverItem(idx) { _vrItens.splice(idx, 1); vrRenderItens(); }
+
+function vrAlterarQty(idx, delta) {
+  _vrItens[idx].qty = Math.max(1, (_vrItens[idx].qty || 1) + delta);
+  vrRenderItens();
+}
+
+function vrRenderItens() {
+  const cont = document.getElementById('vr-itens');
+  const vazio = document.getElementById('vr-itens-vazio');
+  if (!_vrItens.length) {
+    if (vazio) vazio.style.display = 'block';
+    cont.querySelectorAll('.vr-item-row').forEach(el => el.remove());
+    document.getElementById('vr-total').textContent = 'R$ 0,00';
+    document.getElementById('vr-parcela-info').textContent = '';
+    return;
+  }
+  if (vazio) vazio.style.display = 'none';
+  cont.querySelectorAll('.vr-item-row').forEach(el => el.remove());
+  let total = 0;
+  _vrItens.forEach((item, idx) => {
+    const subtotal = item.precoDesc * item.qty;
+    total += subtotal;
+    const row = document.createElement('div');
+    row.className = 'vr-item-row';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 4px;border-bottom:1px solid var(--border);font-size:13px';
+    row.innerHTML = `
+      <div style="flex:1">
+        <div style="font-weight:600">${item.produtoNome}</div>
+        <div style="font-size:11px;color:var(--text2)">${item.produtoCod} · <s>${fmtMoeda(item.precoCheio)}</s> → <strong style="color:var(--green)">${fmtMoeda(item.precoDesc)}</strong></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button onclick="vrAlterarQty(${idx},-1)" style="background:none;border:1px solid var(--border);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:14px">−</button>
+        <span style="min-width:20px;text-align:center;font-weight:700">${item.qty}</span>
+        <button onclick="vrAlterarQty(${idx},1)" style="background:none;border:1px solid var(--border);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:14px">+</button>
+        <span style="min-width:70px;text-align:right;font-weight:700;color:var(--pink-dark)">${fmtMoeda(subtotal)}</span>
+        <button onclick="vrRemoverItem(${idx})" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer">✕</button>
+      </div>`;
+    cont.appendChild(row);
+  });
+  document.getElementById('vr-total').textContent = fmtMoeda(total);
+  const parc = parseInt(document.getElementById('vr-parc').value) || 1;
+  if (parc > 1) {
+    const vlParc = Math.round((total / parc) * 100) / 100;
+    document.getElementById('vr-parcela-info').textContent = `= ${parc}x de ${fmtMoeda(vlParc)}`;
+  } else {
+    document.getElementById('vr-parcela-info').textContent = '';
+  }
+}
+
+function vrEsconderSugestoes() {
+  document.getElementById('vr-sugestoes').style.display = 'none';
+}
+
+async function salvarValeRoupa() {
+  const funcEl = document.getElementById('vr-func');
+  const funcId = funcEl.value;
+  const funcNome = funcEl.selectedOptions[0]?.dataset.nome || '';
+  const mes = document.getElementById('vr-mes').value;
+  const parcelas = parseInt(document.getElementById('vr-parc').value) || 1;
+  if (!funcId) { toast('Selecione a funcionária', 'warn'); return; }
+  if (!mes) { toast('Informe o mês', 'warn'); return; }
+  if (!_vrItens.length) { toast('Adicione pelo menos um produto', 'warn'); return; }
+  try {
+    await api('POST', '/api/vales/roupa', { id: uid(), funcionarioId: funcId, funcionarioNome: funcNome, mes, parcelas, itens: _vrItens });
+    toast('Vale roupa registrado!');
+    fecharModal('modal-vale-roupa');
+    _vrItens = [];
     carregarVales();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
