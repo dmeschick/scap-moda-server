@@ -5307,6 +5307,7 @@ async function carregarVales() {
             (v.status==='descontado' ? 'Descontado' : 'Pendente') +
           '</span></td>' +
           '<td style="display:flex;gap:4px">' +
+            '<button class="btn btn-sm" onclick="reimprirRomaneioVale(\'' + v.funcionario_id + '\',\'' + v.funcionario_nome.replace(/'/g,"\\'") + '\',\'' + (v.mes_desconto||'') + '\')" title="Reimprimir romaneio">🖨️</button>' +
             '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">✕</button>' +
           '</td>' +
         '</tr>' + itensHtml;
@@ -5346,6 +5347,11 @@ async function descontarFuncionaria(funcId, funcNome) {
     toast('✓ ' + (r.atualizados || 0) + ' vale(s) de ' + funcNome + ' descontados!');
     carregarVales();
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function reimprirRomaneioVale(funcId, funcNome, mes) {
+  if (!mes) { toast('Este vale não tem mês de desconto definido', 'warn'); return; }
+  await abrirRomaneioVale(funcId, funcNome, mes);
 }
 
 async function abrirRomaneioVale(funcId, funcNome, mes) {
