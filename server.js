@@ -52,6 +52,20 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+function calcularMesDesconto(tipo, dataRef) {
+  const d = dataRef ? new Date(dataRef) : new Date();
+  const dia = d.getDate();
+  let ano = d.getFullYear();
+  let mes = d.getMonth(); // 0-based
+  if (tipo === 'dinheiro') {
+    mes += 1;
+  } else {
+    mes += dia < 20 ? 1 : 2;
+  }
+  if (mes > 11) { ano += Math.floor(mes / 12); mes = mes % 12; }
+  return `${ano}-${String(mes + 1).padStart(2, '0')}`;
+}
 const tokenBlacklist = new Set();
 
 async function registrarMovimento(client, { produtoId, produtoNome, produtoCod, tipo, quantidade, estoqueAnterior, estoquePosteriror, motivo, vendaId, usuarioId, usuarioNome }) {
