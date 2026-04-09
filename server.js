@@ -964,24 +964,51 @@ app.post('/api/config/:chave', auth, async (req, res) => {
 app.get('/api/vales', auth, async (req, res) => {
   try {
     const { funcionarioId, mes } = req.query;
-    let where = 'WHERE 1=1';
+    let conditions = ['1=1'];
     const params = [];
     let i = 1;
-    if (funcionarioId) { where += ` AND v.funcionario_id=$${i++}`; params.push(funcionarioId); }
-    if (mes) { where += ` AND v.mes=$${i++}`; params.push(mes); }
+
+    if (funcionarioId) {
+      conditions.push(`v.funcionario_id=$${i++}`);
+      params.push(funcionarioId);
+    }
+
+    if (mes) {
+      // Filtra pelo mes_desconto: mostra vales cujo intervalo de desconto inclui o mês filtrado
+      conditions.push(`(
+        v.mes_desconto IS NOT NULL
+        AND (
+          (COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $${i})
+          OR
+          (COALESCE(v.parcelas,1) > 1
+           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($${i} || '-01', 'YYYY-MM-DD')
+           AND TO_DATE($${i} || '-01', 'YYYY-MM-DD') <=
+               (TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(v.parcelas,1) - 1) * INTERVAL '1 month'))
+          )
+        )
+      )`);
+      params.push(mes);
+      i++;
+    }
+
+    const where = 'WHERE ' + conditions.join(' AND ');
+
     const r = await pool.query(
       `SELECT v.*,
-              json_agg(
-                json_build_object(
-                  'id', vi.id,
-                  'produto_id', vi.produto_id,
-                  'produto_nome', vi.produto_nome,
-                  'produto_cod', vi.produto_cod,
-                  'qty', vi.qty,
-                  'preco_cheio', vi.preco_cheio,
-                  'preco_desc', vi.preco_desc
-                ) ORDER BY vi.produto_nome
-              ) FILTER (WHERE vi.id IS NOT NULL) AS itens
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', vi.id,
+              'produto_id', vi.produto_id,
+              'produto_nome', vi.produto_nome,
+              'produto_cod', vi.produto_cod,
+              'qty', vi.qty,
+              'preco_cheio', vi.preco_cheio,
+              'preco_desc', vi.preco_desc
+            ) ORDER BY vi.produto_nome
+          ) FILTER (WHERE vi.id IS NOT NULL),
+          '[]'
+        ) AS itens
        FROM vales_funcionarios v
        LEFT JOIN vale_itens vi ON vi.vale_id = v.id
        ${where}
@@ -989,6 +1016,7 @@ app.get('/api/vales', auth, async (req, res) => {
        ORDER BY v.criado_em DESC`,
       params
     );
+
     const total = r.rows.reduce((a, v) => a + parseFloat(v.valor), 0);
     res.json({ vales: r.rows, total: Math.round(total * 100) / 100 });
   } catch (err) { res.status(500).json({ erro: err.message }); }
