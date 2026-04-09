@@ -5244,7 +5244,7 @@ async function carregarVales() {
         <td><strong>${v.funcionario_nome}</strong></td>
         <td>${tipoLabel[v.tipo]||v.tipo}${expandBtn}</td>
         <td><strong>${fmtMoeda(v.valor)}</strong>${descParc}</td>
-        <td style="color:var(--text2);font-size:12px">${v.descricao||'—'}</td>
+        <td style="color:var(--text2);font-size:12px">${v.descricao||'—'}${v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ desconto: ' + v.mes_desconto + '</span>' : ''}</td>
         <td><span class="badge ${v.status==='descontado' ? 'badge-green' : 'badge-amber'}">${v.status==='descontado' ? 'Descontado' : 'Pendente'}</span></td>
         <td style="display:flex;gap:4px">
           ${v.status !== 'descontado' ? `<button class="btn btn-sm btn-primary" onclick="marcarDescontado('${v.id}')">✓ Descontar</button>` : ''}
