@@ -5342,6 +5342,108 @@ async function descontarFuncionaria(funcId, funcNome) {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
+async function abrirRomaneioVale(funcId, funcNome, mes) {
+  try {
+    const { vales } = await api('GET', '/api/vales/funcionaria?funcionarioId=' + funcId + '&mes=' + mes);
+    if (!vales || !vales.length) { toast('Nenhum vale encontrado para o romaneio', 'warn'); return; }
+
+    const [anoMes, mesMes] = mes.split('-');
+    const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const nomeMes = nomesMes[parseInt(mesMes)-1] + ' de ' + anoMes;
+
+    const valesDinheiro = vales.filter(v => v.tipo === 'dinheiro');
+    const valesRoupa    = vales.filter(v => v.tipo === 'roupa');
+
+    const totalDinheiro = valesDinheiro.reduce((s, v) => s + parseFloat(v.valor), 0);
+    const totalRoupa    = valesRoupa.reduce((s, v) => {
+      return s + (parseInt(v.parcelas) > 1 ? parseFloat(v.vl_parcela) : parseFloat(v.valor));
+    }, 0);
+    const totalGeral = totalDinheiro + totalRoupa;
+
+    let linhasRoupa = '';
+    valesRoupa.forEach(v => {
+      const parc = parseInt(v.parcelas) || 1;
+      const parcInfo = parc > 1 ? ' (' + parc + 'x · parcela ' + fmtMoeda(v.vl_parcela) + ')' : '';
+      if (v.itens && v.itens.length) {
+        linhasRoupa += '<tr><td colspan="4" style="padding-top:4px;font-size:9px;color:#555">' +
+          new Date(v.criado_em).toLocaleDateString('pt-BR') + parcInfo + '</td></tr>';
+        v.itens.forEach(i => {
+          linhasRoupa +=
+            '<tr>' +
+              '<td style="width:60%">' + i.produto_nome + '</td>' +
+              '<td style="text-align:center">' + i.qty + '</td>' +
+              '<td style="text-align:right;text-decoration:line-through;color:#888">' + fmtMoeda(i.preco_cheio) + '</td>' +
+              '<td style="text-align:right;font-weight:bold">' + fmtMoeda(i.preco_desc * i.qty) + '</td>' +
+            '</tr>';
+        });
+      }
+    });
+
+    const html =
+      '<div style="font-family:monospace;font-size:11px;text-align:center;margin-bottom:6px">' +
+        '<div style="font-weight:bold;font-size:13px">SCAP MODA FEMININA</div>' +
+        '<div>Petrópolis - RJ</div>' +
+      '</div>' +
+      '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:6px 0;text-align:center;font-family:monospace">' +
+        '<div style="font-weight:bold">DESCONTO DE VALE</div>' +
+        '<div style="font-size:10px">' + nomeMes + '</div>' +
+      '</div>' +
+      '<div style="font-family:monospace;font-size:11px;margin-bottom:8px">' +
+        '<div><b>Funcionária:</b> ' + funcNome + '</div>' +
+      '</div>' +
+      (totalDinheiro > 0 ?
+        '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #ccc;padding-top:6px;margin-bottom:6px">' +
+          '<div style="font-weight:bold;margin-bottom:4px">💵 VALE DINHEIRO</div>' +
+          valesDinheiro.map(v =>
+            '<div style="display:flex;justify-content:space-between">' +
+              '<span>' + new Date(v.criado_em).toLocaleDateString('pt-BR') + ' — ' + (v.descricao||'Vale em dinheiro') + '</span>' +
+              '<span><b>' + fmtMoeda(v.valor) + '</b></span>' +
+            '</div>'
+          ).join('') +
+          '<div style="display:flex;justify-content:space-between;margin-top:4px;border-top:1px solid #ccc;padding-top:2px">' +
+            '<span>Subtotal dinheiro</span><span><b>' + fmtMoeda(totalDinheiro) + '</b></span>' +
+          '</div>' +
+        '</div>' : '') +
+      (valesRoupa.length ?
+        '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #ccc;padding-top:6px;margin-bottom:6px">' +
+          '<div style="font-weight:bold;margin-bottom:4px">👗 VALE ROUPA (30% desc)</div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:10px">' +
+            '<thead><tr>' +
+              '<th style="text-align:left">Produto</th>' +
+              '<th style="text-align:center">Qtd</th>' +
+              '<th style="text-align:right">Cheio</th>' +
+              '<th style="text-align:right">Total</th>' +
+            '</tr></thead>' +
+            '<tbody>' + linhasRoupa + '</tbody>' +
+          '</table>' +
+          '<div style="display:flex;justify-content:space-between;margin-top:4px;border-top:1px solid #ccc;padding-top:2px">' +
+            '<span>Subtotal roupa</span><span><b>' + fmtMoeda(totalRoupa) + '</b></span>' +
+          '</div>' +
+        '</div>' : '') +
+      '<div style="font-family:monospace;font-size:12px;border-top:2px solid #000;padding-top:6px;margin-top:4px">' +
+        '<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px">' +
+          '<span>TOTAL A DESCONTAR</span><span>' + fmtMoeda(totalGeral) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-family:monospace;font-size:11px;margin-top:24px;border-top:1px solid #000;padding-top:4px;text-align:center">' +
+        '<div>Assinatura da funcionária</div>' +
+        '<div style="margin-top:2px;font-size:10px;color:#555">' + funcNome + '</div>' +
+      '</div>' +
+      '<div style="font-family:monospace;font-size:9px;text-align:center;margin-top:12px;color:#888">' +
+        new Date().toLocaleDateString('pt-BR') + ' — Desconto referente a ' + nomeMes +
+      '</div>';
+
+    document.getElementById('romaneio-body').innerHTML = html;
+    abrirModal('modal-romaneio');
+
+    ['btn-nfe','btn-nfce','btn-xml','btn-imprimir-notinha-credito'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+  } catch(e) { toast('Erro ao gerar romaneio: ' + e.message, 'error'); }
+}
+
 async function excluirVale(id) {
   if (!confirm('Excluir este vale?')) return;
   try {
