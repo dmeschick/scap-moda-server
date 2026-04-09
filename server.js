@@ -324,6 +324,18 @@ async function initDB() {
       status TEXT DEFAULT 'pendente',
       criado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS vale_itens (
+      id TEXT PRIMARY KEY,
+      vale_id TEXT NOT NULL,
+      produto_id TEXT NOT NULL,
+      produto_nome TEXT,
+      produto_cod TEXT,
+      qty INTEGER NOT NULL DEFAULT 1,
+      preco_cheio NUMERIC(10,2) NOT NULL,
+      preco_desc NUMERIC(10,2) NOT NULL
+    );
+    ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS parcelas INTEGER DEFAULT 1;
+    ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS vl_parcela NUMERIC(10,2);
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
