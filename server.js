@@ -735,10 +735,11 @@ app.post('/api/clientes', auth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const c = req.body;
-    await client.query(`INSERT INTO clientes (id,nome,tipo,cpf,cnpj,nasc,tel,email,ig,tam,obs,total_compras,ult_compra,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-      ON CONFLICT (id) DO UPDATE SET nome=$2,tipo=$3,cpf=$4,cnpj=$5,nasc=$6,tel=$7,email=$8,ig=$9,tam=$10,obs=$11,total_compras=$12,ult_compra=$13,status=$14`,
-      [c.id,c.nome,c.tipo||'PF',c.cpf,c.cnpj,c.nasc||null,c.tel,c.email,c.ig,c.tam,c.obs,c.totalCompras||c.total_compras||0,c.ultCompra||c.ult_compra||null,c.status||'ativo']);
+    await client.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS ie TEXT DEFAULT ''`);
+    await client.query(`INSERT INTO clientes (id,nome,tipo,cpf,cnpj,ie,nasc,tel,email,ig,tam,obs,total_compras,ult_compra,status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ON CONFLICT (id) DO UPDATE SET nome=$2,tipo=$3,cpf=$4,cnpj=$5,ie=$6,nasc=$7,tel=$8,email=$9,ig=$10,tam=$11,obs=$12,total_compras=$13,ult_compra=$14,status=$15`,
+      [c.id,c.nome,c.tipo||'PF',c.cpf,c.cnpj,c.ie||'',c.nasc||null,c.tel,c.email,c.ig,c.tam,c.obs,c.totalCompras||c.total_compras||0,c.ultCompra||c.ult_compra||null,c.status||'ativo']);
     // Salva endereços
     if (c.enderecos !== undefined) {
       await client.query('DELETE FROM enderecos_cliente WHERE cliente_id=$1', [c.id]);
@@ -2144,7 +2145,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     const { vendaId } = req.body;
 
     const vendaRes = await pool.query(
-      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tipo as cli_tipo,
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.ie, c.tipo as cli_tipo,
               e.logradouro, e.numero, e.bairro, e.cidade, e.uf, e.cep
        FROM vendas v
        LEFT JOIN clientes c ON c.id = v.cliente_id
@@ -2183,7 +2184,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         nome: venda.cli_nome || 'Consumidor Final',
         tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
         numeroDocumento: (venda.cpf || venda.cnpj || '').replace(/\D/g, ''),
-        ie: 'ISENTO',
+        ie: venda.cli_tipo === 'PJ' ? (venda.ie || 'ISENTO') : 'ISENTO',
         endereco: {
           endereco: venda.logradouro || '',
           numero: venda.numero || 'S/N',

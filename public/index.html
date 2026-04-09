@@ -1084,6 +1084,7 @@ tr:hover td{background:var(--bg)}
           <div class="form-group full"><label id="cli-nome-label">Nome completo *</label><input id="cli-nome"></div>
           <div class="form-group" id="cli-cpf-group"><label>CPF</label><input id="cli-cpf" oninput="mascaraCPF(this)"></div>
           <div class="form-group" id="cli-cnpj-group" style="display:none"><label>CNPJ</label><input id="cli-cnpj" oninput="mascaraCNPJ(this)"></div>
+          <div class="form-group" id="cli-ie-group" style="display:none"><label>Inscrição Estadual</label><input id="cli-ie" placeholder="ISENTO ou nº da IE"></div>
           <div class="form-group" id="cli-nasc-group"><label>Nascimento</label><input type="date" id="cli-nasc"></div>
           <div class="form-group"><label>Telefone</label><input id="cli-tel" oninput="mascaraTel(this)" placeholder="(21) 99999-9999"></div>
           <div class="form-group"><label>E-mail</label><input type="email" id="cli-email"></div>
@@ -2161,6 +2162,7 @@ async function abrirModalCliente(id) {
       document.getElementById('cli-nome').value = c.nome||'';
       document.getElementById('cli-cpf').value = c.cpf||'';
       document.getElementById('cli-cnpj').value = c.cnpj||'';
+      document.getElementById('cli-ie').value = c.ie||'';
       document.getElementById('cli-nasc').value = c.nasc ? c.nasc.toString().slice(0,10) : '';
       document.getElementById('cli-tel').value = c.tel||'';
       document.getElementById('cli-email').value = c.email||'';
@@ -2175,7 +2177,7 @@ async function abrirModalCliente(id) {
     } catch(e) { return; }
   } else {
     document.getElementById('cli-id').value = '';
-    ['nome','cpf','cnpj','nasc','tel','email','ig','tam','obs'].forEach(k => {
+    ['nome','cpf','cnpj','ie','nasc','tel','email','ig','tam','obs'].forEach(k => {
       const el = document.getElementById('cli-' + k);
       if (el) el.value = '';
     });
@@ -2202,6 +2204,7 @@ async function salvarCliente() {
     nome, tipo: document.getElementById('cli-tipo').value,
     cpf: document.getElementById('cli-cpf').value,
     cnpj: document.getElementById('cli-cnpj').value,
+    ie: document.getElementById('cli-ie').value,
     nasc: document.getElementById('cli-nasc').value || null,
     tel: document.getElementById('cli-tel').value,
     email: document.getElementById('cli-email').value,
@@ -2238,6 +2241,7 @@ function setTipoCli(tipo) {
   document.getElementById('btn-pj').className = 'btn btn-sm' + (!isPF ? ' btn-primary' : '');
   document.getElementById('cli-cpf-group').style.display = isPF ? '' : 'none';
   document.getElementById('cli-cnpj-group').style.display = isPF ? 'none' : '';
+  document.getElementById('cli-ie-group').style.display = isPF ? 'none' : '';
   document.getElementById('cli-nasc-group').style.display = isPF ? '' : 'none';
   document.getElementById('cli-nome-label').textContent = isPF ? 'Nome completo *' : 'Razão social *';
 }
