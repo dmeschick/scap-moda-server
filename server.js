@@ -1164,9 +1164,9 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
     const { funcionarioId, mes } = req.body;
     if (!funcionarioId || !mes) return res.status(400).json({ erro: 'Dados incompletos' });
 
+    // Busca os vales pendentes da funcionária que caem nesse mês
     const r = await pool.query(
-      `UPDATE vales_funcionarios
-       SET status = 'descontado'
+      `SELECT id, parcelas, parcelas_pagas FROM vales_funcionarios
        WHERE funcionario_id = $1
          AND status != 'descontado'
          AND mes_desconto IS NOT NULL
@@ -1181,7 +1181,24 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
          )`,
       [funcionarioId, mes]
     );
-    res.json({ ok: true, atualizados: r.rowCount });
+
+    let atualizados = 0;
+    for (const vale of r.rows) {
+      const totalParcelas = parseInt(vale.parcelas) || 1;
+      const pagas = parseInt(vale.parcelas_pagas) || 0;
+      const novasPagas = pagas + 1;
+      const novoStatus = novasPagas >= totalParcelas ? 'descontado' : 'pendente';
+
+      await pool.query(
+        `UPDATE vales_funcionarios
+         SET parcelas_pagas = $1, status = $2
+         WHERE id = $3`,
+        [novasPagas, novoStatus, vale.id]
+      );
+      atualizados++;
+    }
+
+    res.json({ ok: true, atualizados });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
