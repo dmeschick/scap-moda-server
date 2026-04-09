@@ -5302,6 +5302,7 @@ async function carregarVales() {
           '<td style="color:var(--text2);font-size:12px">' +
             (v.descricao||'—') +
             (v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ ' + v.mes_desconto + '</span>' : '') +
+            (parseInt(v.parcelas) > 1 ? '<br><span style="color:var(--text3);font-size:11px">parcela ' + ((parseInt(v.parcelas_pagas)||0)+1) + ' de ' + v.parcelas + '</span>' : '') +
           '</td>' +
           '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
             (v.status==='descontado' ? 'Descontado' : 'Pendente') +
