@@ -5211,20 +5211,38 @@ async function carregarVales() {
       return;
     }
     const tipoLabel = { dinheiro: '💵 Dinheiro', roupa: '👗 Roupa' };
-    tbody.innerHTML = vales.map(v =>
-      '<tr>' +
-        '<td>' + new Date(v.criado_em).toLocaleDateString('pt-BR') + '</td>' +
-        '<td><strong>' + v.funcionario_nome + '</strong></td>' +
-        '<td>' + (tipoLabel[v.tipo]||v.tipo) + '</td>' +
-        '<td><strong>' + fmtMoeda(v.valor) + '</strong></td>' +
-        '<td style="color:var(--text2);font-size:12px">' + (v.descricao||'—') + '</td>' +
-        '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' + (v.status==='descontado' ? 'Descontado' : 'Pendente') + '</span></td>' +
-        '<td style="display:flex;gap:4px">' +
-          (v.status !== 'descontado' ? '<button class="btn btn-sm btn-primary" onclick="marcarDescontado(\'' + v.id + '\')">✓ Descontar</button>' : '') +
-          '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">Excluir</button>' +
-        '</td>' +
-      '</tr>'
-    ).join('');
+    tbody.innerHTML = vales.map(v => {
+      const itensHtml = (v.tipo === 'roupa' && v.itens && v.itens.length)
+        ? `<tr id="vr-detalhe-${v.id}" style="display:none">
+            <td colspan="7" style="background:var(--pink-light);padding:8px 16px">
+              <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--pink-dark)">Itens do vale:</div>
+              ${v.itens.map(i => `
+                <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
+                  <span><strong>${i.produto_cod}</strong> — ${i.produto_nome} × ${i.qty}</span>
+                  <span><s style="color:var(--text3)">${fmtMoeda(i.preco_cheio)}</s> → <strong>${fmtMoeda(i.preco_desc)}</strong> = ${fmtMoeda(i.preco_desc * i.qty)}</span>
+                </div>`).join('')}
+            </td>
+          </tr>`
+        : '';
+      const descParc = (v.parcelas > 1)
+        ? ` <span style="font-size:11px;color:var(--text2)">(${v.parcelas}x de ${fmtMoeda(v.vl_parcela)})</span>`
+        : '';
+      const expandBtn = (v.tipo === 'roupa' && v.itens && v.itens.length)
+        ? `<button onclick="vrToggleDetalhe('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Ver itens">🔍</button>`
+        : '';
+      return `<tr>
+        <td>${new Date(v.criado_em).toLocaleDateString('pt-BR')}</td>
+        <td><strong>${v.funcionario_nome}</strong></td>
+        <td>${tipoLabel[v.tipo]||v.tipo}${expandBtn}</td>
+        <td><strong>${fmtMoeda(v.valor)}</strong>${descParc}</td>
+        <td style="color:var(--text2);font-size:12px">${v.descricao||'—'}</td>
+        <td><span class="badge ${v.status==='descontado' ? 'badge-green' : 'badge-amber'}">${v.status==='descontado' ? 'Descontado' : 'Pendente'}</span></td>
+        <td style="display:flex;gap:4px">
+          ${v.status !== 'descontado' ? `<button class="btn btn-sm btn-primary" onclick="marcarDescontado('${v.id}')">✓ Descontar</button>` : ''}
+          <button class="btn btn-sm btn-danger" onclick="excluirVale('${v.id}')">Excluir</button>
+        </td>
+      </tr>${itensHtml}`;
+    }).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
