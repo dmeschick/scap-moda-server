@@ -960,6 +960,48 @@ app.post('/api/config/:chave', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// VALES — Buscar detalhes de uma funcionária no mês (para romaneio)
+app.get('/api/vales/funcionaria', auth, async (req, res) => {
+  try {
+    const { funcionarioId, mes } = req.query;
+    if (!funcionarioId || !mes) return res.status(400).json({ erro: 'Dados incompletos' });
+
+    const r = await pool.query(
+      `SELECT v.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', vi.id,
+              'produto_nome', vi.produto_nome,
+              'produto_cod', vi.produto_cod,
+              'qty', vi.qty,
+              'preco_cheio', vi.preco_cheio,
+              'preco_desc', vi.preco_desc
+            ) ORDER BY vi.produto_nome
+          ) FILTER (WHERE vi.id IS NOT NULL),
+          '[]'
+        ) AS itens
+       FROM vales_funcionarios v
+       LEFT JOIN vale_itens vi ON vi.vale_id = v.id
+       WHERE v.funcionario_id = $1
+         AND v.mes_desconto IS NOT NULL
+         AND (
+           (COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $2)
+           OR
+           (COALESCE(v.parcelas,1) > 1
+            AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($2 || '-01', 'YYYY-MM-DD')
+            AND TO_DATE($2 || '-01', 'YYYY-MM-DD') <=
+                (TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(v.parcelas,1) - 1) * INTERVAL '1 month'))
+           )
+         )
+       GROUP BY v.id
+       ORDER BY v.tipo, v.criado_em`,
+      [funcionarioId, mes]
+    );
+    res.json({ vales: r.rows });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // VALES — Listar por funcionário e mês
 app.get('/api/vales', auth, async (req, res) => {
   try {
