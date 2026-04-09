@@ -1753,8 +1753,27 @@ async function salvarProduto() {
   const cat = document.getElementById('prod-cat').value;
   const custo = parseFloat(document.getElementById('prod-custo').value)||0;
   const venda = parseFloat(document.getElementById('prod-venda').value)||0;
+  const colecao = document.getElementById('prod-colecao')?.value?.trim() || '';
   if (!nome) { toast('Informe o nome do produto', 'warn'); return; }
   if (!cat) { toast('Selecione a categoria', 'warn'); return; }
+  if (!colecao) {
+    toast('Informe a coleção do produto', 'warn');
+    const btnGeral = document.querySelector('#modal-produto .tab:nth-child(1)');
+    if (btnGeral) tabProd(btnGeral, 'tab-prod-geral');
+    return;
+  }
+  if (custo <= 0) {
+    toast('Informe o valor de custo do produto', 'warn');
+    const btnGeral = document.querySelector('#modal-produto .tab:nth-child(1)');
+    if (btnGeral) tabProd(btnGeral, 'tab-prod-geral');
+    return;
+  }
+  if (venda <= 0) {
+    toast('Informe o valor de venda do produto', 'warn');
+    const btnGeral = document.querySelector('#modal-produto .tab:nth-child(1)');
+    if (btnGeral) tabProd(btnGeral, 'tab-prod-geral');
+    return;
+  }
   const ncm = document.getElementById('prod-ncm').value.trim();
   if (!ncm) {
     toast('Informe o NCM do produto', 'warn');
