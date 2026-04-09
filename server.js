@@ -948,10 +948,26 @@ app.get('/api/vales', auth, async (req, res) => {
     let where = 'WHERE 1=1';
     const params = [];
     let i = 1;
-    if (funcionarioId) { where += ` AND funcionario_id=$${i++}`; params.push(funcionarioId); }
-    if (mes) { where += ` AND mes=$${i++}`; params.push(mes); }
+    if (funcionarioId) { where += ` AND v.funcionario_id=$${i++}`; params.push(funcionarioId); }
+    if (mes) { where += ` AND v.mes=$${i++}`; params.push(mes); }
     const r = await pool.query(
-      `SELECT * FROM vales_funcionarios ${where} ORDER BY criado_em DESC`,
+      `SELECT v.*,
+              json_agg(
+                json_build_object(
+                  'id', vi.id,
+                  'produto_id', vi.produto_id,
+                  'produto_nome', vi.produto_nome,
+                  'produto_cod', vi.produto_cod,
+                  'qty', vi.qty,
+                  'preco_cheio', vi.preco_cheio,
+                  'preco_desc', vi.preco_desc
+                ) ORDER BY vi.produto_nome
+              ) FILTER (WHERE vi.id IS NOT NULL) AS itens
+       FROM vales_funcionarios v
+       LEFT JOIN vale_itens vi ON vi.vale_id = v.id
+       ${where}
+       GROUP BY v.id
+       ORDER BY v.criado_em DESC`,
       params
     );
     const total = r.rows.reduce((a, v) => a + parseFloat(v.valor), 0);
