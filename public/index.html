@@ -526,6 +526,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <!-- Vales -->
         <div id="tab-func-vales" style="display:none">
+          <!-- Barra de controle -->
           <div class="card" style="padding:14px;margin-bottom:16px">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
               <div>
@@ -537,26 +538,34 @@ tr:hover td{background:var(--bg)}
               <button class="btn btn-sm btn-primary" onclick="abrirModalValeRoupa()">👗 Vale Roupa</button>
             </div>
           </div>
-          <div class="card" style="margin-bottom:16px">
-            <div class="card-title">Resumo do mês</div>
-            <div id="vales-resumo"></div>
-          </div>
+
+          <!-- Fechamento do mês -->
+          <div id="vales-fechamento" style="margin-bottom:16px"></div>
+
+          <!-- Histórico colapsável -->
           <div class="card" style="padding:0">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Funcionária</th>
-                    <th>Tipo</th>
-                    <th>Valor</th>
-                    <th>Descrição</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody id="vales-tbody"></tbody>
-              </table>
+            <div id="vales-historico-toggle"
+              onclick="valesToggleHistorico()"
+              style="padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none">
+              <span style="font-weight:600;font-size:13px;color:var(--text2)" id="vales-historico-label">▶ Ver histórico do mês</span>
+            </div>
+            <div id="vales-historico-body" style="display:none;border-top:1px solid var(--border)">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Funcionária</th>
+                      <th>Tipo</th>
+                      <th>Valor</th>
+                      <th>Descrição</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vales-tbody"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -5198,70 +5207,129 @@ async function carregarVales() {
       api('GET', '/api/vales/resumo?mes=' + mes),
       api('GET', '/api/vales?mes=' + mes)
     ]);
-    const resumoEl = document.getElementById('vales-resumo');
+
+    const [anoMes, mesMes] = mes.split('-');
+    const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const nomeMes = nomesMes[parseInt(mesMes)-1] + '/' + anoMes;
+
+    // ── SEÇÃO 1: Fechamento do mês (cards por funcionária) ──
+    const fechEl = document.getElementById('vales-fechamento');
     if (!resumo.length) {
-      resumoEl.innerHTML = '<div class="empty-state" style="padding:16px"><p>Nenhum vale em ' + mes + '</p></div>';
+      fechEl.innerHTML =
+        '<div class="card" style="padding:24px;text-align:center;color:var(--text3)">' +
+        '<div style="font-size:32px;margin-bottom:8px">✓</div>' +
+        '<div style="font-weight:600">Nenhum vale a descontar em ' + nomeMes + '</div>' +
+        '</div>';
     } else {
-      resumoEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
-        '<thead><tr>' +
-        '<th style="text-align:left;padding:8px;border-bottom:1px solid var(--border)">Funcionária</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">💵 Dinheiro</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">👗 Roupa</th>' +
-        '<th style="text-align:right;padding:8px;border-bottom:1px solid var(--border)">Total a descontar</th>' +
-        '<th style="padding:8px;border-bottom:1px solid var(--border)"></th>' +
-        '</tr></thead><tbody>' +
-        resumo.map(r =>
-          '<tr>' +
-          '<td style="padding:8px;border-bottom:1px solid var(--border)"><strong>' + r.funcionario_nome + '</strong></td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + (parseFloat(r.total_dinheiro) > 0 ? fmtMoeda(r.total_dinheiro) : '—') + '</td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border)">' + (parseFloat(r.total_roupa) > 0 ? fmtMoeda(r.total_roupa) : '—') + '</td>' +
-          '<td style="padding:8px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--pink-dark);font-size:15px">' + fmtMoeda(r.total) + '</td>' +
-          '<td style="padding:8px;border-bottom:1px solid var(--border)">' +
-            '<button class="btn btn-sm btn-primary" onclick="descontarFuncionaria(\'' + r.funcionario_id + '\',\'' + r.funcionario_nome + '\')">✓ Descontar</button>' +
-          '</td>' +
-          '</tr>'
-        ).join('') +
-        '</tbody></table>';
+      const totalGeral = resumo.reduce((s, r) => s + parseFloat(r.total), 0);
+      fechEl.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+          '<div style="font-weight:700;font-size:15px">Fechamento — ' + nomeMes + '</div>' +
+          '<div style="font-size:13px;color:var(--text2)">Total geral: <strong style="color:var(--pink-dark);font-size:15px">' + fmtMoeda(totalGeral) + '</strong></div>' +
+        '</div>' +
+        resumo.map(r => {
+          const temDinheiro = parseFloat(r.total_dinheiro) > 0;
+          const temRoupa = parseFloat(r.total_roupa) > 0;
+          return '<div class="card" style="margin-bottom:10px;padding:14px 16px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+              '<div>' +
+                '<div style="font-weight:700;font-size:15px;margin-bottom:8px">' + r.funcionario_nome + '</div>' +
+                '<div style="display:flex;gap:16px;flex-wrap:wrap">' +
+                  (temDinheiro ?
+                    '<div style="font-size:13px">' +
+                      '<span style="color:var(--text2)">💵 Dinheiro&nbsp;&nbsp;</span>' +
+                      '<strong>' + fmtMoeda(r.total_dinheiro) + '</strong>' +
+                    '</div>' : '') +
+                  (temRoupa ?
+                    '<div style="font-size:13px">' +
+                      '<span style="color:var(--text2)">👗 Roupa&nbsp;&nbsp;</span>' +
+                      '<strong>' + fmtMoeda(r.total_roupa) + '</strong>' +
+                    '</div>' : '') +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:12px">' +
+                '<div style="text-align:right">' +
+                  '<div style="font-size:11px;color:var(--text2);margin-bottom:2px">TOTAL A DESCONTAR</div>' +
+                  '<div style="font-size:20px;font-weight:700;color:var(--pink-dark)">' + fmtMoeda(r.total) + '</div>' +
+                '</div>' +
+                '<button class="btn btn-primary" onclick="descontarFuncionaria(\'' + r.funcionario_id + '\',\'' + r.funcionario_nome.replace(/'/g, "\\'") + '\')" style="white-space:nowrap">' +
+                  '✓ Descontar' +
+                '</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
     }
+
+    // ── SEÇÃO 2: Histórico (tabela colapsável) ──
+    const label = document.getElementById('vales-historico-label');
+    const qtd = vales.length;
+    label.textContent = '▶ Histórico de ' + nomeMes + ' (' + qtd + ' registro' + (qtd !== 1 ? 's' : '') + ')';
+
+    const tipoLabel = { dinheiro: '💵 Dinheiro', roupa: '👗 Roupa' };
     const tbody = document.getElementById('vales-tbody');
     if (!vales.length) {
       tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state" style="padding:24px"><p>Nenhum vale registrado</p></div></td></tr>';
-      return;
+    } else {
+      tbody.innerHTML = vales.map(v => {
+        const itensHtml = (v.tipo === 'roupa' && v.itens && v.itens.length)
+          ? '<tr id="vr-detalhe-' + v.id + '" style="display:none">' +
+              '<td colspan="7" style="background:var(--pink-light);padding:8px 16px">' +
+                '<div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--pink-dark)">Itens:</div>' +
+                v.itens.map(i =>
+                  '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">' +
+                    '<span><strong>' + i.produto_cod + '</strong> — ' + i.produto_nome + ' × ' + i.qty + '</span>' +
+                    '<span><s style="color:var(--text3)">' + fmtMoeda(i.preco_cheio) + '</s> → <strong>' + fmtMoeda(i.preco_desc) + '</strong> = ' + fmtMoeda(i.preco_desc * i.qty) + '</span>' +
+                  '</div>'
+                ).join('') +
+              '</td>' +
+            '</tr>'
+          : '';
+
+        const descParc = (v.parcelas > 1)
+          ? ' <span style="font-size:11px;color:var(--text2)">(' + v.parcelas + 'x de ' + fmtMoeda(v.vl_parcela) + ')</span>'
+          : '';
+
+        const expandBtn = (v.tipo === 'roupa' && v.itens && v.itens.length)
+          ? '<button onclick="vrToggleDetalhe(\'' + v.id + '\')" style="background:none;border:none;cursor:pointer;font-size:13px" title="Ver itens">🔍</button>'
+          : '';
+
+        return '<tr>' +
+          '<td>' + new Date(v.criado_em).toLocaleDateString('pt-BR') + '</td>' +
+          '<td><strong>' + v.funcionario_nome + '</strong></td>' +
+          '<td>' + (tipoLabel[v.tipo]||v.tipo) + expandBtn + '</td>' +
+          '<td><strong>' + fmtMoeda(v.valor) + '</strong>' + descParc + '</td>' +
+          '<td style="color:var(--text2);font-size:12px">' +
+            (v.descricao||'—') +
+            (v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ ' + v.mes_desconto + '</span>' : '') +
+          '</td>' +
+          '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
+            (v.status==='descontado' ? 'Descontado' : 'Pendente') +
+          '</span></td>' +
+          '<td style="display:flex;gap:4px">' +
+            (v.status !== 'descontado' ? '<button class="btn btn-sm btn-primary" onclick="marcarDescontado(\'' + v.id + '\')">✓</button>' : '') +
+            '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">✕</button>' +
+          '</td>' +
+        '</tr>' + itensHtml;
+      }).join('');
     }
-    const tipoLabel = { dinheiro: '💵 Dinheiro', roupa: '👗 Roupa' };
-    tbody.innerHTML = vales.map(v => {
-      const itensHtml = (v.tipo === 'roupa' && v.itens && v.itens.length)
-        ? `<tr id="vr-detalhe-${v.id}" style="display:none">
-            <td colspan="7" style="background:var(--pink-light);padding:8px 16px">
-              <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--pink-dark)">Itens do vale:</div>
-              ${v.itens.map(i => `
-                <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
-                  <span><strong>${i.produto_cod}</strong> — ${i.produto_nome} × ${i.qty}</span>
-                  <span><s style="color:var(--text3)">${fmtMoeda(i.preco_cheio)}</s> → <strong>${fmtMoeda(i.preco_desc)}</strong> = ${fmtMoeda(i.preco_desc * i.qty)}</span>
-                </div>`).join('')}
-            </td>
-          </tr>`
-        : '';
-      const descParc = (v.parcelas > 1)
-        ? ` <span style="font-size:11px;color:var(--text2)">(${v.parcelas}x de ${fmtMoeda(v.vl_parcela)})</span>`
-        : '';
-      const expandBtn = (v.tipo === 'roupa' && v.itens && v.itens.length)
-        ? `<button onclick="vrToggleDetalhe('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Ver itens">🔍</button>`
-        : '';
-      return `<tr>
-        <td>${new Date(v.criado_em).toLocaleDateString('pt-BR')}</td>
-        <td><strong>${v.funcionario_nome}</strong></td>
-        <td>${tipoLabel[v.tipo]||v.tipo}${expandBtn}</td>
-        <td><strong>${fmtMoeda(v.valor)}</strong>${descParc}</td>
-        <td style="color:var(--text2);font-size:12px">${v.descricao||'—'}${v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ desconto: ' + v.mes_desconto + '</span>' : ''}</td>
-        <td><span class="badge ${v.status==='descontado' ? 'badge-green' : 'badge-amber'}">${v.status==='descontado' ? 'Descontado' : 'Pendente'}</span></td>
-        <td style="display:flex;gap:4px">
-          ${v.status !== 'descontado' ? `<button class="btn btn-sm btn-primary" onclick="marcarDescontado('${v.id}')">✓ Descontar</button>` : ''}
-          <button class="btn btn-sm btn-danger" onclick="excluirVale('${v.id}')">Excluir</button>
-        </td>
-      </tr>${itensHtml}`;
-    }).join('');
+
+    // Toast
+    const totalGeral = resumo.reduce((s, r) => s + parseFloat(r.total), 0);
+    const msg = resumo.length
+      ? nomeMes + ' — ' + resumo.length + ' funcionária' + (resumo.length !== 1 ? 's' : '') + ' · Total: ' + fmtMoeda(totalGeral)
+      : 'Nenhum vale para descontar em ' + nomeMes;
+    toast(msg);
+
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+function valesToggleHistorico() {
+  const body = document.getElementById('vales-historico-body');
+  const label = document.getElementById('vales-historico-label');
+  const aberto = body.style.display !== 'none';
+  body.style.display = aberto ? 'none' : 'block';
+  label.textContent = label.textContent.replace(aberto ? '▼' : '▶', aberto ? '▶' : '▼');
 }
 
 async function marcarDescontado(id) {
