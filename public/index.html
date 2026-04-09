@@ -5334,7 +5334,10 @@ function valesToggleHistorico() {
 
 async function descontarFuncionaria(funcId, funcNome) {
   const mes = document.getElementById('vales-mes').value;
-  if (!confirm('Marcar todos os vales de ' + funcNome + ' em ' + mes + ' como descontados?')) return;
+  const [anoMes, mesMes] = mes.split('-');
+  const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const nomeMes = nomesMes[parseInt(mesMes)-1] + '/' + anoMes;
+  if (!confirm('Descontar os vales de ' + funcNome + ' referentes a ' + nomeMes + '?\n\nEssa ação não pode ser desfeita.')) return;
   try {
     // Abre romaneio ANTES de descontar (para ter os dados ainda pendentes)
     await abrirRomaneioVale(funcId, funcNome, mes);
