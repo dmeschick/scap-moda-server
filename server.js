@@ -1102,6 +1102,33 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+// VALES — Todos os pendentes do mês atual em diante agrupados por mês
+app.get('/api/vales/pendentes', auth, async (req, res) => {
+  try {
+    const mesAtual = new Date().toISOString().slice(0,7);
+    const r = await pool.query(
+      `SELECT funcionario_id, funcionario_nome, mes_desconto,
+         SUM(CASE WHEN tipo='dinheiro' THEN valor ELSE 0 END) as total_dinheiro,
+         SUM(CASE WHEN tipo='roupa' THEN
+           CASE WHEN COALESCE(parcelas,1) > 1 THEN vl_parcela ELSE valor END
+         ELSE 0 END) as total_roupa,
+         SUM(CASE
+           WHEN tipo='dinheiro' THEN valor
+           WHEN tipo='roupa' AND COALESCE(parcelas,1) > 1 THEN vl_parcela
+           ELSE valor
+         END) as total
+       FROM vales_funcionarios
+       WHERE status != 'descontado'
+         AND mes_desconto IS NOT NULL
+         AND mes_desconto >= $1
+       GROUP BY funcionario_id, funcionario_nome, mes_desconto
+       ORDER BY mes_desconto, funcionario_nome`,
+      [mesAtual]
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 // VALES — Registrar vale em dinheiro
 app.post('/api/vales', auth, async (req, res) => {
   try {
