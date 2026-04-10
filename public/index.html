@@ -1504,6 +1504,10 @@ function fecharModal(id) {
     if (window._pontoRelogio) clearInterval(window._pontoRelogio);
     _pontoConfirmacao = null;
   }
+  if (id === 'modal-romaneio' && window._recarregarValesAoFechar) {
+    window._recarregarValesAoFechar = false;
+    carregarVales();
+  }
 }
 
 // ===== SIDEBAR =====
@@ -5356,9 +5360,10 @@ async function descontarFuncionaria(funcId, funcNome) {
   try {
     // 1. Desconta no banco PRIMEIRO
     await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
-    // 2. Abre o romaneio para imprimir/assinar
+    // 2. Abre o romaneio para imprimir/assinar (recarrega ao fechar)
+    window._recarregarValesAoFechar = true;
     await abrirRomaneioVale(funcId, funcNome, mes);
-    // 3. Recarrega a tela (modal ainda pode estar aberto, mas dados já atualizados)
+    // 3. Recarrega imediatamente também (para o caso do modal já estar fechado)
     carregarVales();
     toast('✓ Vales de ' + funcNome + ' descontados em ' + nomeMes + '!');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
