@@ -1205,7 +1205,17 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
 // VALES — Marcar como descontado
 app.patch('/api/vales/:id/descontar', auth, async (req, res) => {
   try {
-    await pool.query(`UPDATE vales_funcionarios SET status='descontado' WHERE id=$1`, [req.params.id]);
+    const r = await pool.query('SELECT parcelas, parcelas_pagas FROM vales_funcionarios WHERE id=$1', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ erro: 'Vale não encontrado' });
+    const { parcelas, parcelas_pagas } = r.rows[0];
+    const totalParcelas = parseInt(parcelas) || 1;
+    const pagas = parseInt(parcelas_pagas) || 0;
+    const novasPagas = pagas + 1;
+    const novoStatus = novasPagas >= totalParcelas ? 'descontado' : 'pendente';
+    await pool.query(
+      'UPDATE vales_funcionarios SET parcelas_pagas=$1, status=$2 WHERE id=$3',
+      [novasPagas, novoStatus, req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
