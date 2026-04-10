@@ -1231,7 +1231,7 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
 
     // Busca os vales pendentes da funcionária que caem nesse mês
     const r = await pool.query(
-      `SELECT id, parcelas, parcelas_pagas FROM vales_funcionarios
+      `SELECT id, parcelas, parcelas_pagas, mes_desconto FROM vales_funcionarios
        WHERE funcionario_id = $1
          AND status != 'descontado'
          AND mes_desconto IS NOT NULL
