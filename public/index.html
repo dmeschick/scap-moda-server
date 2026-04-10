@@ -531,9 +531,8 @@ tr:hover td{background:var(--bg)}
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
               <div>
                 <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Mês</label>
-                <input type="month" id="vales-mes" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+                <input type="month" id="vales-mes" onchange="carregarVales()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
               </div>
-              <button class="btn btn-primary btn-sm" onclick="carregarVales()">Filtrar</button>
               <button class="btn btn-sm btn-primary" onclick="abrirModalVale()">💵 Vale Dinheiro</button>
               <button class="btn btn-sm btn-primary" onclick="abrirModalValeRoupa()">👗 Vale Roupa</button>
             </div>
