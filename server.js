@@ -1182,6 +1182,27 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
       [funcionarioId, mes]
     );
 
+    // Verifica se algum vale tem parcela anterior ainda não paga
+    for (const vale of r.rows) {
+      const totalParcelas = parseInt(vale.parcelas) || 1;
+      const pagas = parseInt(vale.parcelas_pagas) || 0;
+      if (totalParcelas > 1 && pagas === 0 && vale.mes_desconto !== mes) {
+        // Tem parcelas anteriores não pagas — calcula qual mês deveria ser pago
+        return res.status(400).json({
+          erro: `Parcela anterior não descontada. Desconte primeiro o mês ${vale.mes_desconto}.`
+        });
+      }
+      // Verifica se o mês filtrado é o próximo mês correto (mes_desconto + parcelas_pagas meses)
+      const [mdAno, mdMes] = vale.mes_desconto.split('-').map(Number);
+      const dataEsperada = new Date(mdAno, mdMes - 1 + pagas, 1);
+      const mesEsperado = dataEsperada.getFullYear() + '-' + String(dataEsperada.getMonth() + 1).padStart(2, '0');
+      if (mesEsperado !== mes) {
+        return res.status(400).json({
+          erro: `Ordem incorreta. A próxima parcela a descontar é ${mesEsperado}, não ${mes}.`
+        });
+      }
+    }
+
     let atualizados = 0;
     for (const vale of r.rows) {
       const totalParcelas = parseInt(vale.parcelas) || 1;
