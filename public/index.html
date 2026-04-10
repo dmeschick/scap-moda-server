@@ -1460,6 +1460,7 @@ tr:hover td{background:var(--bg)}
 const API = 'https://scap-moda-server-production.up.railway.app';
 let TOKEN = null;
 let usuarioLogado = null;
+let _recarregarValesAoFecharRomaneio = false;
 let CARGO_ATUAL = '';
 let categorias = [];
 let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{id:'d3',nome:'Promoção',pct:0}];
@@ -1499,13 +1500,14 @@ function toast(msg, tipo='success', duracao=3000) {
 // ===== MODAL =====
 function abrirModal(id) { document.getElementById(id).classList.add('open'); }
 function fecharModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
   if (id === 'modal-ponto-confirm') {
     if (window._pontoRelogio) clearInterval(window._pontoRelogio);
     _pontoConfirmacao = null;
   }
-  if (id === 'modal-romaneio' && window._recarregarValesAoFechar) {
-    window._recarregarValesAoFechar = false;
+  if (id === 'modal-romaneio' && _recarregarValesAoFecharRomaneio) {
+    _recarregarValesAoFecharRomaneio = false;
     carregarVales();
   }
 }
@@ -5359,21 +5361,13 @@ async function descontarFuncionaria(funcId, funcNome) {
   if (!confirm('Descontar os vales de ' + funcNome + ' referentes a ' + nomeMes + '?\n\nEssa ação não pode ser desfeita.')) return;
   try {
     await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
+    _recarregarValesAoFecharRomaneio = true;
     await abrirRomaneioVale(funcId, funcNome, mes);
     toast('✓ Vales de ' + funcNome + ' descontados em ' + nomeMes + '!');
-    // Garante que ao fechar o modal a tela é atualizada
-    const modal = document.getElementById('modal-romaneio');
-    const onFechar = () => {
-      modal.removeEventListener('close', onFechar);
-      carregarVales();
-    };
-    modal.addEventListener('close', onFechar, { once: true });
-    // Também escuta clique nos botões de fechar do modal
-    modal.querySelectorAll('.modal-close, .btn-fechar, .modal-footer .btn').forEach(btn => {
-      btn.addEventListener('click', () => setTimeout(() => carregarVales(), 100), { once: true });
-    });
-    carregarVales();
-  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+  } catch(e) {
+    _recarregarValesAoFecharRomaneio = false;
+    toast('Erro: ' + e.message, 'error');
+  }
 }
 
 async function reimprimirRomaneioVale(funcId, funcNome, mes) {
