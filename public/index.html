@@ -5302,7 +5302,18 @@ async function carregarVales() {
           '<td style="color:var(--text2);font-size:12px">' +
             (v.descricao||'—') +
             (v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ ' + v.mes_desconto + '</span>' : '') +
-            (parseInt(v.parcelas) > 1 ? '<br><span style="color:var(--text3);font-size:11px">parcela ' + ((parseInt(v.parcelas_pagas)||0)+1) + ' de ' + v.parcelas + '</span>' : '') +
+            (parseInt(v.parcelas) > 1 ? (() => {
+              const mesFiltro = document.getElementById('vales-mes').value; // "2026-06"
+              const partesFiltro = mesFiltro.split('-');
+              const anoFiltro = parseInt(partesFiltro[0]);
+              const mesFiltroNum = parseInt(partesFiltro[1]);
+              const partesDesc = v.mes_desconto.split('-');
+              const anoDesc = parseInt(partesDesc[0]);
+              const mesDesc = parseInt(partesDesc[1]);
+              const diffMeses = (anoFiltro - anoDesc) * 12 + (mesFiltroNum - mesDesc);
+              const numParcela = Math.max(1, diffMeses + 1);
+              return '<br><span style="color:var(--text3);font-size:11px">parcela ' + numParcela + ' de ' + v.parcelas + '</span>';
+            })() : '') +
           '</td>' +
           '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
             (v.status==='descontado' ? 'Descontado' : 'Pendente') +
