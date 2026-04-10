@@ -1102,30 +1102,68 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
-// VALES — Todos os pendentes do mês atual em diante agrupados por mês
+// VALES — Todos os pendentes expandidos por parcela futura
 app.get('/api/vales/pendentes', auth, async (req, res) => {
   try {
-    const mesAtual = new Date().toISOString().slice(0,7);
+    const mesAtual = new Date().toISOString().slice(0, 7);
+
+    // Busca todos os vales pendentes
     const r = await pool.query(
-      `SELECT funcionario_id, funcionario_nome, mes_desconto,
-         SUM(CASE WHEN tipo='dinheiro' THEN valor ELSE 0 END) as total_dinheiro,
-         SUM(CASE WHEN tipo='roupa' THEN
-           CASE WHEN COALESCE(parcelas,1) > 1 THEN vl_parcela ELSE valor END
-         ELSE 0 END) as total_roupa,
-         SUM(CASE
-           WHEN tipo='dinheiro' THEN valor
-           WHEN tipo='roupa' AND COALESCE(parcelas,1) > 1 THEN vl_parcela
-           ELSE valor
-         END) as total
+      `SELECT id, funcionario_id, funcionario_nome, tipo, valor,
+              parcelas, parcelas_pagas, vl_parcela, mes_desconto
        FROM vales_funcionarios
        WHERE status != 'descontado'
          AND mes_desconto IS NOT NULL
-         AND mes_desconto >= $1
-       GROUP BY funcionario_id, funcionario_nome, mes_desconto
-       ORDER BY mes_desconto, funcionario_nome`,
-      [mesAtual]
+       ORDER BY mes_desconto, funcionario_nome`
     );
-    res.json(r.rows);
+
+    // Para cada vale, calcula os meses de parcelas ainda pendentes
+    const resultado = {};
+    for (const v of r.rows) {
+      const totalParcelas = parseInt(v.parcelas) || 1;
+      const pagas = parseInt(v.parcelas_pagas) || 0;
+      const vlParcela = totalParcelas > 1 && parseFloat(v.vl_parcela) > 0
+        ? parseFloat(v.vl_parcela)
+        : parseFloat(v.valor);
+
+      const [mdAno, mdMes] = v.mes_desconto.split('-').map(Number);
+
+      // Itera apenas pelas parcelas ainda não pagas
+      for (let i = pagas; i < totalParcelas; i++) {
+        const data = new Date(mdAno, mdMes - 1 + i, 1);
+        const mesParcela = data.getFullYear() + '-' + String(data.getMonth() + 1).padStart(2, '0');
+
+        // Só mostra do mês atual em diante
+        if (mesParcela < mesAtual) continue;
+
+        if (!resultado[mesParcela]) resultado[mesParcela] = {};
+        const key = v.funcionario_id;
+        if (!resultado[mesParcela][key]) {
+          resultado[mesParcela][key] = {
+            funcionario_id: v.funcionario_id,
+            funcionario_nome: v.funcionario_nome,
+            mes_desconto: mesParcela,
+            total_dinheiro: 0,
+            total_roupa: 0,
+            total: 0
+          };
+        }
+        if (v.tipo === 'dinheiro') {
+          resultado[mesParcela][key].total_dinheiro += vlParcela;
+        } else {
+          resultado[mesParcela][key].total_roupa += vlParcela;
+        }
+        resultado[mesParcela][key].total += vlParcela;
+      }
+    }
+
+    // Converte para array ordenado
+    const rows = [];
+    Object.keys(resultado).sort().forEach(mes => {
+      Object.values(resultado[mes]).forEach(item => rows.push(item));
+    });
+
+    res.json(rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
