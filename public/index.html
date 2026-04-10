@@ -5341,21 +5341,13 @@ async function descontarFuncionaria(funcId, funcNome) {
   const nomeMes = nomesMes[parseInt(mesMes)-1] + '/' + anoMes;
   if (!confirm('Descontar os vales de ' + funcNome + ' referentes a ' + nomeMes + '?\n\nEssa ação não pode ser desfeita.')) return;
   try {
-    // 1. Abre o romaneio ANTES de descontar (para imprimir/assinar)
-    await abrirRomaneioVale(funcId, funcNome, mes);
-    // 2. Desconta no banco
+    // 1. Desconta no banco PRIMEIRO
     await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
+    // 2. Abre o romaneio para imprimir/assinar
+    await abrirRomaneioVale(funcId, funcNome, mes);
+    // 3. Recarrega a tela (modal ainda pode estar aberto, mas dados já atualizados)
+    carregarVales();
     toast('✓ Vales de ' + funcNome + ' descontados em ' + nomeMes + '!');
-    // 3. Recarrega a tela quando o modal for fechado
-    const modalFechado = () => {
-      document.getElementById('modal-romaneio').removeEventListener('click', modalFechado);
-      carregarVales();
-    };
-    // Escuta o botão Fechar do modal para recarregar
-    document.querySelector('#modal-romaneio .modal-close')?.addEventListener('click', modalFechado, { once: true });
-    document.querySelector('#modal-romaneio .modal-footer .btn:first-child')?.addEventListener('click', modalFechado, { once: true });
-    // Fallback: recarrega após 500ms mesmo assim
-    setTimeout(() => carregarVales(), 500);
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
