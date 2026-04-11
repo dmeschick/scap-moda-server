@@ -1138,7 +1138,7 @@ tr:hover td{background:var(--bg)}
         Envie a foto da folha, revise os dados reconhecidos e confirme a importação. O código interno será gerado automaticamente a partir da referência do papel, categoria e sufixo configurado.
       </div>
       <div class="form-grid" style="margin-bottom:16px">
-        <div class="form-group"><label>Foto da folha *</label><input type="file" id="import-foto-arquivo" accept="image/*" onchange="previewImportacaoFoto(event)"></div>
+        <div class="form-group"><label>Fotos da folha *</label><input type="file" id="import-foto-arquivo" accept="image/*" multiple onchange="previewImportacaoFoto(event)"></div>
         <div class="form-group"><label>Categoria *</label><select id="import-foto-categoria" onchange="aplicarRegrasImportacaoFoto()"><option value="">— Selecionar —</option></select></div>
         <div class="form-group"><label>Coleção *</label><input id="import-foto-colecao" placeholder="Ex: Inverno 2026" oninput="aplicarRegrasImportacaoFoto()"></div>
         <div class="form-group"><label>Fornecedor</label><select id="import-foto-fornecedor" onchange="aplicarRegrasImportacaoFoto()"><option value="">— Selecionar —</option></select></div>
@@ -1150,10 +1150,10 @@ tr:hover td{background:var(--bg)}
           <div class="card" style="padding:12px">
             <div style="font-weight:700;font-size:14px;margin-bottom:8px">Pré-visualização</div>
             <div id="import-foto-preview-wrap" style="border:1px dashed var(--border);border-radius:var(--radius);min-height:240px;display:flex;align-items:center;justify-content:center;background:var(--bg)">
-              <div id="import-foto-preview-vazio" style="color:var(--text3);font-size:13px;text-align:center;padding:20px">Selecione uma foto para começar</div>
-              <img id="import-foto-preview" style="display:none;max-width:100%;max-height:420px;border-radius:var(--radius)">
+              <div id="import-foto-preview-vazio" style="color:var(--text3);font-size:13px;text-align:center;padding:20px">Selecione uma ou mais fotos para começar</div>
+              <div id="import-foto-preview-grid" style="display:none;width:100%;padding:12px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px"></div>
             </div>
-            <div id="import-foto-status" style="margin-top:10px;font-size:12px;color:var(--text2)">Aguardando foto</div>
+            <div id="import-foto-status" style="margin-top:10px;font-size:12px;color:var(--text2)">Aguardando fotos</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
               <button class="btn btn-primary" onclick="executarOCRImportacaoFoto()">Ler foto</button>
               <button class="btn" onclick="montarLinhasImportacaoFoto()">Montar linhas</button>
@@ -1544,7 +1544,8 @@ let _recarregarValesAoFecharRomaneio = false;
 let CARGO_ATUAL = '';
 let categorias = [];
 let _importFotoRows = [];
-let _importFotoObjectUrl = null;
+let _importFotoFiles = [];
+let _importFotoObjectUrls = [];
 let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{id:'d3',nome:'Promoção',pct:0}];
 const IMPORT_PRODUTO_CONFIG = {
   'blusas': { categoria: 'Blusas', sufixo: 'B', ncm: '61062000', aliases: ['blusa', 'blusas'] },
@@ -2229,32 +2230,50 @@ async function abrirModalImportarProdutosFoto() {
 
 function limparImportacaoFoto(manterAbertura = false) {
   _importFotoRows = [];
+  _importFotoFiles = [];
   document.getElementById('import-foto-categoria').value = '';
   document.getElementById('import-foto-colecao').value = '';
   document.getElementById('import-foto-fornecedor').value = '';
   document.getElementById('import-foto-estmin').value = '3';
   document.getElementById('import-foto-arquivo').value = '';
   document.getElementById('import-foto-texto').value = '';
-  document.getElementById('import-foto-status').textContent = 'Aguardando foto';
-  document.getElementById('import-foto-preview').style.display = 'none';
-  document.getElementById('import-foto-preview').src = '';
+  document.getElementById('import-foto-status').textContent = 'Aguardando fotos';
+  document.getElementById('import-foto-preview-grid').style.display = 'none';
+  document.getElementById('import-foto-preview-grid').innerHTML = '';
   document.getElementById('import-foto-preview-vazio').style.display = 'block';
-  if (_importFotoObjectUrl) URL.revokeObjectURL(_importFotoObjectUrl);
-  _importFotoObjectUrl = null;
+  _importFotoObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  _importFotoObjectUrls = [];
   renderTabelaImportacaoFoto();
   if (!manterAbertura) toast('Importação por foto limpa');
 }
 
 function previewImportacaoFoto(event) {
-  const file = event?.target?.files?.[0];
-  if (!file) return;
-  if (_importFotoObjectUrl) URL.revokeObjectURL(_importFotoObjectUrl);
-  _importFotoObjectUrl = URL.createObjectURL(file);
-  const img = document.getElementById('import-foto-preview');
-  img.src = _importFotoObjectUrl;
-  img.style.display = 'block';
-  document.getElementById('import-foto-preview-vazio').style.display = 'none';
-  document.getElementById('import-foto-status').textContent = 'Foto carregada. Clique em "Ler foto" para analisar com IA.';
+  const files = Array.from(event?.target?.files || []);
+  _importFotoFiles = files;
+  const grid = document.getElementById('import-foto-preview-grid');
+  const vazio = document.getElementById('import-foto-preview-vazio');
+  _importFotoObjectUrls.forEach(url => URL.revokeObjectURL(url));
+  _importFotoObjectUrls = [];
+  if (!files.length) {
+    grid.style.display = 'none';
+    grid.innerHTML = '';
+    vazio.style.display = 'block';
+    document.getElementById('import-foto-status').textContent = 'Aguardando fotos';
+    return;
+  }
+  grid.innerHTML = files.map((file, idx) => {
+    const url = URL.createObjectURL(file);
+    _importFotoObjectUrls.push(url);
+    return '<div style="display:flex;flex-direction:column;gap:6px">' +
+      '<img src="' + url + '" style="width:100%;height:140px;object-fit:cover;border-radius:var(--radius);border:1px solid var(--border)">' +
+      '<div style="font-size:11px;color:var(--text2);line-height:1.3">Foto ' + (idx + 1) + ': ' + escaparHtml(file.name) + '</div>' +
+    '</div>';
+  }).join('');
+  grid.style.display = 'grid';
+  vazio.style.display = 'none';
+  document.getElementById('import-foto-status').textContent = files.length === 1
+    ? '1 foto carregada. Clique em "Ler foto" para analisar com IA.'
+    : files.length + ' fotos carregadas. Clique em "Ler foto" para analisar tudo com IA.';
 }
 
 function arquivoParaBase64(file) {
@@ -2271,54 +2290,72 @@ function arquivoParaBase64(file) {
 }
 
 async function executarOCRImportacaoFoto() {
-  const file = document.getElementById('import-foto-arquivo').files?.[0];
-  if (!file) { toast('Selecione uma foto primeiro', 'warn'); return; }
+  const files = _importFotoFiles.length ? _importFotoFiles : Array.from(document.getElementById('import-foto-arquivo').files || []);
+  if (!files.length) { toast('Selecione pelo menos uma foto primeiro', 'warn'); return; }
   const status = document.getElementById('import-foto-status');
   const btn = event?.target;
   try {
     if (btn) { btn.disabled = true; btn.textContent = 'Lendo...'; }
-    status.textContent = 'Enviando foto para análise com IA...';
-    const imageBase64 = await arquivoParaBase64(file);
     const categoriaAtual = document.getElementById('import-foto-categoria').value;
     const colecaoAtual = document.getElementById('import-foto-colecao').value.trim();
-    const resultado = await api('POST', '/api/produtos/importar-foto/analisar', {
-      imageBase64,
-      mimeType: file.type || 'image/jpeg',
-      categoria: categoriaAtual,
-      colecao: colecaoAtual
-    });
-    if (resultado.categoria) {
-      document.getElementById('import-foto-categoria').value = resultado.categoria;
+    const observacoes = [];
+    const rows = [];
+    let categoriaDetectada = categoriaAtual;
+    let colecaoDetectada = colecaoAtual;
+    let fornecedorDetectado = '';
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      status.textContent = 'Analisando foto ' + (i + 1) + ' de ' + files.length + ' com IA...';
+      const imageBase64 = await arquivoParaBase64(file);
+      const resultado = await api('POST', '/api/produtos/importar-foto/analisar', {
+        imageBase64,
+        mimeType: file.type || 'image/jpeg',
+        categoria: categoriaDetectada,
+        colecao: colecaoDetectada
+      });
+      if (resultado.categoria && categoriaDetectada && resultado.categoria !== categoriaDetectada) {
+        observacoes.push('[' + file.name + ']\nCategoria detectada "' + resultado.categoria + '" diferente da categoria principal "' + categoriaDetectada + '". Revise antes de importar.');
+      }
+      if (resultado.categoria && !categoriaDetectada) categoriaDetectada = resultado.categoria;
+      if (resultado.colecao && !colecaoDetectada) colecaoDetectada = resultado.colecao;
+      if (resultado.fornecedor && !fornecedorDetectado) fornecedorDetectado = resultado.fornecedor;
+      if (resultado.observacoesIA) {
+        observacoes.push('[' + file.name + ']\n' + resultado.observacoesIA);
+      }
+      rows.push(...(resultado.itens || []).map(item => ({
+        refInt: String(item.ref_papel || '').replace(/\D/g, ''),
+        refExt: item.ref_ext || '',
+        fornecedor: item.fornecedor || resultado.fornecedor || '',
+        data: item.data || '',
+        nome: item.descricao || '',
+        custo: normalizarValorImportacao(item.pc),
+        venda: normalizarPVImportacao(item.pv),
+        qtd: normalizarValorImportacao(item.qtd, true),
+        categoria: categoriaDetectada || categoriaAtual,
+        codigo: normalizarCodigoImportacao(item.ref_papel, categoriaDetectada || categoriaAtual)
+      })));
     }
-    if (resultado.colecao && !document.getElementById('import-foto-colecao').value.trim()) {
-      document.getElementById('import-foto-colecao').value = resultado.colecao;
+    if (categoriaDetectada) {
+      document.getElementById('import-foto-categoria').value = categoriaDetectada;
     }
-    if (resultado.fornecedor) {
+    if (colecaoDetectada && !document.getElementById('import-foto-colecao').value.trim()) {
+      document.getElementById('import-foto-colecao').value = colecaoDetectada;
+    }
+    if (fornecedorDetectado) {
       const fornSel = document.getElementById('import-foto-fornecedor');
-      const fornecedorNormalizado = normalizarTextoBase(resultado.fornecedor);
+      const fornecedorNormalizado = normalizarTextoBase(fornecedorDetectado);
       const op = Array.from(fornSel.options).find(o => normalizarTextoBase(o.textContent) === fornecedorNormalizado);
       if (op) fornSel.value = op.value;
     }
-    document.getElementById('import-foto-texto').value = resultado.observacoesIA || JSON.stringify(resultado.itens || [], null, 2);
-    _importFotoRows = (resultado.itens || []).map(item => ({
-      refInt: String(item.ref_papel || '').replace(/\D/g, ''),
-      refExt: item.ref_ext || '',
-      fornecedor: item.fornecedor || resultado.fornecedor || '',
-      data: item.data || '',
-      nome: item.descricao || '',
-      custo: normalizarValorImportacao(item.pc),
-      venda: normalizarPVImportacao(item.pv),
-      qtd: normalizarValorImportacao(item.qtd, true),
-      categoria: document.getElementById('import-foto-categoria').value,
-      codigo: normalizarCodigoImportacao(item.ref_papel, document.getElementById('import-foto-categoria').value)
-    })).filter(item => item.refInt || item.nome);
+    document.getElementById('import-foto-texto').value = observacoes.join('\n\n').trim() || JSON.stringify(rows, null, 2);
+    _importFotoRows = rows.filter(item => item.refInt || item.nome);
     aplicarRegrasImportacaoFoto();
     status.textContent = _importFotoRows.length
-      ? _importFotoRows.length + ' linha(s) sugerida(s) pela IA. Revise antes de importar.'
-      : 'A IA não conseguiu montar linhas úteis. Revise o texto e tente outra foto.';
-    toast('Análise com IA concluída');
+      ? _importFotoRows.length + ' linha(s) sugerida(s) a partir de ' + files.length + ' foto(s). Revise antes de importar.'
+      : 'A IA não conseguiu montar linhas úteis. Revise o texto e tente outras fotos.';
+    toast('Análise com IA concluída para ' + files.length + ' foto(s)');
   } catch(e) {
-    status.textContent = 'Erro ao analisar a foto: ' + e.message;
+    status.textContent = 'Erro ao analisar as fotos: ' + e.message;
     toast('Erro na análise com IA: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Ler foto'; }
