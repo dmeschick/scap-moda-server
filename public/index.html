@@ -1090,6 +1090,7 @@ tr:hover td{background:var(--bg)}
           <div class="form-group"><label>Preço de venda (R$) *</label><input type="number" id="prod-venda" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Estoque inicial</label><input type="number" id="prod-est" placeholder="0" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Estoque mínimo</label><input type="number" id="prod-estmin" placeholder="5" min="0" onfocus="this.select()"></div>
+          <div class="form-group"><label>Data de entrada</label><input type="date" id="prod-data-entrada"></div>
           <div class="form-group full"><label>Coleção / Temporada</label><input id="prod-colecao" placeholder="Ex: Outono Inverno 2026"></div>
           <div class="form-group full"><label>Descrição / Observações</label><textarea id="prod-desc" placeholder="Detalhes, material..."></textarea></div>
         </div>
@@ -1853,6 +1854,7 @@ async function abrirModalProduto(id) {
       document.getElementById('prod-cor').value = p.cor||'';
       document.getElementById('prod-tam').value = p.tam||'';
       document.getElementById('prod-colecao').value = p.colecao||'';
+      document.getElementById('prod-data-entrada').value = p.data_entrada ? String(p.data_entrada).slice(0,10) : '';
       document.getElementById('prod-desc').value = p.descricao||'';
       document.getElementById('prod-custo').value = p.custo||0;
       document.getElementById('prod-venda').value = p.venda||0;
@@ -1879,6 +1881,7 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-venda').value = '';
     document.getElementById('prod-est').value = '';
     document.getElementById('prod-estmin').value = '3';
+    document.getElementById('prod-data-entrada').value = '';
     document.getElementById('prod-cfop').value = '5102';
     document.getElementById('prod-csosn').value = '102';
     document.getElementById('prod-origem').value = '0';
@@ -1968,6 +1971,7 @@ async function salvarProduto() {
     cor: document.getElementById('prod-cor').value,
     tam: document.getElementById('prod-tam').value,
     colecao: document.getElementById('prod-colecao').value,
+    dataEntrada: document.getElementById('prod-data-entrada').value || null,
     custo, venda,
     est: parseInt(document.getElementById('prod-est').value)||0,
     estmin: parseInt(document.getElementById('prod-estmin').value)||5,
@@ -2072,6 +2076,18 @@ function normalizarPVImportacao(valor) {
 function formatarValorImportacao(valor) {
   const num = Number(valor) || 0;
   return num ? num.toFixed(2).replace('.', ',') : '';
+}
+
+function normalizarDataEntradaImportacao(valor) {
+  const str = String(valor || '').trim();
+  if (!str) return null;
+  const m = str.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
+  if (!m) return null;
+  const dia = m[1].padStart(2, '0');
+  const mes = m[2].padStart(2, '0');
+  let ano = m[3] || String(new Date().getFullYear());
+  if (ano.length === 2) ano = '20' + ano;
+  return `${ano}-${mes}-${dia}`;
 }
 
 function escaparHtml(str) {
@@ -2366,11 +2382,12 @@ async function importarProdutosPorFoto() {
         cor: '',
         tam: '',
         colecao,
+        dataEntrada: normalizarDataEntradaImportacao(row.data),
         custo: row.custo,
         venda: row.venda,
         est: parseInt(row.qtd) || 0,
         estmin,
-        descricao: [row.refExt ? 'Ref. ext.: ' + row.refExt : '', row.data ? 'Data: ' + row.data : ''].filter(Boolean).join(' · '),
+        descricao: row.refExt ? 'Ref. ext.: ' + row.refExt : '',
         forn: fornecedorLinha?.id || fornecedor,
         ncm: cfg.ncm,
         cest: '',

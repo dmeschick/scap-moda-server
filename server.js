@@ -170,6 +170,7 @@ async function initDB() {
       cor VARCHAR(100),
       tam VARCHAR(100),
       colecao VARCHAR(100),
+      data_entrada DATE,
       custo DECIMAL(10,2) DEFAULT 0,
       venda DECIMAL(10,2) DEFAULT 0,
       est INTEGER DEFAULT 0,
@@ -424,6 +425,7 @@ async function initDB() {
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_numero TEXT`);
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
+  await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS data_entrada DATE`);
   await pool.query(`CREATE TABLE IF NOT EXISTS auditoria (
     id TEXT PRIMARY KEY,
     usuario_id TEXT NOT NULL,
@@ -780,10 +782,10 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
 app.post('/api/produtos', auth, async (req, res) => {
   try {
     const p = req.body;
-    await pool.query(`INSERT INTO produtos (id,cod,nome,cat,cor,tam,colecao,custo,venda,est,estmin,descricao,foto,forn,ncm,cest,cfop,csosn,origem,unidade,cst_pis,cst_cofins,status,atualizado_em)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW())
-      ON CONFLICT (id) DO UPDATE SET cod=$2,nome=$3,cat=$4,cor=$5,tam=$6,colecao=$7,custo=$8,venda=$9,est=$10,estmin=$11,descricao=$12,foto=$13,forn=$14,ncm=$15,cest=$16,cfop=$17,csosn=$18,origem=$19,unidade=$20,cst_pis=$21,cst_cofins=$22,status=$23,atualizado_em=NOW()`,
-      [p.id,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,p.ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
+    await pool.query(`INSERT INTO produtos (id,cod,nome,cat,cor,tam,colecao,data_entrada,custo,venda,est,estmin,descricao,foto,forn,ncm,cest,cfop,csosn,origem,unidade,cst_pis,cst_cofins,status,atualizado_em)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW())
+      ON CONFLICT (id) DO UPDATE SET cod=$2,nome=$3,cat=$4,cor=$5,tam=$6,colecao=$7,data_entrada=$8,custo=$9,venda=$10,est=$11,estmin=$12,descricao=$13,foto=$14,forn=$15,ncm=$16,cest=$17,cfop=$18,csosn=$19,origem=$20,unidade=$21,cst_pis=$22,cst_cofins=$23,status=$24,atualizado_em=NOW()`,
+      [p.id,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.dataEntrada||null,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,p.ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
