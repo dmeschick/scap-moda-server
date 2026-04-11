@@ -676,7 +676,8 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
       '- Se um campo estiver ilegível, use string vazia para texto e 0 para números.',
       '- Os campos pc, pv e qtd devem ser números.',
       '- Se houver coleção escrita na folha, extraia. Caso contrário, use a coleção enviada pelo usuário se existir.',
-      '- Se houver fornecedor claramente legível, extraia o nome.',
+      '- Se cada linha tiver seu próprio fornecedor, extraia no item. Se houver um fornecedor geral, repita nos itens quando fizer sentido.',
+      '- Extraia a data de cada linha no formato DD-MM ou DD/MM/AAAA quando legível.',
       '- Categorias válidas: ' + categoriasTexto
     ].join('\n');
 
@@ -688,10 +689,12 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
       '- ref_papel',
       '- ref_ext',
       '- descricao',
+      '- fornecedor',
+      '- data',
       '- pc',
       '- pv',
       '- qtd',
-      'Também devolva categoria, colecao, fornecedor e observacoes_ia.'
+      'Também devolva categoria, colecao, fornecedor_geral e observacoes_ia.'
     ].join('\n');
 
     const response = await fetch('https://api.openai.com/v1/responses', {
@@ -723,7 +726,7 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
               properties: {
                 categoria: { type: 'string' },
                 colecao: { type: 'string' },
-                fornecedor: { type: 'string' },
+                fornecedor_geral: { type: 'string' },
                 observacoes_ia: { type: 'string' },
                 itens: {
                   type: 'array',
@@ -734,15 +737,17 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
                       ref_papel: { type: 'string' },
                       ref_ext: { type: 'string' },
                       descricao: { type: 'string' },
+                      fornecedor: { type: 'string' },
+                      data: { type: 'string' },
                       pc: { type: 'number' },
                       pv: { type: 'number' },
                       qtd: { type: 'integer' }
                     },
-                    required: ['ref_papel', 'ref_ext', 'descricao', 'pc', 'pv', 'qtd']
+                    required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd']
                   }
                 }
               },
-              required: ['categoria', 'colecao', 'fornecedor', 'observacoes_ia', 'itens']
+              required: ['categoria', 'colecao', 'fornecedor_geral', 'observacoes_ia', 'itens']
             }
           }
         }
@@ -766,7 +771,7 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
     res.json({
       categoria: parsed.categoria || categoria || detectarCategoriaImportacao(parsed.observacoes_ia || ''),
       colecao: parsed.colecao || colecao || '',
-      fornecedor: parsed.fornecedor || '',
+      fornecedor: parsed.fornecedor_geral || '',
       observacoesIA: parsed.observacoes_ia || '',
       itens: Array.isArray(parsed.itens) ? parsed.itens : []
     });

@@ -1182,6 +1182,8 @@ tr:hover td{background:var(--bg)}
                     <th>Cód.</th>
                     <th>Ref. Papel</th>
                     <th>Ref. Ext.</th>
+                    <th>Fornecedor</th>
+                    <th>Data</th>
                     <th>Produto</th>
                     <th>PC</th>
                     <th>PV</th>
@@ -1190,7 +1192,7 @@ tr:hover td{background:var(--bg)}
                   </tr>
                 </thead>
                 <tbody id="import-foto-tabela">
-                  <tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>
+                  <tr><td colspan="10"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>
                 </tbody>
               </table>
             </div>
@@ -2060,6 +2062,18 @@ function normalizarValorImportacao(valor, integerFallback = false) {
   return Number.isFinite(num) ? num : 0;
 }
 
+function normalizarPVImportacao(valor) {
+  const num = normalizarValorImportacao(valor);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  if (Math.abs(num - Math.round(num)) < 0.00001) return Math.round(num) + 0.90;
+  return Math.round(num * 100) / 100;
+}
+
+function formatarValorImportacao(valor) {
+  const num = Number(valor) || 0;
+  return num ? num.toFixed(2).replace('.', ',') : '';
+}
+
 function escaparHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
@@ -2105,9 +2119,11 @@ function parseLinhaImportacaoFoto(linha, categoria) {
   return {
     refInt,
     refExt: refExtTokens.join(' ').trim(),
+    fornecedor: '',
+    data: tokens[idxData] || '',
     nome: descricao,
     custo,
-    venda,
+    venda: normalizarPVImportacao(venda),
     qtd,
     categoria,
     codigo: normalizarCodigoImportacao(refInt, categoria)
@@ -2128,7 +2144,7 @@ function renderTabelaImportacaoFoto() {
   const tbody = document.getElementById('import-foto-tabela');
   const resumo = document.getElementById('import-foto-resumo');
   if (!_importFotoRows.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>';
     resumo.textContent = 'Nenhuma linha montada';
     return;
   }
@@ -2142,10 +2158,12 @@ function renderTabelaImportacaoFoto() {
       '</td>' +
       '<td><input value="' + escaparHtml(row.refInt) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'refInt\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
       '<td><input value="' + escaparHtml(row.refExt) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'refExt\', this.value)" style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input value="' + escaparHtml(row.fornecedor || '') + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'fornecedor\', this.value)" style="width:140px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input value="' + escaparHtml(row.data || '') + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'data\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
       '<td><input value="' + escaparHtml(row.nome) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'nome\', this.value)" style="min-width:220px;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="number" value="' + (row.custo || 0) + '" step="0.01" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'custo\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="number" value="' + (row.venda || 0) + '" step="0.01" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'venda\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="number" value="' + (row.qtd || 0) + '" step="1" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'qtd\', this.value)" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.custo)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'custo\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.venda)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'venda\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="text" inputmode="numeric" value="' + escaparHtml(String(row.qtd || 0)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'qtd\', this.value)" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
       '<td><button class="btn btn-sm btn-danger" onclick="removerLinhaImportacaoFoto(' + idx + ')">Remover</button></td>' +
     '</tr>';
   }).join('');
@@ -2155,7 +2173,10 @@ function renderTabelaImportacaoFoto() {
 function atualizarLinhaImportacaoFoto(idx, campo, valor) {
   const row = _importFotoRows[idx];
   if (!row) return;
-  row[campo] = ['custo', 'venda'].includes(campo) ? normalizarValorImportacao(valor) : (campo === 'qtd' ? normalizarValorImportacao(valor, true) : valor);
+  if (campo === 'custo') row[campo] = normalizarValorImportacao(valor);
+  else if (campo === 'venda') row[campo] = normalizarPVImportacao(valor);
+  else if (campo === 'qtd') row[campo] = normalizarValorImportacao(valor, true);
+  else row[campo] = valor;
   if (campo === 'refInt') row.codigo = normalizarCodigoImportacao(valor, document.getElementById('import-foto-categoria').value);
   renderTabelaImportacaoFoto();
 }
@@ -2266,9 +2287,11 @@ async function executarOCRImportacaoFoto() {
     _importFotoRows = (resultado.itens || []).map(item => ({
       refInt: String(item.ref_papel || '').replace(/\D/g, ''),
       refExt: item.ref_ext || '',
+      fornecedor: item.fornecedor || resultado.fornecedor || '',
+      data: item.data || '',
       nome: item.descricao || '',
       custo: normalizarValorImportacao(item.pc),
-      venda: normalizarValorImportacao(item.pv),
+      venda: normalizarPVImportacao(item.pv),
       qtd: normalizarValorImportacao(item.qtd, true),
       categoria: document.getElementById('import-foto-categoria').value,
       codigo: normalizarCodigoImportacao(item.ref_papel, document.getElementById('import-foto-categoria').value)
@@ -2324,6 +2347,7 @@ async function importarProdutosPorFoto() {
   }
   const existentes = await api('GET', '/api/produtos?limit=2000').catch(() => []);
   const codigosExistentes = new Set((existentes || []).map(p => p.cod));
+  const fornecedores = await api('GET', '/api/fornecedores').catch(() => []);
   const duplicados = _importFotoRows.filter(r => codigosExistentes.has(r.codigo)).map(r => r.codigo);
   if (duplicados.length) {
     toast('Já existe produto com código: ' + duplicados.join(', '), 'warn', 5000);
@@ -2333,6 +2357,7 @@ async function importarProdutosPorFoto() {
   try {
     if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
     for (const row of _importFotoRows) {
+      const fornecedorLinha = fornecedores.find(f => normalizarTextoBase(f.nome) === normalizarTextoBase(row.fornecedor || ''));
       const prod = {
         id: uid(),
         cod: row.codigo,
@@ -2345,8 +2370,8 @@ async function importarProdutosPorFoto() {
         venda: row.venda,
         est: parseInt(row.qtd) || 0,
         estmin,
-        descricao: row.refExt ? 'Ref. ext.: ' + row.refExt : '',
-        forn: fornecedor,
+        descricao: [row.refExt ? 'Ref. ext.: ' + row.refExt : '', row.data ? 'Data: ' + row.data : ''].filter(Boolean).join(' · '),
+        forn: fornecedorLinha?.id || fornecedor,
         ncm: cfg.ncm,
         cest: '',
         cfop: '5102',
