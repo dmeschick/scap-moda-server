@@ -1095,12 +1095,12 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
        WHERE status != 'descontado'
          AND mes_desconto IS NOT NULL
          AND (
-           (COALESCE(parcelas,1) = 1 AND mes_desconto = $1)
+           (COALESCE(parcelas, 1) = 1 AND mes_desconto = $1)
            OR
-           (COALESCE(parcelas,1) > 1
-            AND TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($1 || '-01', 'YYYY-MM-DD')
-            AND TO_DATE($1 || '-01', 'YYYY-MM-DD') <=
-                (TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(parcelas,1) - 1) * INTERVAL '1 month'))
+           (COALESCE(parcelas, 1) > 1
+            AND TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD')
+                + (COALESCE(parcelas_pagas, 0) * INTERVAL '1 month')
+                = TO_DATE($1 || '-01', 'YYYY-MM-DD')
            )
          )
        GROUP BY funcionario_id, funcionario_nome
