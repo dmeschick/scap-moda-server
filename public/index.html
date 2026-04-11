@@ -426,6 +426,7 @@ tr:hover td{background:var(--bg)}
           <input type="text" id="busca-prod" placeholder="Buscar produto..." oninput="carregarProdutos()">
           <select id="filtro-cat-prod" onchange="carregarProdutos()"><option value="">Todas categorias</option></select>
           <button class="btn btn-primary" onclick="abrirModalProdutoSeguro()">+ Novo Produto</button>
+          <button class="btn" onclick="abrirModalImportarProdutosFoto()">📷 Importar produtos por foto</button>
         </div>
         <div id="etiqueta-barra" style="display:none;background:var(--pink-light);border:1px solid var(--pink);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="etiqueta-selecionados" style="font-size:13px;font-weight:600;color:var(--pink-dark)">0 produtos selecionados</span>
@@ -1128,6 +1129,82 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
+<div class="modal-backdrop" id="modal-importar-produtos-foto">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-header"><h3>Importar Produtos por Foto</h3><button class="modal-close" onclick="fecharModal('modal-importar-produtos-foto')">×</button></div>
+    <div class="modal-body">
+      <div style="background:var(--blue-light);border:1px solid #b3d0ef;border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);line-height:1.5">
+        Envie a foto da folha, revise os dados reconhecidos e confirme a importação. O código interno será gerado automaticamente a partir da referência do papel, categoria e sufixo configurado.
+      </div>
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="form-group"><label>Foto da folha *</label><input type="file" id="import-foto-arquivo" accept="image/*" onchange="previewImportacaoFoto(event)"></div>
+        <div class="form-group"><label>Categoria *</label><select id="import-foto-categoria" onchange="aplicarRegrasImportacaoFoto()"><option value="">— Selecionar —</option></select></div>
+        <div class="form-group"><label>Coleção *</label><input id="import-foto-colecao" placeholder="Ex: Inverno 2026" oninput="aplicarRegrasImportacaoFoto()"></div>
+        <div class="form-group"><label>Fornecedor</label><select id="import-foto-fornecedor" onchange="aplicarRegrasImportacaoFoto()"><option value="">— Selecionar —</option></select></div>
+        <div class="form-group"><label>Estoque mínimo</label><input type="number" id="import-foto-estmin" value="3" min="0"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(280px, 360px) 1fr;gap:16px;align-items:start">
+        <div>
+          <div class="card" style="padding:12px">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px">Pré-visualização</div>
+            <div id="import-foto-preview-wrap" style="border:1px dashed var(--border);border-radius:var(--radius);min-height:240px;display:flex;align-items:center;justify-content:center;background:var(--bg)">
+              <div id="import-foto-preview-vazio" style="color:var(--text3);font-size:13px;text-align:center;padding:20px">Selecione uma foto para começar</div>
+              <img id="import-foto-preview" style="display:none;max-width:100%;max-height:420px;border-radius:var(--radius)">
+            </div>
+            <div id="import-foto-status" style="margin-top:10px;font-size:12px;color:var(--text2)">Aguardando foto</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-primary" onclick="executarOCRImportacaoFoto()">Ler foto</button>
+              <button class="btn" onclick="montarLinhasImportacaoFoto()">Montar linhas</button>
+              <button class="btn" onclick="limparImportacaoFoto()">Limpar</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" style="padding:12px;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+              <div style="font-weight:700;font-size:14px">Texto reconhecido</div>
+              <div style="font-size:12px;color:var(--text2)">Você pode corrigir o texto antes de montar as linhas</div>
+            </div>
+            <textarea id="import-foto-texto" placeholder="O texto reconhecido da folha aparecerá aqui..." style="width:100%;min-height:180px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:monospace;line-height:1.45"></textarea>
+          </div>
+
+          <div class="card" style="padding:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+              <div style="font-weight:700;font-size:14px">Revisão dos produtos</div>
+              <div id="import-foto-resumo" style="font-size:12px;color:var(--text2)">Nenhuma linha montada</div>
+            </div>
+            <div class="table-wrap" style="max-height:380px;overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Cód.</th>
+                    <th>Ref. Papel</th>
+                    <th>Ref. Ext.</th>
+                    <th>Produto</th>
+                    <th>PC</th>
+                    <th>PV</th>
+                    <th>Qtd</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="import-foto-tabela">
+                  <tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-importar-produtos-foto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="importarProdutosPorFoto()">Importar produtos</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Cliente -->
 <div class="modal-backdrop" id="modal-cliente">
   <div class="modal" style="max-width:700px">
@@ -1463,7 +1540,20 @@ let usuarioLogado = null;
 let _recarregarValesAoFecharRomaneio = false;
 let CARGO_ATUAL = '';
 let categorias = [];
+let _importFotoRows = [];
+let _importFotoObjectUrl = null;
+let _tesseractLoader = null;
 let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{id:'d3',nome:'Promoção',pct:0}];
+const IMPORT_PRODUTO_CONFIG = {
+  'blusas': { categoria: 'Blusas', sufixo: 'B', ncm: '61062000', aliases: ['blusa', 'blusas'] },
+  'vestidos': { categoria: 'Vestidos', sufixo: 'V', ncm: '61044300', aliases: ['vestido', 'vestidos'] },
+  'calcas': { categoria: 'Calças', sufixo: 'C', ncm: '61034300', aliases: ['calca', 'calcas', 'calça', 'calças'] },
+  'shorts': { categoria: 'Shorts', sufixo: 'H', ncm: '61123100', aliases: ['short', 'shorts'] },
+  'saias': { categoria: 'Saias', sufixo: 'S', ncm: '61045300', aliases: ['saia', 'saias'] },
+  'conjuntos': { categoria: 'Conjuntos', sufixo: 'U', ncm: '61042300', aliases: ['conjunto', 'conjuntos'] },
+  'macacoes': { categoria: 'Macacões', sufixo: 'M', ncm: '61122000', aliases: ['macacao', 'macacoes', 'macacão', 'macacões'] },
+  'acessorios': { categoria: 'Acessórios', sufixo: 'A', ncm: '62171000', aliases: ['acessorio', 'acessorios', 'acessório', 'acessórios'] }
+};
 
 // ===== UTILS =====
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -1472,6 +1562,7 @@ const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocale
 const nascDate = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00') : null;
 const iniciais = n => (n||'').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);
 const isMobile = () => window.innerWidth <= 768;
+const normalizarTextoBase = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 // ===== API =====
 async function api(method, path, body) {
@@ -1924,6 +2015,344 @@ async function salvarProduto() {
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
   } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
+}
+
+function obterConfigImportacaoPorCategoria(cat) {
+  const chave = normalizarTextoBase(cat);
+  return Object.values(IMPORT_PRODUTO_CONFIG).find(cfg =>
+    cfg.aliases.some(alias => chave === normalizarTextoBase(alias) || chave.includes(normalizarTextoBase(alias)))
+  ) || null;
+}
+
+function detectarCategoriaImportacao(texto) {
+  const base = normalizarTextoBase(texto);
+  const cfg = Object.values(IMPORT_PRODUTO_CONFIG).find(item =>
+    item.aliases.some(alias => {
+      const alvo = normalizarTextoBase(alias);
+      return base.includes('\n' + alvo + '\n') || base.startsWith(alvo + '\n') || base.includes(alvo);
+    })
+  );
+  return cfg ? cfg.categoria : '';
+}
+
+function normalizarCodigoImportacao(refInt, categoria) {
+  const cfg = obterConfigImportacaoPorCategoria(categoria);
+  const numeros = String(refInt || '').replace(/\D/g, '').slice(-6);
+  if (!cfg || !numeros) return '';
+  return numeros.padStart(6, '0') + cfg.sufixo;
+}
+
+function normalizarValorImportacao(valor, integerFallback = false) {
+  if (valor === undefined || valor === null) return 0;
+  let str = String(valor).trim();
+  if (!str) return 0;
+  str = str.replace(/[^\d,.\-]/g, '');
+  if (!str) return 0;
+  if (str.includes(',') && str.includes('.')) {
+    if (str.lastIndexOf(',') > str.lastIndexOf('.')) str = str.replace(/\./g, '').replace(',', '.');
+    else str = str.replace(/,/g, '');
+  } else if (str.includes(',')) {
+    str = str.replace(',', '.');
+  } else if (integerFallback && /^\d+$/.test(str)) {
+    const inteiro = parseInt(str, 10);
+    return Number.isFinite(inteiro) ? inteiro : 0;
+  }
+  const num = parseFloat(str);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function escaparHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function extrairColecaoImportacao(texto) {
+  const linhas = String(texto || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const alvo = linhas.find(l => normalizarTextoBase(l).includes('colecao')) || '';
+  if (!alvo) return '';
+  return alvo.replace(/cole[cç][aã]o[:\s-]*/i, '').trim();
+}
+
+function parseLinhaImportacaoFoto(linha, categoria) {
+  let limpa = String(linha || '').replace(/\s+/g, ' ').trim();
+  if (!limpa) return null;
+  const matchRef = limpa.match(/\b(\d{3,6})\b/);
+  if (!matchRef) return null;
+  const refInt = matchRef[1];
+  const restoAposRef = limpa.slice(matchRef.index + matchRef[0].length).trim();
+  const tokens = restoAposRef.split(' ').filter(Boolean);
+  const idxData = tokens.findIndex(t => /^\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?$/.test(t));
+  if (idxData === -1) return null;
+  let refExtCount = 0;
+  while (refExtCount < idxData && refExtCount < 2 && /[\d./-]/.test(tokens[refExtCount])) refExtCount++;
+  const refExtTokens = tokens.slice(0, refExtCount);
+  const restoAntesData = tokens.slice(refExtCount, idxData);
+  const tail = tokens.slice(idxData + 1);
+  if (!tail.length) return null;
+  const qtdToken = tail[tail.length - 1];
+  const qtd = normalizarValorImportacao(qtdToken, true);
+  const restoValores = tail.slice(0, -1);
+  let venda = 0;
+  let custo = 0;
+  if (restoValores.length >= 2) {
+    venda = normalizarValorImportacao(restoValores[restoValores.length - 1]);
+    custo = normalizarValorImportacao(restoValores[restoValores.length - 2]);
+  }
+  const descricao = restoAntesData.join(' ').trim();
+  return {
+    refInt,
+    refExt: refExtTokens.join(' ').trim(),
+    nome: descricao,
+    custo,
+    venda,
+    qtd,
+    categoria,
+    codigo: normalizarCodigoImportacao(refInt, categoria)
+  };
+}
+
+function validarLinhaImportacaoFoto(linha) {
+  const erros = [];
+  if (!linha.nome) erros.push('Sem descrição');
+  if (!linha.codigo) erros.push('Sem código');
+  if (!(linha.custo > 0)) erros.push('PC inválido');
+  if (!(linha.venda > 0)) erros.push('PV inválido');
+  if (!(linha.qtd >= 0)) erros.push('Qtd inválida');
+  return erros;
+}
+
+function renderTabelaImportacaoFoto() {
+  const tbody = document.getElementById('import-foto-tabela');
+  const resumo = document.getElementById('import-foto-resumo');
+  if (!_importFotoRows.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>';
+    resumo.textContent = 'Nenhuma linha montada';
+    return;
+  }
+  let validos = 0;
+  tbody.innerHTML = _importFotoRows.map((row, idx) => {
+    const erros = validarLinhaImportacaoFoto(row);
+    if (!erros.length) validos++;
+    return '<tr>' +
+      '<td><code style="font-size:12px">' + escaparHtml(row.codigo) + '</code>' +
+        (erros.length ? '<div style="margin-top:4px;font-size:11px;color:var(--red)">' + escaparHtml(erros.join(' · ')) + '</div>' : '') +
+      '</td>' +
+      '<td><input value="' + escaparHtml(row.refInt) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'refInt\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input value="' + escaparHtml(row.refExt) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'refExt\', this.value)" style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input value="' + escaparHtml(row.nome) + '" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'nome\', this.value)" style="min-width:220px;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="number" value="' + (row.custo || 0) + '" step="0.01" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'custo\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="number" value="' + (row.venda || 0) + '" step="0.01" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'venda\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input type="number" value="' + (row.qtd || 0) + '" step="1" min="0" oninput="atualizarLinhaImportacaoFoto(' + idx + ', \'qtd\', this.value)" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><button class="btn btn-sm btn-danger" onclick="removerLinhaImportacaoFoto(' + idx + ')">Remover</button></td>' +
+    '</tr>';
+  }).join('');
+  resumo.textContent = validos + ' produto(s) prontos de ' + _importFotoRows.length + ' linha(s)';
+}
+
+function atualizarLinhaImportacaoFoto(idx, campo, valor) {
+  const row = _importFotoRows[idx];
+  if (!row) return;
+  row[campo] = ['custo', 'venda'].includes(campo) ? normalizarValorImportacao(valor) : (campo === 'qtd' ? normalizarValorImportacao(valor, true) : valor);
+  if (campo === 'refInt') row.codigo = normalizarCodigoImportacao(valor, document.getElementById('import-foto-categoria').value);
+  renderTabelaImportacaoFoto();
+}
+
+function removerLinhaImportacaoFoto(idx) {
+  _importFotoRows.splice(idx, 1);
+  renderTabelaImportacaoFoto();
+}
+
+function aplicarRegrasImportacaoFoto() {
+  const categoria = document.getElementById('import-foto-categoria').value;
+  const cfg = obterConfigImportacaoPorCategoria(categoria);
+  _importFotoRows = _importFotoRows.map(row => ({
+    ...row,
+    categoria,
+    codigo: normalizarCodigoImportacao(row.refInt, categoria),
+    ncm: cfg?.ncm || ''
+  }));
+  renderTabelaImportacaoFoto();
+}
+
+async function abrirModalImportarProdutosFoto() {
+  await carregarCategoriasGlobal();
+  try {
+    const forns = await api('GET', '/api/fornecedores');
+    document.getElementById('import-foto-fornecedor').innerHTML = '<option value="">— Selecionar —</option>' +
+      forns.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  } catch(e) {}
+  document.getElementById('import-foto-categoria').innerHTML = '<option value="">— Selecionar —</option>' +
+    categorias.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+  limparImportacaoFoto(true);
+  abrirModal('modal-importar-produtos-foto');
+}
+
+function limparImportacaoFoto(manterAbertura = false) {
+  _importFotoRows = [];
+  document.getElementById('import-foto-categoria').value = '';
+  document.getElementById('import-foto-colecao').value = '';
+  document.getElementById('import-foto-fornecedor').value = '';
+  document.getElementById('import-foto-estmin').value = '3';
+  document.getElementById('import-foto-arquivo').value = '';
+  document.getElementById('import-foto-texto').value = '';
+  document.getElementById('import-foto-status').textContent = 'Aguardando foto';
+  document.getElementById('import-foto-preview').style.display = 'none';
+  document.getElementById('import-foto-preview').src = '';
+  document.getElementById('import-foto-preview-vazio').style.display = 'block';
+  if (_importFotoObjectUrl) URL.revokeObjectURL(_importFotoObjectUrl);
+  _importFotoObjectUrl = null;
+  renderTabelaImportacaoFoto();
+  if (!manterAbertura) toast('Importação por foto limpa');
+}
+
+function previewImportacaoFoto(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  if (_importFotoObjectUrl) URL.revokeObjectURL(_importFotoObjectUrl);
+  _importFotoObjectUrl = URL.createObjectURL(file);
+  const img = document.getElementById('import-foto-preview');
+  img.src = _importFotoObjectUrl;
+  img.style.display = 'block';
+  document.getElementById('import-foto-preview-vazio').style.display = 'none';
+  document.getElementById('import-foto-status').textContent = 'Foto carregada. Clique em "Ler foto" para reconhecer o texto.';
+}
+
+async function carregarTesseractImportacaoFoto() {
+  if (window.Tesseract) return window.Tesseract;
+  if (!_tesseractLoader) {
+    _tesseractLoader = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      script.onload = () => resolve(window.Tesseract);
+      script.onerror = () => reject(new Error('Não foi possível carregar o OCR no navegador'));
+      document.head.appendChild(script);
+    });
+  }
+  return _tesseractLoader;
+}
+
+async function executarOCRImportacaoFoto() {
+  const file = document.getElementById('import-foto-arquivo').files?.[0];
+  if (!file) { toast('Selecione uma foto primeiro', 'warn'); return; }
+  const status = document.getElementById('import-foto-status');
+  const btn = event?.target;
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Lendo...'; }
+    status.textContent = 'Carregando OCR...';
+    const Tesseract = await carregarTesseractImportacaoFoto();
+    status.textContent = 'Reconhecendo texto da foto...';
+    const { data } = await Tesseract.recognize(file, 'por', {
+      logger: m => {
+        if (m.status === 'recognizing text' && typeof m.progress === 'number') {
+          status.textContent = 'Reconhecendo texto... ' + Math.round(m.progress * 100) + '%';
+        }
+      }
+    });
+    document.getElementById('import-foto-texto').value = (data?.text || '').trim();
+    const categoriaDetectada = detectarCategoriaImportacao(data?.text || '');
+    if (categoriaDetectada && !document.getElementById('import-foto-categoria').value) {
+      document.getElementById('import-foto-categoria').value = categoriaDetectada;
+    }
+    const colecaoDetectada = extrairColecaoImportacao(data?.text || '');
+    if (colecaoDetectada && !document.getElementById('import-foto-colecao').value.trim()) {
+      document.getElementById('import-foto-colecao').value = colecaoDetectada;
+    }
+    status.textContent = 'Texto reconhecido. Revise e clique em "Montar linhas".';
+    toast('Leitura da foto concluída');
+  } catch(e) {
+    status.textContent = 'Erro ao reconhecer a foto: ' + e.message;
+    toast('Erro no OCR: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ler foto'; }
+  }
+}
+
+function montarLinhasImportacaoFoto() {
+  const texto = document.getElementById('import-foto-texto').value;
+  const categoria = document.getElementById('import-foto-categoria').value || detectarCategoriaImportacao(texto);
+  if (categoria && !document.getElementById('import-foto-categoria').value) {
+    document.getElementById('import-foto-categoria').value = categoria;
+  }
+  const linhas = String(texto || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  linhas.forEach(linha => {
+    const row = parseLinhaImportacaoFoto(linha, document.getElementById('import-foto-categoria').value);
+    if (row) rows.push(row);
+  });
+  _importFotoRows = rows;
+  aplicarRegrasImportacaoFoto();
+  document.getElementById('import-foto-status').textContent = rows.length
+    ? rows.length + ' linha(s) montada(s). Revise antes de importar.'
+    : 'Nenhuma linha útil encontrada. Edite o texto reconhecido e tente novamente.';
+  if (rows.length) toast(rows.length + ' linha(s) montada(s)');
+}
+
+async function importarProdutosPorFoto() {
+  const categoria = document.getElementById('import-foto-categoria').value;
+  const colecao = document.getElementById('import-foto-colecao').value.trim();
+  const fornecedor = document.getElementById('import-foto-fornecedor').value;
+  const estmin = parseInt(document.getElementById('import-foto-estmin').value) || 0;
+  if (!categoria) { toast('Selecione a categoria da folha', 'warn'); return; }
+  if (!colecao) { toast('Informe a coleção da folha', 'warn'); return; }
+  if (!_importFotoRows.length) { toast('Monte as linhas antes de importar', 'warn'); return; }
+  const cfg = obterConfigImportacaoPorCategoria(categoria);
+  if (!cfg) { toast('Categoria sem configuração de importação', 'error'); return; }
+  const invalidas = _importFotoRows.filter(r => validarLinhaImportacaoFoto(r).length);
+  if (invalidas.length) {
+    toast('Corrija as linhas com erro antes de importar', 'warn');
+    renderTabelaImportacaoFoto();
+    return;
+  }
+  const existentes = await api('GET', '/api/produtos?limit=2000').catch(() => []);
+  const codigosExistentes = new Set((existentes || []).map(p => p.cod));
+  const duplicados = _importFotoRows.filter(r => codigosExistentes.has(r.codigo)).map(r => r.codigo);
+  if (duplicados.length) {
+    toast('Já existe produto com código: ' + duplicados.join(', '), 'warn', 5000);
+    return;
+  }
+  const btn = event?.target || document.querySelector('[onclick="importarProdutosPorFoto()"]');
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
+    for (const row of _importFotoRows) {
+      const prod = {
+        id: uid(),
+        cod: row.codigo,
+        nome: row.nome,
+        cat: categoria,
+        cor: '',
+        tam: '',
+        colecao,
+        custo: row.custo,
+        venda: row.venda,
+        est: parseInt(row.qtd) || 0,
+        estmin,
+        descricao: row.refExt ? 'Ref. ext.: ' + row.refExt : '',
+        forn: fornecedor,
+        ncm: cfg.ncm,
+        cest: '',
+        cfop: '5102',
+        csosn: '102',
+        origem: '0',
+        unidade: 'UN',
+        cstPis: '07',
+        cstCofins: '07',
+        status: 'ativo'
+      };
+      await api('POST', '/api/produtos', prod);
+    }
+    toast(_importFotoRows.length + ' produto(s) importado(s) com sucesso!');
+    fecharModal('modal-importar-produtos-foto');
+    carregarProdutos();
+    limparImportacaoFoto(true);
+  } catch(e) {
+    toast('Erro ao importar: ' + e.message, 'error', 5000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Importar produtos'; }
+  }
 }
 
 async function excluirProduto(id, nome) {
