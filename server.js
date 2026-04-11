@@ -1081,7 +1081,25 @@ app.get('/api/vales/resumo', auth, async (req, res) => {
           WHEN tipo='roupa' AND COALESCE(parcelas,1) > 1 THEN vl_parcela
           ELSE valor
         END) as total,
-        COUNT(*) as qtd
+        COUNT(*) as qtd,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'tipo', tipo,
+              'descricao', descricao,
+              'valor', CASE
+                WHEN tipo='roupa' AND COALESCE(parcelas,1) > 1 THEN vl_parcela
+                ELSE valor
+              END,
+              'parcela_atual', CASE
+                WHEN COALESCE(parcelas,1) > 1 THEN COALESCE(parcelas_pagas,0) + 1
+                ELSE NULL
+              END,
+              'total_parcelas', COALESCE(parcelas,1)
+            ) ORDER BY criado_em
+          ) FILTER (WHERE id IS NOT NULL),
+          '[]'
+        ) as detalhes
        FROM vales_funcionarios
        WHERE status != 'descontado'
          AND mes_desconto IS NOT NULL
