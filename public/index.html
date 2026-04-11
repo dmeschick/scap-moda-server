@@ -5223,10 +5223,19 @@ async function carregarVales() {
     // ── SEÇÃO 1: Fechamento do mês (cards por funcionária) ──
     const fechEl = document.getElementById('vales-fechamento');
     if (!resumo.length) {
+      const temParcelaBloqueada = vales.some(v =>
+        parseInt(v.parcelas || 1) > 1 &&
+        v.status !== 'descontado'
+      );
       fechEl.innerHTML =
         '<div class="card" style="padding:24px;text-align:center;color:var(--text3)">' +
         '<div style="font-size:32px;margin-bottom:8px">✓</div>' +
         '<div style="font-weight:600">Nenhum vale a descontar em ' + nomeMes + '</div>' +
+        (temParcelaBloqueada
+          ? '<div style="margin-top:8px;font-size:13px;line-height:1.45;color:var(--text2)">' +
+              'Existe parcela futura neste m&ecirc;s, mas ela s&oacute; ser&aacute; liberada ap&oacute;s o desconto da parcela anterior.' +
+            '</div>'
+          : '') +
         '</div>';
     } else {
       const totalGeral = resumo.reduce((s, r) => s + parseFloat(r.total), 0);
@@ -5314,6 +5323,20 @@ async function carregarVales() {
           ? '<button onclick="vrToggleDetalhe(\'' + v.id + '\')" style="background:none;border:none;cursor:pointer;font-size:13px" title="Ver itens">🔍</button>'
           : '';
 
+        const mesFiltro = document.getElementById('vales-mes').value;
+        const partesFiltro = mesFiltro.split('-');
+        const anoFiltro = parseInt(partesFiltro[0]);
+        const mesFiltroNum = parseInt(partesFiltro[1]);
+        const partesDesc = v.mes_desconto.split('-');
+        const anoDesc = parseInt(partesDesc[0]);
+        const mesDesc = parseInt(partesDesc[1]);
+        const diffMeses = (anoFiltro - anoDesc) * 12 + (mesFiltroNum - mesDesc);
+        const numParcela = parseInt(v.parcelas) > 1 ? Math.max(1, diffMeses + 1) : 1;
+        const parcelaPagaNesteMes = parseInt(v.parcelas) > 1
+          ? numParcela <= (parseInt(v.parcelas_pagas) || 0)
+          : v.status === 'descontado';
+        const statusExibido = parcelaPagaNesteMes ? 'descontado' : 'pendente';
+
         return '<tr>' +
           '<td>' + new Date(v.criado_em).toLocaleDateString('pt-BR') + '</td>' +
           '<td><strong>' + v.funcionario_nome + '</strong></td>' +
@@ -5323,20 +5346,11 @@ async function carregarVales() {
             (v.descricao||'—') +
             (v.mes_desconto ? '<br><span style="color:var(--amber);font-size:11px">⏰ ' + v.mes_desconto + '</span>' : '') +
             (parseInt(v.parcelas) > 1 ? (() => {
-              const mesFiltro = document.getElementById('vales-mes').value; // "2026-06"
-              const partesFiltro = mesFiltro.split('-');
-              const anoFiltro = parseInt(partesFiltro[0]);
-              const mesFiltroNum = parseInt(partesFiltro[1]);
-              const partesDesc = v.mes_desconto.split('-');
-              const anoDesc = parseInt(partesDesc[0]);
-              const mesDesc = parseInt(partesDesc[1]);
-              const diffMeses = (anoFiltro - anoDesc) * 12 + (mesFiltroNum - mesDesc);
-              const numParcela = Math.max(1, diffMeses + 1);
               return '<br><span style="color:var(--text3);font-size:11px">parcela ' + numParcela + ' de ' + v.parcelas + '</span>';
             })() : '') +
           '</td>' +
-          '<td><span class="badge ' + (v.status==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
-            (v.status==='descontado' ? 'Descontado' : 'Pendente') +
+          '<td><span class="badge ' + (statusExibido==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
+            (statusExibido==='descontado' ? 'Descontado' : 'Pendente') +
           '</span></td>' +
           '<td style="display:flex;gap:4px">' +
             '<button class="btn btn-sm" onclick="reimprimirRomaneioVale(\'' + v.funcionario_id + '\',\'' + v.funcionario_nome.replace(/'/g,"\\'") + '\',\'' + (v.mes_desconto||'') + '\')" title="Reimprimir romaneio">🖨️</button>' +
