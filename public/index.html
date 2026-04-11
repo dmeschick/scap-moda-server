@@ -5366,7 +5366,7 @@ async function descontarFuncionaria(funcId, funcNome) {
     // Polling: aguarda modal fechar e recarrega
     const modal = document.getElementById('modal-romaneio');
     const check = setInterval(() => {
-      if (!modal.classList.contains('ativo')) {
+      if (!modal.classList.contains('open')) {
         clearInterval(check);
         carregarVales();
       }
