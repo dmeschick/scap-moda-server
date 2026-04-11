@@ -5223,10 +5223,14 @@ async function carregarVales() {
     // ── SEÇÃO 1: Fechamento do mês (cards por funcionária) ──
     const fechEl = document.getElementById('vales-fechamento');
     if (!resumo.length) {
-      const temParcelaBloqueada = vales.some(v =>
-        parseInt(v.parcelas || 1) > 1 &&
-        v.status !== 'descontado'
-      );
+      const temParcelaBloqueada = vales.some(v => {
+        const totalParcelas = parseInt(v.parcelas || 1);
+        if (totalParcelas <= 1 || !v.mes_desconto) return false;
+        const pagas = parseInt(v.parcelas_pagas || 0);
+        const [anoDesc, mesDesc] = v.mes_desconto.split('-').map(Number);
+        const numParcelaMes = ((parseInt(anoMes) - anoDesc) * 12) + (parseInt(mesMes) - mesDesc) + 1;
+        return numParcelaMes >= 1 && numParcelaMes <= totalParcelas && numParcelaMes > (pagas + 1);
+      });
       fechEl.innerHTML =
         '<div class="card" style="padding:24px;text-align:center;color:var(--text3)">' +
         '<div style="font-size:32px;margin-bottom:8px">✓</div>' +
