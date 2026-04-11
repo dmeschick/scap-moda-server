@@ -1229,56 +1229,29 @@ app.patch('/api/vales/descontar-funcionaria', auth, async (req, res) => {
     const { funcionarioId, mes } = req.body;
     if (!funcionarioId || !mes) return res.status(400).json({ erro: 'Dados incompletos' });
 
-    // Busca os vales pendentes da funcionária que caem nesse mês
     const r = await pool.query(
       `SELECT id, parcelas, parcelas_pagas, mes_desconto FROM vales_funcionarios
-       WHERE funcionario_id = $1
-         AND status != 'descontado'
-         AND mes_desconto IS NOT NULL
-         AND (
-           (COALESCE(parcelas,1) = 1 AND mes_desconto = $2)
-           OR
-           (COALESCE(parcelas,1) > 1
-            AND TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($2 || '-01', 'YYYY-MM-DD')
-            AND TO_DATE($2 || '-01', 'YYYY-MM-DD') <=
-                (TO_DATE(mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(parcelas,1) - 1) * INTERVAL '1 month'))
-           )
-         )`,
-      [funcionarioId, mes]
+       WHERE funcionario_id = $1 AND status != 'descontado'`,
+      [funcionarioId]
     );
-
-    // Verifica se algum vale tem parcela anterior ainda não paga
-    for (const vale of r.rows) {
-      const totalParcelas = parseInt(vale.parcelas) || 1;
-      const pagas = parseInt(vale.parcelas_pagas) || 0;
-      if (totalParcelas > 1 && pagas === 0 && vale.mes_desconto !== mes) {
-        // Tem parcelas anteriores não pagas — calcula qual mês deveria ser pago
-        return res.status(400).json({
-          erro: `Parcela anterior não descontada. Desconte primeiro o mês ${vale.mes_desconto}.`
-        });
-      }
-      // Verifica se o mês filtrado é o próximo mês correto (mes_desconto + parcelas_pagas meses)
-      const [mdAno, mdMes] = vale.mes_desconto.split('-').map(Number);
-      const dataEsperada = new Date(mdAno, mdMes - 1 + pagas, 1);
-      const mesEsperado = dataEsperada.getFullYear() + '-' + String(dataEsperada.getMonth() + 1).padStart(2, '0');
-      if (mesEsperado !== mes) {
-        return res.status(400).json({
-          erro: `Ordem incorreta. A próxima parcela a descontar é ${mesEsperado}, não ${mes}.`
-        });
-      }
-    }
 
     let atualizados = 0;
     for (const vale of r.rows) {
       const totalParcelas = parseInt(vale.parcelas) || 1;
       const pagas = parseInt(vale.parcelas_pagas) || 0;
+      const [mdAno, mdMes] = vale.mes_desconto.split('-').map(Number);
+
+      // Calcula qual mês é o correto para a próxima parcela deste vale
+      const dataEsperada = new Date(mdAno, mdMes - 1 + pagas, 1);
+      const mesEsperado = dataEsperada.getFullYear() + '-' + String(dataEsperada.getMonth() + 1).padStart(2, '0');
+
+      // Só desconta se o mês bate — ignora silenciosamente os que não batem
+      if (mesEsperado !== mes) continue;
+
       const novasPagas = pagas + 1;
       const novoStatus = novasPagas >= totalParcelas ? 'descontado' : 'pendente';
-
       await pool.query(
-        `UPDATE vales_funcionarios
-         SET parcelas_pagas = $1, status = $2
-         WHERE id = $3`,
+        'UPDATE vales_funcionarios SET parcelas_pagas=$1, status=$2 WHERE id=$3',
         [novasPagas, novoStatus, vale.id]
       );
       atualizados++;
