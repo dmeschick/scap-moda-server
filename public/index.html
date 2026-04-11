@@ -5251,17 +5251,6 @@ async function carregarVales() {
         resumo.map(r => {
           const temDinheiro = parseFloat(r.total_dinheiro) > 0;
           const temRoupa = parseFloat(r.total_roupa) > 0;
-          const detalhes = Array.isArray(r.detalhes) ? r.detalhes : [];
-          const detalhesHtml = detalhes.map(d => {
-            const rotuloTipo = d.tipo === 'roupa' ? '👗 Roupa' : '💵 Dinheiro';
-            const parcelaInfo = d.parcela_atual
-              ? ' · parcela ' + d.parcela_atual + ' de ' + d.total_parcelas
-              : '';
-            const descricao = d.descricao ? ' · ' + d.descricao : '';
-            return '<div style="font-size:12px;color:var(--text2);margin-top:4px">' +
-              rotuloTipo + ' ' + fmtMoeda(d.valor) + parcelaInfo + descricao +
-            '</div>';
-          }).join('');
           return '<div class="card" style="margin-bottom:10px;padding:14px 16px">' +
             '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
               '<div>' +
@@ -5278,7 +5267,6 @@ async function carregarVales() {
                       '<strong>' + fmtMoeda(r.total_roupa) + '</strong>' +
                     '</div>' : '') +
                 '</div>' +
-                detalhesHtml +
               '</div>' +
               '<div style="display:flex;align-items:center;gap:12px">' +
                 '<div style="text-align:right">' +
