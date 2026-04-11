@@ -1017,16 +1017,25 @@ app.get('/api/vales', auth, async (req, res) => {
     }
 
     if (mes) {
-      // Filtra pelo mes_desconto: mostra vales cujo intervalo de desconto inclui o mês filtrado
+      // Filtra pelo mês da próxima parcela a pagar (não pelo intervalo completo)
       conditions.push(`(
         v.mes_desconto IS NOT NULL
         AND (
-          (COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $${i})
+          -- Vales 1x ou sem parcelas: mes_desconto = mes filtrado
+          (COALESCE(v.parcelas, 1) = 1 AND v.mes_desconto = $${i})
           OR
-          (COALESCE(v.parcelas,1) > 1
-           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($${i} || '-01', 'YYYY-MM-DD')
-           AND TO_DATE($${i} || '-01', 'YYYY-MM-DD') <=
-               (TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(v.parcelas,1) - 1) * INTERVAL '1 month'))
+          -- Vales parcelados pendentes: próxima parcela cai no mes filtrado
+          (COALESCE(v.parcelas, 1) > 1
+           AND v.status != 'descontado'
+           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD')
+               + (COALESCE(v.parcelas_pagas, 0) * INTERVAL '1 month')
+               = TO_DATE($${i} || '-01', 'YYYY-MM-DD')
+          )
+          OR
+          -- Vales parcelados já descontados: mostrar no mes_desconto original
+          (COALESCE(v.parcelas, 1) > 1
+           AND v.status = 'descontado'
+           AND v.mes_desconto = $${i}
           )
         )
       )`);
