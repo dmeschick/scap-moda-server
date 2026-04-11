@@ -5363,14 +5363,14 @@ async function descontarFuncionaria(funcId, funcNome) {
     await api('PATCH', '/api/vales/descontar-funcionaria', { funcionarioId: funcId, mes });
     toast('✓ Vales de ' + funcNome + ' descontados em ' + nomeMes + '!');
     await abrirRomaneioVale(funcId, funcNome, mes);
-    // Polling: monitora quando o modal fecha e recarrega a tela
+    // Polling: aguarda modal fechar e recarrega
     const modal = document.getElementById('modal-romaneio');
-    const intervalo = setInterval(() => {
-      if (!modal.classList.contains('open')) {
-        clearInterval(intervalo);
+    const check = setInterval(() => {
+      if (!modal.classList.contains('ativo')) {
+        clearInterval(check);
         carregarVales();
       }
-    }, 300);
+    }, 200);
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
