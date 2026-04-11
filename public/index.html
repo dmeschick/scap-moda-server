@@ -1542,7 +1542,6 @@ let CARGO_ATUAL = '';
 let categorias = [];
 let _importFotoRows = [];
 let _importFotoObjectUrl = null;
-let _tesseractLoader = null;
 let descontos = [{id:'d1',nome:'Atacado',pct:20},{id:'d2',nome:'Varejo',pct:0},{id:'d3',nome:'Promoção',pct:0}];
 const IMPORT_PRODUTO_CONFIG = {
   'blusas': { categoria: 'Blusas', sufixo: 'B', ncm: '61062000', aliases: ['blusa', 'blusas'] },
@@ -2218,21 +2217,20 @@ function previewImportacaoFoto(event) {
   img.src = _importFotoObjectUrl;
   img.style.display = 'block';
   document.getElementById('import-foto-preview-vazio').style.display = 'none';
-  document.getElementById('import-foto-status').textContent = 'Foto carregada. Clique em "Ler foto" para reconhecer o texto.';
+  document.getElementById('import-foto-status').textContent = 'Foto carregada. Clique em "Ler foto" para analisar com IA.';
 }
 
-async function carregarTesseractImportacaoFoto() {
-  if (window.Tesseract) return window.Tesseract;
-  if (!_tesseractLoader) {
-    _tesseractLoader = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      script.onload = () => resolve(window.Tesseract);
-      script.onerror = () => reject(new Error('Não foi possível carregar o OCR no navegador'));
-      document.head.appendChild(script);
-    });
-  }
-  return _tesseractLoader;
+function arquivoParaBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const idx = result.indexOf('base64,');
+      resolve(idx >= 0 ? result.slice(idx + 7) : result);
+    };
+    reader.onerror = () => reject(new Error('Não foi possível ler o arquivo da foto'));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function executarOCRImportacaoFoto() {
@@ -2242,30 +2240,47 @@ async function executarOCRImportacaoFoto() {
   const btn = event?.target;
   try {
     if (btn) { btn.disabled = true; btn.textContent = 'Lendo...'; }
-    status.textContent = 'Carregando OCR...';
-    const Tesseract = await carregarTesseractImportacaoFoto();
-    status.textContent = 'Reconhecendo texto da foto...';
-    const { data } = await Tesseract.recognize(file, 'por', {
-      logger: m => {
-        if (m.status === 'recognizing text' && typeof m.progress === 'number') {
-          status.textContent = 'Reconhecendo texto... ' + Math.round(m.progress * 100) + '%';
-        }
-      }
+    status.textContent = 'Enviando foto para análise com IA...';
+    const imageBase64 = await arquivoParaBase64(file);
+    const categoriaAtual = document.getElementById('import-foto-categoria').value;
+    const colecaoAtual = document.getElementById('import-foto-colecao').value.trim();
+    const resultado = await api('POST', '/api/produtos/importar-foto/analisar', {
+      imageBase64,
+      mimeType: file.type || 'image/jpeg',
+      categoria: categoriaAtual,
+      colecao: colecaoAtual
     });
-    document.getElementById('import-foto-texto').value = (data?.text || '').trim();
-    const categoriaDetectada = detectarCategoriaImportacao(data?.text || '');
-    if (categoriaDetectada && !document.getElementById('import-foto-categoria').value) {
-      document.getElementById('import-foto-categoria').value = categoriaDetectada;
+    if (resultado.categoria) {
+      document.getElementById('import-foto-categoria').value = resultado.categoria;
     }
-    const colecaoDetectada = extrairColecaoImportacao(data?.text || '');
-    if (colecaoDetectada && !document.getElementById('import-foto-colecao').value.trim()) {
-      document.getElementById('import-foto-colecao').value = colecaoDetectada;
+    if (resultado.colecao && !document.getElementById('import-foto-colecao').value.trim()) {
+      document.getElementById('import-foto-colecao').value = resultado.colecao;
     }
-    status.textContent = 'Texto reconhecido. Revise e clique em "Montar linhas".';
-    toast('Leitura da foto concluída');
+    if (resultado.fornecedor) {
+      const fornSel = document.getElementById('import-foto-fornecedor');
+      const fornecedorNormalizado = normalizarTextoBase(resultado.fornecedor);
+      const op = Array.from(fornSel.options).find(o => normalizarTextoBase(o.textContent) === fornecedorNormalizado);
+      if (op) fornSel.value = op.value;
+    }
+    document.getElementById('import-foto-texto').value = resultado.observacoesIA || JSON.stringify(resultado.itens || [], null, 2);
+    _importFotoRows = (resultado.itens || []).map(item => ({
+      refInt: String(item.ref_papel || '').replace(/\D/g, ''),
+      refExt: item.ref_ext || '',
+      nome: item.descricao || '',
+      custo: normalizarValorImportacao(item.pc),
+      venda: normalizarValorImportacao(item.pv),
+      qtd: normalizarValorImportacao(item.qtd, true),
+      categoria: document.getElementById('import-foto-categoria').value,
+      codigo: normalizarCodigoImportacao(item.ref_papel, document.getElementById('import-foto-categoria').value)
+    })).filter(item => item.refInt || item.nome);
+    aplicarRegrasImportacaoFoto();
+    status.textContent = _importFotoRows.length
+      ? _importFotoRows.length + ' linha(s) sugerida(s) pela IA. Revise antes de importar.'
+      : 'A IA não conseguiu montar linhas úteis. Revise o texto e tente outra foto.';
+    toast('Análise com IA concluída');
   } catch(e) {
-    status.textContent = 'Erro ao reconhecer a foto: ' + e.message;
-    toast('Erro no OCR: ' + e.message, 'error');
+    status.textContent = 'Erro ao analisar a foto: ' + e.message;
+    toast('Erro na análise com IA: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Ler foto'; }
   }

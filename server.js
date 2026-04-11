@@ -52,6 +52,32 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1';
+const IMPORT_PRODUTO_CONFIG = {
+  'blusas': { categoria: 'Blusas', sufixo: 'B', ncm: '61062000', aliases: ['blusa', 'blusas'] },
+  'vestidos': { categoria: 'Vestidos', sufixo: 'V', ncm: '61044300', aliases: ['vestido', 'vestidos'] },
+  'calcas': { categoria: 'Calças', sufixo: 'C', ncm: '61034300', aliases: ['calca', 'calcas', 'calça', 'calças'] },
+  'shorts': { categoria: 'Shorts', sufixo: 'H', ncm: '61123100', aliases: ['short', 'shorts'] },
+  'saias': { categoria: 'Saias', sufixo: 'S', ncm: '61045300', aliases: ['saia', 'saias'] },
+  'conjuntos': { categoria: 'Conjuntos', sufixo: 'U', ncm: '61042300', aliases: ['conjunto', 'conjuntos'] },
+  'macacoes': { categoria: 'Macacões', sufixo: 'M', ncm: '61122000', aliases: ['macacao', 'macacoes', 'macacão', 'macacões'] },
+  'acessorios': { categoria: 'Acessórios', sufixo: 'A', ncm: '62171000', aliases: ['acessorio', 'acessorios', 'acessório', 'acessórios'] }
+};
+
+function normalizarTextoBase(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function detectarCategoriaImportacao(texto) {
+  const base = normalizarTextoBase(texto);
+  const cfg = Object.values(IMPORT_PRODUTO_CONFIG).find(item =>
+    item.aliases.some(alias => {
+      const alvo = normalizarTextoBase(alias);
+      return base.includes('\n' + alvo + '\n') || base.startsWith(alvo + '\n') || base.includes(alvo);
+    })
+  );
+  return cfg ? cfg.categoria : '';
+}
 
 function calcularMesDesconto(tipo, dataRef) {
   const d = dataRef ? new Date(dataRef) : new Date();
@@ -626,6 +652,124 @@ app.get('/api/produtos', auth, async (req, res) => {
     const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ORDER BY criado_em DESC LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ erro: 'OPENAI_API_KEY não configurada no servidor' });
+    }
+    const { imageBase64, mimeType, categoria, colecao } = req.body || {};
+    if (!imageBase64) return res.status(400).json({ erro: 'Imagem não enviada' });
+
+    const categoriasTexto = Object.values(IMPORT_PRODUTO_CONFIG)
+      .map(cfg => `${cfg.categoria} => sufixo ${cfg.sufixo}, NCM ${cfg.ncm}`)
+      .join('; ');
+
+    const systemPrompt = [
+      'Você extrai dados de fichas manuscritas de cadastro de produtos de moda feminina.',
+      'Leia a tabela da imagem e devolva APENAS JSON válido no schema solicitado.',
+      'Regras importantes:',
+      '- O título da folha indica a categoria principal da página.',
+      '- A referência interna do papel é numérica e incompleta; preserve apenas o número lido no campo ref_papel.',
+      '- Não invente linhas inexistentes.',
+      '- Se um campo estiver ilegível, use string vazia para texto e 0 para números.',
+      '- Os campos pc, pv e qtd devem ser números.',
+      '- Se houver coleção escrita na folha, extraia. Caso contrário, use a coleção enviada pelo usuário se existir.',
+      '- Se houver fornecedor claramente legível, extraia o nome.',
+      '- Categorias válidas: ' + categoriasTexto
+    ].join('\n');
+
+    const userPrompt = [
+      'Analise esta foto de uma folha de cadastro de produtos.',
+      categoria ? `Categoria informada pelo usuário: ${categoria}` : 'Categoria informada pelo usuário: não informada',
+      colecao ? `Coleção informada pelo usuário: ${colecao}` : 'Coleção informada pelo usuário: não informada',
+      'Para cada linha da tabela, extraia:',
+      '- ref_papel',
+      '- ref_ext',
+      '- descricao',
+      '- pc',
+      '- pv',
+      '- qtd',
+      'Também devolva categoria, colecao, fornecedor e observacoes_ia.'
+    ].join('\n');
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_VISION_MODEL,
+        input: [
+          { role: 'system', content: [{ type: 'input_text', text: systemPrompt }] },
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: userPrompt },
+              { type: 'input_image', image_url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` }
+            ]
+          }
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'produto_importacao_foto',
+            strict: true,
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                categoria: { type: 'string' },
+                colecao: { type: 'string' },
+                fornecedor: { type: 'string' },
+                observacoes_ia: { type: 'string' },
+                itens: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      ref_papel: { type: 'string' },
+                      ref_ext: { type: 'string' },
+                      descricao: { type: 'string' },
+                      pc: { type: 'number' },
+                      pv: { type: 'number' },
+                      qtd: { type: 'integer' }
+                    },
+                    required: ['ref_papel', 'ref_ext', 'descricao', 'pc', 'pv', 'qtd']
+                  }
+                }
+              },
+              required: ['categoria', 'colecao', 'fornecedor', 'observacoes_ia', 'itens']
+            }
+          }
+        }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ erro: data?.error?.message || 'Erro ao analisar imagem com IA' });
+    }
+
+    let parsed = null;
+    if (typeof data.output_text === 'string' && data.output_text.trim()) {
+      parsed = JSON.parse(data.output_text);
+    } else {
+      const txt = data.output?.flatMap(item => item.content || []).find(c => c.type === 'output_text')?.text;
+      if (txt) parsed = JSON.parse(txt);
+    }
+    if (!parsed) return res.status(500).json({ erro: 'IA não retornou estrutura utilizável' });
+
+    res.json({
+      categoria: parsed.categoria || categoria || detectarCategoriaImportacao(parsed.observacoes_ia || ''),
+      colecao: parsed.colecao || colecao || '',
+      fornecedor: parsed.fornecedor || '',
+      observacoesIA: parsed.observacoes_ia || '',
+      itens: Array.isArray(parsed.itens) ? parsed.itens : []
+    });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/produtos', auth, async (req, res) => {
