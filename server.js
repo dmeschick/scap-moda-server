@@ -1017,34 +1017,16 @@ app.get('/api/vales', auth, async (req, res) => {
     }
 
     if (mes) {
-      // Filtra pelo mês correto: pendentes pela próxima parcela, descontados pela última parcela paga
+      // Histórico mensal: mostra o vale em qualquer mês coberto pelo parcelamento
       conditions.push(`(
         v.mes_desconto IS NOT NULL
         AND (
-          -- Pendentes: próxima parcela cai no mês filtrado
-          (v.status != 'descontado' AND COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $${i})
+          (COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $${i})
           OR
-          (v.status != 'descontado' AND COALESCE(v.parcelas,1) > 1
-           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD')
-               + (COALESCE(v.parcelas_pagas,0) * INTERVAL '1 month')
-               = TO_DATE($${i} || '-01', 'YYYY-MM-DD')
-          )
-          OR
-          -- Descontados: mostrar no mês da parcela que foi paga mais recentemente
-          (v.status = 'descontado' AND COALESCE(v.parcelas,1) = 1 AND v.mes_desconto = $${i})
-          OR
-          (v.status = 'descontado' AND COALESCE(v.parcelas,1) > 1
-           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD')
-               + ((COALESCE(v.parcelas_pagas,1) - 1) * INTERVAL '1 month')
-               = TO_DATE($${i} || '-01', 'YYYY-MM-DD')
-          )
-          OR
-          -- Parcialmente descontados: parcela paga neste mês
-          (v.status = 'pendente' AND COALESCE(v.parcelas,1) > 1
-           AND COALESCE(v.parcelas_pagas,0) > 0
-           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD')
-               + ((COALESCE(v.parcelas_pagas,0) - 1) * INTERVAL '1 month')
-               = TO_DATE($${i} || '-01', 'YYYY-MM-DD')
+          (COALESCE(v.parcelas,1) > 1
+           AND TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') <= TO_DATE($${i} || '-01', 'YYYY-MM-DD')
+           AND TO_DATE($${i} || '-01', 'YYYY-MM-DD') <=
+               (TO_DATE(v.mes_desconto || '-01', 'YYYY-MM-DD') + ((COALESCE(v.parcelas,1) - 1) * INTERVAL '1 month'))
           )
         )
       )`);
