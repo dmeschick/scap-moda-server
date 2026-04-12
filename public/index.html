@@ -5897,9 +5897,11 @@ async function carregarVales() {
           '<td><span class="badge ' + (statusExibido==='descontado' ? 'badge-green' : 'badge-amber') + '">' +
             (statusExibido==='descontado' ? 'Descontado' : 'Pendente') +
           '</span></td>' +
-          '<td style="display:flex;gap:4px">' +
-            '<button class="btn btn-sm" onclick="reimprimirRomaneioVale(\'' + v.funcionario_id + '\',\'' + v.funcionario_nome.replace(/'/g,"\\'") + '\',\'' + (v.mes_desconto||'') + '\')" title="Reimprimir romaneio">🖨️</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">✕</button>' +
+          '<td style="text-align:center">' +
+            '<div style="display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap">' +
+              '<button class="btn btn-sm" onclick="reimprimirRomaneioVale(\'' + v.funcionario_id + '\',\'' + v.funcionario_nome.replace(/'/g,"\\'") + '\',\'' + (v.mes_desconto||'') + '\')" title="Reimprimir romaneio">🖨️</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="excluirVale(\'' + v.id + '\')">✕</button>' +
+            '</div>' +
           '</td>' +
         '</tr>' + itensHtml;
       }).join('');
