@@ -425,6 +425,8 @@ tr:hover td{background:var(--bg)}
         <div class="search-bar">
           <input type="text" id="busca-prod" placeholder="Buscar produto..." oninput="carregarProdutos()">
           <select id="filtro-cat-prod" onchange="carregarProdutos()"><option value="">Todas categorias</option></select>
+          <input type="date" id="filtro-data-entrada-ini" onchange="carregarProdutos()" title="Data de entrada inicial">
+          <input type="date" id="filtro-data-entrada-fim" onchange="carregarProdutos()" title="Data de entrada final">
           <button class="btn btn-primary" onclick="abrirModalProdutoSeguro()">+ Novo Produto</button>
           <button class="btn" onclick="abrirModalImportarProdutosFoto()">📷 Importar produtos por foto</button>
         </div>
@@ -435,7 +437,7 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th><input type="checkbox" id="check-todos-prod" onchange="toggleTodosProdutos(this)"></th><th>Código</th><th>Produto</th><th>Categoria</th><th class="col-hide-mobile">Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th><th>Etiqueta</th></tr></thead>
+            <thead><tr><th><input type="checkbox" id="check-todos-prod" onchange="toggleTodosProdutos(this)"></th><th>Código</th><th>Produto</th><th>Categoria</th><th>Entrada</th><th class="col-hide-mobile">Tamanhos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ações</th><th>Etiqueta</th></tr></thead>
             <tbody id="tabela-produtos"></tbody>
           </table>
         </div>
@@ -623,6 +625,7 @@ tr:hover td{background:var(--bg)}
             <button class="btn btn-sm" onclick="mesAtual()">Mês atual</button>
           </div>
         </div>
+        <div id="rel-entradas-produtos" style="margin-bottom:16px"></div>
         <div id="rel-content"></div>
       </div>
 
@@ -1796,10 +1799,12 @@ async function carregarDashboard() {
 async function carregarProdutos() {
   const q = document.getElementById('busca-prod')?.value || '';
   const cat = document.getElementById('filtro-cat-prod')?.value || '';
+  const dataEntradaIni = document.getElementById('filtro-data-entrada-ini')?.value || '';
+  const dataEntradaFim = document.getElementById('filtro-data-entrada-fim')?.value || '';
   try {
-    const prods = await api('GET', `/api/produtos?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}`);
+    const prods = await api('GET', `/api/produtos?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}&dataEntradaIni=${encodeURIComponent(dataEntradaIni)}&dataEntradaFim=${encodeURIComponent(dataEntradaFim)}`);
     const tb = document.getElementById('tabela-produtos');
-    if (!prods.length) { tb.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>'; return; }
+    if (!prods.length) { tb.innerHTML = '<tr><td colspan="11"><div class="empty-state" style="padding:24px"><div class="icon">📦</div><p>Nenhum produto</p></div></td></tr>'; renderMobileCardsProdutos([]); return; }
     renderMobileCardsProdutos(prods);
     tb.innerHTML = prods.map(p => {
       const margem = p.venda > 0 ? Math.round(((p.venda - p.custo) / p.venda) * 100) : 0;
@@ -1811,6 +1816,7 @@ async function carregarProdutos() {
         <td><code style="font-size:12px">${p.cod}</code></td>
         <td><strong>${p.nome}</strong>${p.cor ? `<div style="font-size:11px;color:var(--text2)">${p.cor}</div>` : ''}</td>
         <td><span class="badge badge-pink">${p.cat||'—'}</span></td>
+        <td style="font-size:12px">${p.data_entrada ? fmtData(p.data_entrada) : '—'}</td>
         <td style="font-size:12px">${p.tam||'—'}</td>
         <td><span class="badge ${estBadge}">${estLabel}</span> <span style="font-size:12px">${p.est}</span></td>
         <td><strong>${fmtMoeda(p.venda)}</strong></td>
@@ -3454,10 +3460,45 @@ async function carregarRelatorio() {
   const mes = document.getElementById('rel-mes').value;
   if (!mes) return;
   try {
-    const rel = await api('GET', `/api/relatorios/mensal?mes=${mes}`);
+    const [rel, entradas] = await Promise.all([
+      api('GET', `/api/relatorios/mensal?mes=${mes}`),
+      api('GET', `/api/relatorios/entradas-produtos?inicio=${mes}-01&fim=${new Date(parseInt(mes.slice(0,4)), parseInt(mes.slice(5,7)), 0).toISOString().slice(0,10)}`)
+    ]);
     const r = rel.resumo || {};
     const maxDia = rel.porDia.length ? Math.max(...rel.porDia.map(d => parseFloat(d.total)||0)) : 1;
     const maxProd = rel.topProdutos.length ? Math.max(...rel.topProdutos.map(p => parseInt(p.qty)||0)) : 1;
+    const re = entradas.resumo || {};
+    const entradasEl = document.getElementById('rel-entradas-produtos');
+    entradasEl.innerHTML = `
+      <div class="card">
+        <div class="card-title">Entradas de mercadoria no mês</div>
+        <div class="cards-grid" style="margin-bottom:12px">
+          <div class="metric-card"><div class="label">Produtos</div><div class="value">${re.qtd_produtos || 0}</div></div>
+          <div class="metric-card"><div class="label">Peças</div><div class="value">${re.qtd_pecas || 0}</div></div>
+          <div class="metric-card"><div class="label">Custo estimado</div><div class="value">${fmtMoeda(re.valor_custo || 0)}</div></div>
+          <div class="metric-card"><div class="label">Venda estimada</div><div class="value">${fmtMoeda(re.valor_venda || 0)}</div></div>
+        </div>
+        ${entradas.itens && entradas.itens.length ? `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Data</th><th>Código</th><th>Produto</th><th>Categoria</th><th>Coleção</th><th>Qtd</th></tr></thead>
+              <tbody>
+                ${entradas.itens.slice(0, 10).map(p => `
+                  <tr>
+                    <td>${fmtData(p.data_entrada)}</td>
+                    <td><code>${p.cod || ''}</code></td>
+                    <td><strong>${p.nome || ''}</strong></td>
+                    <td>${p.cat || '—'}</td>
+                    <td>${p.colecao || '—'}</td>
+                    <td>${p.est || 0}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : '<div class="empty-state" style="padding:16px"><p>Nenhuma entrada registrada neste mês</p></div>'}
+      </div>
+    `;
     document.getElementById('rel-content').innerHTML = `
       <div class="cards-grid" style="margin-bottom:16px">
         <div class="metric-card"><div class="label">Faturamento</div><div class="value">${fmtMoeda(r.faturamento||0)}</div><div class="sub">${r.total_vendas||0} vendas</div></div>
@@ -4696,6 +4737,7 @@ function renderMobileCardsProdutos(prods) {
         '<div class="m-card-title">' + (p.nome||'') + '</div>' +
         '<div class="m-card-sub"><code>' + (p.cod||'') + '</code> · <span class="badge badge-pink">' + (p.cat||'—') + '</span></div>' +
       '</div><strong style="font-size:16px;color:var(--pink-dark)">' + fmtMoeda(p.venda) + '</strong></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Entrada</span><span class="m-card-value">' + (p.data_entrada ? fmtData(p.data_entrada) : '—') + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Estoque</span><span class="m-card-value"><span class="badge ' + estBadge + '">' + estLabel + '</span> ' + p.est + '</span></div>' +
       (p.tam ? '<div class="m-card-row"><span class="m-card-label">Tamanhos</span><span class="m-card-value">' + p.tam + '</span></div>' : '') +
       (p.cor ? '<div class="m-card-row"><span class="m-card-label">Cor</span><span class="m-card-value">' + p.cor + '</span></div>' : '') +

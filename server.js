@@ -643,7 +643,7 @@ app.delete('/api/fornecedores/:id', auth, async (req, res) => {
 // PRODUTOS
 app.get('/api/produtos', auth, async (req, res) => {
   try {
-    const { q, cat, status, limit, offset } = req.query;
+    const { q, cat, status, limit, offset, dataEntradaIni, dataEntradaFim } = req.query;
     let where = [];
     let params = [];
     let i = 1;
@@ -651,9 +651,42 @@ app.get('/api/produtos', auth, async (req, res) => {
     if (status) params.push(status);
     if (cat) { where.push(`cat=$${i++}`); params.push(cat); }
     if (q) { where.push(`(LOWER(nome) LIKE $${i} OR cod ILIKE $${i})`); params.push('%'+q.toLowerCase()+'%'); i++; }
+    if (dataEntradaIni) { where.push(`data_entrada >= $${i++}`); params.push(dataEntradaIni); }
+    if (dataEntradaFim) { where.push(`data_entrada <= $${i++}`); params.push(dataEntradaFim); }
     const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ORDER BY criado_em DESC LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/relatorios/entradas-produtos', auth, async (req, res) => {
+  try {
+    const { inicio, fim } = req.query;
+    if (!inicio || !fim) return res.status(400).json({ erro: 'Período inválido' });
+    const resumo = await pool.query(
+      `SELECT
+         COUNT(*)::int AS qtd_produtos,
+         COALESCE(SUM(est), 0)::int AS qtd_pecas,
+         COALESCE(SUM(custo * est), 0) AS valor_custo,
+         COALESCE(SUM(venda * est), 0) AS valor_venda
+       FROM produtos
+       WHERE status = 'ativo'
+         AND data_entrada BETWEEN $1 AND $2`,
+      [inicio, fim]
+    );
+    const itens = await pool.query(
+      `SELECT id, cod, nome, cat, colecao, data_entrada, est, custo, venda
+       FROM produtos
+       WHERE status = 'ativo'
+         AND data_entrada BETWEEN $1 AND $2
+       ORDER BY data_entrada DESC, criado_em DESC
+       LIMIT 200`,
+      [inicio, fim]
+    );
+    res.json({
+      resumo: resumo.rows[0] || { qtd_produtos: 0, qtd_pecas: 0, valor_custo: 0, valor_venda: 0 },
+      itens: itens.rows
+    });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
