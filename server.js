@@ -2848,6 +2848,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const token = await getBlingToken();
     const documentoCliente = (venda.cpf || venda.cnpj || '').replace(/\D/g, '');
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
+    const indicadorPresenca = venda.canal === 'online' ? 4 : 1;
     const clientePayload = {
       nome: venda.cli_nome || 'Consumidor Final'
     };
@@ -2875,6 +2876,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       tipo: 1,
       dataOperacao,
       cfop: 5102,
+      indicadorPresenca,
       cliente: clientePayload,
       itens: itensPayload,
       parcelas: [{
