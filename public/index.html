@@ -4610,6 +4610,7 @@ async function abrirRomaneio(v, cliNome) {
         return _labelsBase[p.tipo] || p.label || p.tipo;
       }).join(' + ')
     : (v.pag || '');
+  const trocoTotal = pgtoItensArr.reduce((acc, p) => acc + (parseFloat(p.troco) || 0), 0);
 
   document.getElementById('romaneio-body').innerHTML =
     '<div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">' +
@@ -4645,6 +4646,7 @@ async function abrirRomaneio(v, cliNome) {
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
       (creditoGerado > 0 ? '' : '<div style="margin-top:4px"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
+      (creditoGerado > 0 || trocoTotal <= 0 ? '' : '<div><b>Troco:</b> ' + fmtMoeda(trocoTotal) + '</div>') +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
     secaoCheques +

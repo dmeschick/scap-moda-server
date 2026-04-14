@@ -2930,10 +2930,17 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const documentoCliente = (venda.cpf || venda.cnpj || '').replace(/\D/g, '');
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
     const indicadorPresenca = venda.canal === 'online' ? 4 : 1;
+    const nomeCliente = venda.cli_nome || 'Consumidor Final';
+    const tipoPessoa = (venda.cnpj || '').replace(/\D/g, '') ? 'J' : 'F';
     const clientePayload = {
-      nome: venda.cli_nome || 'Consumidor Final'
+      nome: nomeCliente
     };
     if (documentoCliente) clientePayload.cpfCnpj = documentoCliente;
+    const contatoPayload = {
+      nome: nomeCliente,
+      tipoPessoa,
+      numeroDocumento: documentoCliente
+    };
     const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
     const vNF = parseFloat(venda.tot) || 0;
     const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
@@ -2998,6 +3005,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       dataOperacao,
       cfop: 5102,
       indicadorPresenca,
+      contato: contatoPayload,
       cliente: clientePayload,
       itens: itensPayload,
       parcelas: parcelasPayload
