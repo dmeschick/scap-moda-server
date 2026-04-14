@@ -2866,9 +2866,12 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       nome: venda.cli_nome || 'Consumidor Final'
     };
     if (documentoCliente) clientePayload.cpfCnpj = documentoCliente;
+    const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
+    const vNF = parseFloat(venda.tot) || 0;
+    const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
     const itensPayload = itensRes.rows.map((item, idx) => {
       const quantidade = parseFloat(item.qty) || 0;
-      const valorUnitario = Math.round((parseFloat(item.preco) || 0) * 100) / 100;
+      const valorUnitario = Math.round((parseFloat(item.preco) || 0) * fatorDesc * 100) / 100;
       const valorTotal = Math.round(valorUnitario * quantidade * 100) / 100;
       return {
         item: idx + 1,
