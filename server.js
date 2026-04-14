@@ -2634,6 +2634,32 @@ function calcularCFOP(ufCliente, tipoPessoa, ie) {
   return '6108';
 }
 
+function coletarMensagensBling(obj, acc = []) {
+  if (!obj) return acc;
+  if (typeof obj === 'string') {
+    const texto = obj.trim();
+    if (texto) acc.push(texto);
+    return acc;
+  }
+  if (Array.isArray(obj)) {
+    obj.forEach(item => coletarMensagensBling(item, acc));
+    return acc;
+  }
+  if (typeof obj === 'object') {
+    ['message', 'mensagem', 'description', 'descricao', 'detail', 'detalhe'].forEach(chave => {
+      if (typeof obj[chave] === 'string' && obj[chave].trim()) acc.push(obj[chave].trim());
+    });
+    Object.values(obj).forEach(valor => coletarMensagensBling(valor, acc));
+  }
+  return acc;
+}
+
+function resumirErroBling(data, fallback) {
+  const mensagens = [...new Set(coletarMensagensBling(data).filter(Boolean))];
+  if (!mensagens.length) return fallback;
+  return mensagens.join(' | ');
+}
+
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
@@ -2650,6 +2676,24 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     if (!vendaRes.rows.length) return res.status(404).json({ erro: 'Venda não encontrada' });
     const venda = vendaRes.rows[0];
 
+    if (!venda.cliente_id) {
+      return res.status(400).json({ erro: 'A NF-e exige um cliente vinculado à venda.' });
+    }
+
+    const faltandoEndereco = [];
+    if (!venda.logradouro) faltandoEndereco.push('logradouro');
+    if (!venda.bairro) faltandoEndereco.push('bairro');
+    if (!venda.cidade) faltandoEndereco.push('cidade');
+    if (!venda.uf) faltandoEndereco.push('UF');
+    if (!venda.cep) faltandoEndereco.push('CEP');
+    if (faltandoEndereco.length) {
+      return res.status(400).json({ erro: 'Cliente sem endereço principal completo para NF-e: ' + faltandoEndereco.join(', ') + '.' });
+    }
+
+    if (venda.cli_tipo === 'PJ' && !(venda.cnpj || '').replace(/\D/g, '')) {
+      return res.status(400).json({ erro: 'Cliente PJ sem CNPJ cadastrado.' });
+    }
+
     const itensRes = await pool.query(
       `SELECT vi.*, p.ncm, p.csosn, p.custo
        FROM venda_itens vi
@@ -2657,6 +2701,17 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
        WHERE vi.venda_id = $1 AND vi.tipo != 'devolvido'`,
       [vendaId]
     );
+
+    if (!itensRes.rows.length) {
+      return res.status(400).json({ erro: 'Venda sem itens válidos para emitir NF-e.' });
+    }
+
+    const itensSemNCM = itensRes.rows
+      .filter(item => !(item.ncm || '').replace(/\D/g, ''))
+      .map(item => item.nome || item.cod || 'item sem identificação');
+    if (itensSemNCM.length) {
+      return res.status(400).json({ erro: 'Os seguintes produtos estão sem NCM: ' + itensSemNCM.join(', ') + '.' });
+    }
 
     const token = await getBlingToken();
 
@@ -2694,6 +2749,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         return {
           codigo: item.cod || '',
           descricao: item.nome || '',
+          ncm: (item.ncm || '').replace(/\D/g, ''),
           unidade: 'PC',
           quantidade: parseFloat(item.qty),
           valor: precoComDesc,
@@ -2734,8 +2790,9 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     console.log('Bling NF-e resposta:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
+      const erroDetalhado = resumirErroBling(data, 'Erro ao emitir NF-e');
       return res.status(400).json({
-        erro: data.error?.message || data.message || 'Erro ao emitir NF-e',
+        erro: erroDetalhado,
         detalhes: data
       });
     }
