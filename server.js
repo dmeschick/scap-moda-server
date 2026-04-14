@@ -2673,6 +2673,65 @@ async function consultarBlingPorId(caminho, token) {
   return { status: response.status, data, texto };
 }
 
+function normalizarTextoBling(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+async function listarFormasPagamentoBling(token) {
+  const caminhos = [
+    'formas-pagamentos?limite=100',
+    'formas-pagamento?limite=100',
+    'formas_pagamentos?limite=100',
+    'formasPagamento?limite=100'
+  ];
+
+  for (const caminho of caminhos) {
+    try {
+      const consulta = await consultarBlingPorId(caminho, token);
+      const lista = Array.isArray(consulta?.data?.data) ? consulta.data.data : null;
+      if (consulta.status >= 200 && consulta.status < 300 && lista) {
+        return lista;
+      }
+    } catch (err) {
+      console.warn('Falha ao consultar formas de pagamento no Bling:', caminho, err.message);
+    }
+  }
+
+  return [];
+}
+
+function mapearFormaPagamentoBling(tipoPagamento, formasBling) {
+  const aliases = {
+    dinheiro: ['dinheiro', 'a vista', 'avista', 'cash'],
+    debito: ['debito', 'cartao debito', 'cartao de debito'],
+    credito: ['credito', 'cartao credito', 'cartao de credito'],
+    pix: ['pix'],
+    cheque: ['cheque'],
+    cheque_pre: ['cheque pre', 'pre datado', 'pre-datado'],
+    vale_funcionaria: ['vale', 'outros']
+  };
+
+  const procurados = aliases[tipoPagamento] || [tipoPagamento];
+  const listaNormalizada = (formasBling || []).map(item => {
+    const descricao = item.descricao || item.nome || item.rotulo || '';
+    return { ...item, descricaoNormalizada: normalizarTextoBling(descricao) };
+  });
+
+  for (const alias of procurados) {
+    const alvo = normalizarTextoBling(alias);
+    const matchExato = listaNormalizada.find(item => item.descricaoNormalizada === alvo);
+    if (matchExato?.id) return Number(matchExato.id);
+    const matchParcial = listaNormalizada.find(item => item.descricaoNormalizada.includes(alvo));
+    if (matchParcial?.id) return Number(matchParcial.id);
+  }
+
+  return null;
+}
+
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
@@ -2847,6 +2906,14 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       [vendaId]
     );
 
+    const pgtoRes = await pool.query(
+      `SELECT tipo, valor, parcelas, vl_parcela, detalhe
+       FROM venda_pagamentos
+       WHERE venda_id = $1
+       ORDER BY id`,
+      [vendaId]
+    );
+
     if (!itensRes.rows.length) {
       return res.status(400).json({ erro: 'Venda sem itens válidos para emitir NFC-e.' });
     }
@@ -2859,6 +2926,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     }
 
     const token = await getBlingToken();
+    const formasPagamentoBling = await listarFormasPagamentoBling(token);
     const documentoCliente = (venda.cpf || venda.cnpj || '').replace(/\D/g, '');
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
     const indicadorPresenca = venda.canal === 'online' ? 4 : 1;
@@ -2888,6 +2956,42 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       };
     });
     const totalItens = Math.round(itensPayload.reduce((acc, item) => acc + item.valorTotal, 0) * 100) / 100;
+    const pagamentos = Array.isArray(pgtoRes.rows) ? pgtoRes.rows : [];
+    const parcelasPayload = [];
+
+    pagamentos.forEach(pagamento => {
+      const parcelas = Math.max(1, parseInt(pagamento.parcelas) || 1);
+      const valorTotalPagamento = Math.round((parseFloat(pagamento.valor) || 0) * 100) / 100;
+      if (valorTotalPagamento <= 0) return;
+
+      const formaPagamentoId = mapearFormaPagamentoBling(pagamento.tipo, formasPagamentoBling);
+      const valorBase = Math.floor((valorTotalPagamento / parcelas) * 100) / 100;
+      const valorUltima = Math.round((valorTotalPagamento - valorBase * (parcelas - 1)) * 100) / 100;
+
+      for (let i = 0; i < parcelas; i++) {
+        const valorParcela = i < parcelas - 1 ? valorBase : valorUltima;
+        const parcela = {
+          dias: i * 30,
+          data: dataOperacao,
+          valor: valorParcela
+        };
+        if (formaPagamentoId) {
+          parcela.formaPagamento = { id: formaPagamentoId };
+        }
+        if (pagamento.detalhe) {
+          parcela.observacoes = pagamento.detalhe;
+        }
+        parcelasPayload.push(parcela);
+      }
+    });
+
+    if (!parcelasPayload.length) {
+      parcelasPayload.push({
+        dias: 0,
+        data: dataOperacao,
+        valor: totalItens
+      });
+    }
 
     const payload = {
       tipo: 1,
@@ -2896,13 +3000,10 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       indicadorPresenca,
       cliente: clientePayload,
       itens: itensPayload,
-      parcelas: [{
-        dias: 0,
-        data: dataOperacao,
-        valor: totalItens
-      }]
+      parcelas: parcelasPayload
     };
 
+    console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
     console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
 
     const response = await fetch('https://api.bling.com.br/Api/v3/nfce', {
