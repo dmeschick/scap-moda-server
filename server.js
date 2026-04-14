@@ -2847,31 +2847,40 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
 
     const token = await getBlingToken();
     const documentoCliente = (venda.cpf || venda.cnpj || '').replace(/\D/g, '');
+    const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
     const clientePayload = {
       nome: venda.cli_nome || 'Consumidor Final'
     };
-    if (documentoCliente) clientePayload.cpf_cnpj = documentoCliente;
-
-    const payload = {
-      tipo: 1,
-      cfop: 5102,
-      cliente: clientePayload,
-      itens: itensRes.rows.map((item, idx) => ({
+    if (documentoCliente) clientePayload.cpfCnpj = documentoCliente;
+    const itensPayload = itensRes.rows.map((item, idx) => {
+      const quantidade = parseFloat(item.qty) || 0;
+      const valorUnitario = Math.round((parseFloat(item.preco) || 0) * 100) / 100;
+      const valorTotal = Math.round(valorUnitario * quantidade * 100) / 100;
+      return {
         item: idx + 1,
         codigo: item.cod || '',
         descricao: item.nome || '',
         ncm: (item.ncm || '').replace(/\D/g, ''),
         cfop: 5102,
-        un: 'PC',
-        quantidade: item.qty,
-        valor_unitario: parseFloat(item.preco),
-        valor_total: parseFloat(item.preco) * item.qty,
-        csosn: parseInt(item.csosn || '102')
-      })),
+        unidade: 'PC',
+        quantidade,
+        valor: valorUnitario,
+        valorTotal,
+        csosn: String(item.csosn || '102')
+      };
+    });
+    const totalItens = Math.round(itensPayload.reduce((acc, item) => acc + item.valorTotal, 0) * 100) / 100;
+
+    const payload = {
+      tipo: 1,
+      dataOperacao,
+      cfop: 5102,
+      cliente: clientePayload,
+      itens: itensPayload,
       parcelas: [{
         dias: 0,
-        data: new Date(venda.data).toISOString().split('T')[0],
-        valor: parseFloat(venda.tot)
+        data: dataOperacao,
+        valor: totalItens
       }]
     };
 
