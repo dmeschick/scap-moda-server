@@ -2817,7 +2817,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const { vendaId } = req.body;
 
     const vendaRes = await pool.query(
-      `SELECT v.*, c.nome as cli_nome, c.cpf
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj
        FROM vendas v
        LEFT JOIN clientes c ON c.id = v.cliente_id
        WHERE v.id = $1`,
@@ -2834,21 +2834,33 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       [vendaId]
     );
 
+    if (!itensRes.rows.length) {
+      return res.status(400).json({ erro: 'Venda sem itens válidos para emitir NFC-e.' });
+    }
+
+    const itensSemNCM = itensRes.rows
+      .filter(item => !(item.ncm || '').replace(/\D/g, ''))
+      .map(item => item.nome || item.cod || 'item sem identificação');
+    if (itensSemNCM.length) {
+      return res.status(400).json({ erro: 'Os seguintes produtos estão sem NCM: ' + itensSemNCM.join(', ') + '.' });
+    }
+
     const token = await getBlingToken();
+    const documentoCliente = (venda.cpf || venda.cnpj || '').replace(/\D/g, '');
+    const clientePayload = {
+      nome: venda.cli_nome || 'Consumidor Final'
+    };
+    if (documentoCliente) clientePayload.cpf_cnpj = documentoCliente;
 
     const payload = {
       tipo: 1,
       cfop: 5102,
-      cliente: {
-        nome: venda.cli_nome || 'Consumidor Final',
-        cpf_cnpj: (venda.cpf || '').replace(/\D/g, ''),
-        ie: '9'
-      },
+      cliente: clientePayload,
       itens: itensRes.rows.map((item, idx) => ({
         item: idx + 1,
         codigo: item.cod || '',
         descricao: item.nome || '',
-        ncm: (item.ncm || '62034200').replace(/\./g, ''),
+        ncm: (item.ncm || '').replace(/\D/g, ''),
         cfop: 5102,
         un: 'PC',
         quantidade: item.qty,
@@ -2863,6 +2875,8 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       }]
     };
 
+    console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
+
     const response = await fetch('https://api.bling.com.br/Api/v3/nfce', {
       method: 'POST',
       headers: {
@@ -2873,9 +2887,11 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     });
 
     const data = await response.json();
+    console.log('Bling NFC-e status:', response.status);
+    console.log('Bling NFC-e resposta:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
-      return res.status(400).json({ erro: data.error?.message || 'Erro ao emitir NFC-e', detalhes: data });
+      return res.status(400).json({ erro: resumirErroBling(data, 'Erro ao emitir NFC-e'), detalhes: data });
     }
 
     if (data.data?.id) {
