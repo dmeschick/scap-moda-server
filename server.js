@@ -2660,6 +2660,19 @@ function resumirErroBling(data, fallback) {
   return mensagens.join(' | ');
 }
 
+async function consultarBlingPorId(caminho, token) {
+  const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    }
+  });
+  const texto = await response.text();
+  let data = null;
+  try { data = texto ? JSON.parse(texto) : null; } catch (_) {}
+  return { status: response.status, data, texto };
+}
+
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
@@ -2910,6 +2923,13 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         `UPDATE vendas SET nfce_id=$1, nfce_numero=$2 WHERE id=$3`,
         [String(data.data.id), data.data.numero || '', vendaId]
       );
+      try {
+        const consulta = await consultarBlingPorId(`nfce/${data.data.id}`, token);
+        console.log('Bling NFC-e consulta status:', consulta.status);
+        console.log('Bling NFC-e consulta resposta:', consulta.data ? JSON.stringify(consulta.data, null, 2) : consulta.texto);
+      } catch (errConsulta) {
+        console.error('Erro ao consultar NFC-e criada no Bling:', errConsulta);
+      }
     }
 
     res.json({ ok: true, nfce: data.data });
