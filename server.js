@@ -2875,6 +2875,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         codigo: item.cod || '',
         descricao: item.nome || '',
         ncm: (item.ncm || '').replace(/\D/g, ''),
+        classificacaoFiscal: (item.ncm || '').replace(/\D/g, ''),
         cfop: 5102,
         unidade: 'PC',
         quantidade,
