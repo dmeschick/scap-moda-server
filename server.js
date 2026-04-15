@@ -468,8 +468,9 @@ async function initDB() {
     SELECT SETVAL('venda_num_seq',
       COALESCE(
         (SELECT MAX(CAST(REPLACE(num, '#', '') AS INTEGER)) FROM vendas WHERE num ~ '^#[0-9]+$'),
-        0
-      )
+        1
+      ),
+      EXISTS(SELECT 1 FROM vendas WHERE num ~ '^#[0-9]+$')
     );
   `);
   console.log('Banco inicializado!');
