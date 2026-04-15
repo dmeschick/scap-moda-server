@@ -61,7 +61,7 @@ const IMPORT_PRODUTO_CONFIG = {
   'saias': { categoria: 'Saias', sufixo: 'S', ncm: '61045300', aliases: ['saia', 'saias'] },
   'conjuntos': { categoria: 'Conjuntos', sufixo: 'U', ncm: '61042300', aliases: ['conjunto', 'conjuntos'] },
   'macacoes': { categoria: 'Macacões', sufixo: 'M', ncm: '61122000', aliases: ['macacao', 'macacoes', 'macacão', 'macacões'] },
-  'acessorios': { categoria: 'Acessórios', sufixo: 'A', ncm: '62171000', aliases: ['acessorio', 'acessorios', 'acessório', 'acessórios'] }
+  'acessorios': { categoria: 'Acessórios', sufixo: 'A', ncm: '62171000', aliases: ['acessorio', 'acessorios', 'acessório', 'acessórios', 'bolsa', 'bolsas'] }
 };
 
 function normalizarTextoBase(s) {
@@ -432,6 +432,14 @@ async function initDB() {
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS data_entrada DATE`);
+  for (const cfg of Object.values(IMPORT_PRODUTO_CONFIG)) {
+    await pool.query(
+      `INSERT INTO categorias (id, nome, sufixo)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET nome = EXCLUDED.nome, sufixo = EXCLUDED.sufixo`,
+      [normalizarTextoBase(cfg.categoria), cfg.categoria, cfg.sufixo]
+    );
+  }
   await pool.query(`CREATE TABLE IF NOT EXISTS auditoria (
     id TEXT PRIMARY KEY,
     usuario_id TEXT NOT NULL,
