@@ -3004,21 +3004,11 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const dataOperacao = new Date(venda.data).toISOString().split('T')[0];
     const indicadorPresenca = venda.canal === 'online' ? 4 : 1;
     const nomeCliente = venda.cli_nome || 'Consumidor Final';
-    const tipoPessoa = (venda.cnpj || '').replace(/\D/g, '') ? 'J' : 'F';
-    const contatosBling = documentoCliente || venda.cliente_id ? await listarContatosBling(token) : [];
-    const contatoBling = buscarContatoBlingPorDocumentoOuNome(contatosBling, documentoCliente, nomeCliente);
-    const clientePayload = contatoBling?.id ? null : (() => {
+    const clientePayload = (() => {
       const cliente = { nome: nomeCliente };
       if (documentoCliente) cliente.cpfCnpj = documentoCliente;
       return cliente;
     })();
-    const contatoPayload = contatoBling?.id
-      ? { id: Number(contatoBling.id) }
-      : {
-          nome: nomeCliente,
-          tipoPessoa,
-          numeroDocumento: documentoCliente
-        };
     const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
     const vNF = parseFloat(venda.tot) || 0;
     const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
@@ -3083,13 +3073,11 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       dataOperacao,
       cfop: 5102,
       indicadorPresenca,
-      contato: contatoPayload,
+      cliente: clientePayload,
       itens: itensPayload,
       parcelas: parcelasPayload
     };
-    if (clientePayload) payload.cliente = clientePayload;
 
-    console.log('Contato Bling NFC-e escolhido:', JSON.stringify(contatoBling, null, 2));
     console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
     console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
 
