@@ -3635,13 +3635,80 @@ function conectarBling() {
   window.location.href = '/api/bling/autorizar';
 }
 
+function abrirPopupBlingNota(tipo, nota) {
+  const notaId = nota?.id;
+  if (!notaId) return null;
+
+  const url = tipo === 'nfce'
+    ? `https://www.bling.com.br/nfces.php?buscaid=${encodeURIComponent(notaId)}`
+    : `https://www.bling.com.br/notas.fiscais.php?buscaid=${encodeURIComponent(notaId)}`;
+
+  const largura = Math.min(1200, Math.max(960, Math.floor(window.innerWidth * 0.9)));
+  const altura = Math.min(900, Math.max(720, Math.floor(window.innerHeight * 0.9)));
+  const esquerda = Math.max(0, Math.floor((window.screen.width - largura) / 2));
+  const topo = Math.max(0, Math.floor((window.screen.height - altura) / 2));
+  const popup = window.open('', `bling-${tipo}-nota`, `popup=yes,width=${largura},height=${altura},left=${esquerda},top=${topo},resizable=yes,scrollbars=yes`);
+
+  if (!popup) return null;
+
+  try {
+    popup.document.write(`
+      <html>
+        <head>
+          <title>Abrindo nota no Bling...</title>
+          <style>
+            body {
+              margin: 0;
+              font-family: Arial, sans-serif;
+              background: #faf7f8;
+              color: #5f4c57;
+              display: flex;
+              min-height: 100vh;
+              align-items: center;
+              justify-content: center;
+            }
+            .box {
+              padding: 24px 28px;
+              border: 1px solid #eadfe4;
+              border-radius: 16px;
+              background: white;
+              box-shadow: 0 10px 30px rgba(95, 76, 87, 0.08);
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="box">
+            <strong>Abrindo nota no Bling...</strong>
+            <div style="margin-top:8px;font-size:14px;">Se nada acontecer, permita popups para este site.</div>
+          </div>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+    popup.location.href = url;
+  } catch (e) {
+    console.warn('Falha ao preparar popup do Bling:', e);
+    popup.location.href = url;
+  }
+
+  return popup;
+}
+
 async function emitirNFe(vendaId) {
   if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
   const btn = document.getElementById('btn-nfe');
+  let popup = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
   try {
     const r = await api('POST', '/api/bling/nfe', { vendaId });
-    toast('NF-e emitida com sucesso! Nº ' + (r.nfe?.numero || ''));
+    popup = abrirPopupBlingNota('nfe', r.nfe);
+    const numero = r.nfe?.numero || '';
+    if (popup) {
+      toast('NF-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}` : ''));
+    } else {
+      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+    }
   } catch(e) {
     console.error('Erro NF-e:', e);
     toast('Erro ao emitir NF-e: ' + e.message, 'error');
@@ -3652,10 +3719,17 @@ async function emitirNFe(vendaId) {
 async function emitirNFCe(vendaId) {
   if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
   const btn = document.getElementById('btn-nfce');
+  let popup = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
   try {
     const r = await api('POST', '/api/bling/nfce', { vendaId });
-    toast('NFC-e emitida com sucesso! Nº ' + (r.nfce?.numero || ''));
+    popup = abrirPopupBlingNota('nfce', r.nfce);
+    const numero = r.nfce?.numero || '';
+    if (popup) {
+      toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}` : ''));
+    } else {
+      toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+    }
   } catch(e) { toast('Erro ao emitir NFC-e: ' + e.message, 'error'); }
   finally { if (btn) { btn.disabled = false; btn.textContent = '🧾 NFC-e'; } }
 }
