@@ -68,6 +68,10 @@ function normalizarTextoBase(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
 function detectarCategoriaImportacao(texto) {
   const base = normalizarTextoBase(texto);
   const cfg = Object.values(IMPORT_PRODUTO_CONFIG).find(item =>
@@ -113,15 +117,40 @@ function criptografarBackup(jsonStr) {
   return iv.toString('hex') + ':' + encrypted;
 }
 
-function auth(req, res, next) {
+async function auth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   if (!token) return res.status(401).json({ erro: 'Não autorizado' });
-  if (tokenBlacklist.has(token)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
-  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
+  const tokenHash = hashToken(token);
+  if (tokenBlacklist.has(tokenHash)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    req.token = token;
+    req.tokenHash = tokenHash;
+    const r = await pool.query(
+      `SELECT 1
+       FROM token_blacklist
+       WHERE token_hash = $1
+         AND expires_at > NOW()
+       LIMIT 1`,
+      [tokenHash]
+    );
+    if (r.rows.length) {
+      tokenBlacklist.add(tokenHash);
+      return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
+    }
+    next();
+  }
   catch (err) {
     if (err.name === 'TokenExpiredError') return res.status(401).json({ erro: 'Sessão expirada. Faça login novamente.' });
     res.status(401).json({ erro: 'Token inválido' });
   }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user?.cargo !== 'Administrador') {
+    return res.status(403).json({ erro: 'Acesso restrito a administradores.' });
+  }
+  next();
 }
 
 async function initDB() {
@@ -399,9 +428,14 @@ async function initDB() {
   `);
   // Remove vendas duplicadas por número (mantém a mais antiga) antes de criar índice único
   await pool.query(`
-    DELETE FROM vendas WHERE id NOT IN (
-      SELECT DISTINCT ON (num) id FROM vendas ORDER BY num, data ASC
-    )
+    DELETE FROM vendas
+    WHERE COALESCE(num, '') <> ''
+      AND id NOT IN (
+        SELECT DISTINCT ON (num) id
+        FROM vendas
+        WHERE COALESCE(num, '') <> ''
+        ORDER BY num, data ASC
+      )
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_num ON vendas(num)`);
   // Adiciona colunas que podem não existir em bancos criados antes dessas definições
@@ -436,7 +470,7 @@ async function initDB() {
     await pool.query(
       `INSERT INTO categorias (id, nome, sufixo)
        VALUES ($1, $2, $3)
-       ON CONFLICT (id) DO UPDATE SET nome = EXCLUDED.nome, sufixo = EXCLUDED.sufixo`,
+       ON CONFLICT (nome) DO UPDATE SET sufixo = EXCLUDED.sufixo`,
       [normalizarTextoBase(cfg.categoria), cfg.categoria, cfg.sufixo]
     );
   }
@@ -472,6 +506,12 @@ async function initDB() {
     expires_at TIMESTAMP,
     atualizado_em TIMESTAMP DEFAULT NOW()
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS token_blacklist (
+    token_hash TEXT PRIMARY KEY,
+    expires_at TIMESTAMP NOT NULL,
+    criado_em TIMESTAMP DEFAULT NOW()
+  )`);
+  await pool.query(`DELETE FROM token_blacklist WHERE expires_at <= NOW()`);
   await pool.query(`
     SELECT SETVAL('venda_num_seq',
       COALESCE(
@@ -511,9 +551,19 @@ app.post('/api/login', async (req, res) => {
 
 // Logout — invalidar token
 app.post('/api/logout', auth, (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token) tokenBlacklist.add(token);
-  res.json({ ok: true });
+  (async () => {
+    if (req.tokenHash) {
+      tokenBlacklist.add(req.tokenHash);
+      const expDate = req.user?.exp ? new Date(req.user.exp * 1000) : new Date(Date.now() + 10 * 60 * 60 * 1000);
+      await pool.query(
+        `INSERT INTO token_blacklist (token_hash, expires_at)
+         VALUES ($1, $2)
+         ON CONFLICT (token_hash) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+        [req.tokenHash, expDate]
+      );
+    }
+    res.json({ ok: true });
+  })().catch(err => res.status(500).json({ erro: err.message }));
 });
 
 // AUTH — Validar senha do próprio usuário
@@ -2001,7 +2051,7 @@ async function gerarBackup() {
 }
 
 // BACKUP — Exportação manual
-app.get('/api/backup/exportar', auth, async (req, res) => {
+app.get('/api/backup/exportar', auth, requireAdmin, async (req, res) => {
   try {
     const backup = await gerarBackup();
     const json = JSON.stringify(backup, null, 2);
@@ -2014,7 +2064,7 @@ app.get('/api/backup/exportar', auth, async (req, res) => {
 });
 
 // BACKUP — Descriptografar
-app.post('/api/backup/descriptografar', auth, async (req, res) => {
+app.post('/api/backup/descriptografar', auth, requireAdmin, async (req, res) => {
   try {
     const { conteudo } = req.body;
     const BACKUP_SECRET = process.env.BACKUP_SECRET || 'scap-moda-backup-2024';
@@ -2032,7 +2082,7 @@ app.post('/api/backup/descriptografar', auth, async (req, res) => {
 });
 
 // BACKUP — Envio manual por e-mail
-app.post('/api/backup/enviar-email', auth, async (req, res) => {
+app.post('/api/backup/enviar-email', auth, requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     const backup = await gerarBackup();

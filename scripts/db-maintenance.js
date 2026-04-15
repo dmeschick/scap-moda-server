@@ -50,7 +50,7 @@ async function gerarBackup() {
 
 async function resetarBanco() {
   const todasAsTabelas = await listarTabelasPublicas();
-  const preservadas = new Set(['funcionarios']);
+  const preservadas = new Set(['funcionarios', 'configuracoes', 'bling_tokens', 'categorias']);
   const limpar = todasAsTabelas.filter(tabela => !preservadas.has(tabela));
 
   await client.query('BEGIN');
@@ -69,7 +69,7 @@ async function resetarBanco() {
   console.log(JSON.stringify({
     ok: true,
     action: 'reset',
-    preservedTables: ['funcionarios'],
+    preservedTables: Array.from(preservadas),
     truncatedTables: limpar,
     funcionarios: funcionarios.rows[0].total
   }));
