@@ -2660,17 +2660,42 @@ function resumirErroBling(data, fallback) {
   return mensagens.join(' | ');
 }
 
-async function consultarBlingPorId(caminho, token) {
-  const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token
+function esperar(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function requisicaoBling(caminho, token, options = {}) {
+  const tentativas = options.tentativas || 3;
+  const method = options.method || 'GET';
+  const body = options.body;
+
+  for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+    const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      ...(body !== undefined ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {})
+    });
+
+    const texto = await response.text();
+    let data = null;
+    try { data = texto ? JSON.parse(texto) : null; } catch (_) {}
+
+    if (response.status !== 429 || tentativa === tentativas) {
+      return { status: response.status, data, texto };
     }
-  });
-  const texto = await response.text();
-  let data = null;
-  try { data = texto ? JSON.parse(texto) : null; } catch (_) {}
-  return { status: response.status, data, texto };
+
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const espera = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : tentativa * 600;
+    console.warn(`Bling rate limit em ${caminho}; aguardando ${espera}ms antes da tentativa ${tentativa + 1}.`);
+    await esperar(espera);
+  }
+}
+
+async function consultarBlingPorId(caminho, token) {
+  return requisicaoBling(caminho, token);
 }
 
 function normalizarTextoBling(texto) {
@@ -2745,18 +2770,7 @@ function buscarContatoBlingPorDocumentoOuNome(contatosBling, documento, nome) {
 }
 
 async function enviarContatoBling(token, method, caminho, contato) {
-  const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token
-    },
-    body: JSON.stringify(contato)
-  });
-  const texto = await response.text();
-  let data = null;
-  try { data = texto ? JSON.parse(texto) : null; } catch (_) {}
-  return { status: response.status, data, texto };
+  return requisicaoBling(caminho, token, { method, body: contato });
 }
 
 async function sincronizarContatoBling(token, contatoAtual, dadosContato) {
