@@ -3197,9 +3197,13 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     }
 
     if (contatoPayload) {
+      const payloadAtualizacao = {
+        ...payload,
+        numero: criacao.data?.data?.numero || payload.numero || ''
+      };
       const atualizacao = await requisicaoBling(`nfce/${nfceId}`, token, {
         method: 'PUT',
-        body: payload
+        body: payloadAtualizacao
       });
       console.log('Bling NFC-e atualizacao status:', atualizacao.status);
       console.log('Bling NFC-e atualizacao resposta:', atualizacao.data ? JSON.stringify(atualizacao.data, null, 2) : atualizacao.texto);
