@@ -3697,6 +3697,33 @@ function abrirPopupBlingNota(tipo, nota) {
   return popup;
 }
 
+async function copiarTexto(texto) {
+  if (!texto) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(String(texto));
+      return true;
+    }
+  } catch (e) {
+    console.warn('Falha ao copiar com clipboard API:', e);
+  }
+
+  try {
+    const input = document.createElement('input');
+    input.value = String(texto);
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(input);
+    return ok;
+  } catch (e) {
+    console.warn('Falha ao copiar texto:', e);
+    return false;
+  }
+}
+
 function obterNotaExistenteVenda(venda, tipo) {
   if (!venda) return null;
   if (tipo === 'nfce' && venda.nfce_id) {
@@ -3717,10 +3744,12 @@ async function emitirNFe(vendaId) {
     const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfe');
     if (notaExistente) {
       popup = abrirPopupBlingNota('nfe', notaExistente);
+      const numeroLabel = notaExistente.numero ? `Nº ${notaExistente.numero}` : 'nota existente';
+      const numeroCopiado = notaExistente.numero ? await copiarTexto(notaExistente.numero) : false;
       if (popup) {
-        toast('NF-e já emitida. Reabrindo nota no Bling' + (notaExistente.numero ? ` — Nº ${notaExistente.numero}` : ''));
+        toast('NF-e já emitida. Reabrindo no Bling — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
       } else {
-        toast('NF-e já emitida' + (notaExistente.numero ? ` Nº ${notaExistente.numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+        toast('NF-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Permita popups para abrir a nota no Bling.', 'warn');
       }
       return;
     }
@@ -3732,10 +3761,11 @@ async function emitirNFe(vendaId) {
     }
     popup = abrirPopupBlingNota('nfe', r.nfe);
     const numero = r.nfe?.numero || '';
+    const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (popup) {
-      toast('NF-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}` : ''));
+      toast('NF-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
-      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
     }
   } catch(e) {
     console.error('Erro NF-e:', e);
@@ -3753,10 +3783,12 @@ async function emitirNFCe(vendaId) {
     const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfce');
     if (notaExistente) {
       popup = abrirPopupBlingNota('nfce', notaExistente);
+      const numeroLabel = notaExistente.numero ? `Nº ${notaExistente.numero}` : 'nota existente';
+      const numeroCopiado = notaExistente.numero ? await copiarTexto(notaExistente.numero) : false;
       if (popup) {
-        toast('NFC-e já emitida. Reabrindo nota no Bling' + (notaExistente.numero ? ` — Nº ${notaExistente.numero}` : ''));
+        toast('NFC-e já emitida. Reabrindo no Bling — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
       } else {
-        toast('NFC-e já emitida' + (notaExistente.numero ? ` Nº ${notaExistente.numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+        toast('NFC-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Permita popups para abrir a nota no Bling.', 'warn');
       }
       return;
     }
@@ -3768,10 +3800,11 @@ async function emitirNFCe(vendaId) {
     }
     popup = abrirPopupBlingNota('nfce', r.nfce);
     const numero = r.nfce?.numero || '';
+    const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (popup) {
-      toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}` : ''));
+      toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
-      toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
     }
   } catch(e) { toast('Erro ao emitir NFC-e: ' + e.message, 'error'); }
   finally { if (btn) { btn.disabled = false; btn.textContent = '🧾 NFC-e'; } }
