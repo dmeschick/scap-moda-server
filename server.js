@@ -2664,12 +2664,19 @@ function esperar(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+let ultimoRequestBlingEm = 0;
+
 async function requisicaoBling(caminho, token, options = {}) {
   const tentativas = options.tentativas || 3;
   const method = options.method || 'GET';
   const body = options.body;
 
   for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+    const agora = Date.now();
+    const intervaloMinimo = 380;
+    const esperaAntes = Math.max(0, intervaloMinimo - (agora - ultimoRequestBlingEm));
+    if (esperaAntes > 0) await esperar(esperaAntes);
+
     const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
       method,
       headers: {
@@ -2678,6 +2685,7 @@ async function requisicaoBling(caminho, token, options = {}) {
       },
       ...(body !== undefined ? { body: typeof body === 'string' ? body : JSON.stringify(body) } : {})
     });
+    ultimoRequestBlingEm = Date.now();
 
     const texto = await response.text();
     let data = null;
