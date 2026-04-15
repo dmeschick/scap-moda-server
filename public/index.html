@@ -1404,6 +1404,22 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
+<!-- Modal Visualização Nota Bling -->
+<div class="modal-backdrop" id="modal-nota-bling">
+  <div class="modal" style="max-width:1100px">
+    <div class="modal-header"><h3 id="modal-nota-bling-titulo">Visualização da Nota</h3><button class="modal-close" onclick="fecharVisualizacaoNotaBling()">×</button></div>
+    <div class="modal-body" style="padding:0">
+      <div id="modal-nota-bling-aviso" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);color:var(--text2);font-size:13px"></div>
+      <iframe id="modal-nota-bling-frame" title="Visualização da nota fiscal" style="width:100%;height:min(78vh,900px);border:none;background:#fff" referrerpolicy="no-referrer"></iframe>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-nota-bling-pdf" onclick="abrirLinkNotaBlingAtual()">Abrir em nova aba</button>
+      <button class="btn" id="btn-nota-bling-modulo" onclick="abrirModuloNotaBlingAtual()">Abrir no Bling</button>
+      <button class="btn" onclick="fecharVisualizacaoNotaBling()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Romaneio -->
 <div class="modal-backdrop" id="modal-romaneio">
   <div class="modal" style="max-width:500px">
@@ -3697,6 +3713,60 @@ function abrirPopupBlingNota(tipo, nota) {
   return popup;
 }
 
+function obterLinkNotaBling(nota) {
+  return nota?.linkPDF || nota?.linkDanfe || nota?.xml || '';
+}
+
+function fecharVisualizacaoNotaBling() {
+  const frame = document.getElementById('modal-nota-bling-frame');
+  const aviso = document.getElementById('modal-nota-bling-aviso');
+  if (frame) frame.src = 'about:blank';
+  if (aviso) {
+    aviso.style.display = 'none';
+    aviso.textContent = '';
+  }
+  window._notaBlingAtualVisualizacao = null;
+  fecharModal('modal-nota-bling');
+}
+
+function abrirLinkNotaBlingAtual() {
+  const nota = window._notaBlingAtualVisualizacao;
+  const link = obterLinkNotaBling(nota);
+  if (!link) return;
+  window.open(link, '_blank', 'noopener,noreferrer');
+}
+
+function abrirModuloNotaBlingAtual() {
+  const nota = window._notaBlingAtualVisualizacao;
+  const tipo = nota?._tipoNotaBling || 'nfce';
+  if (!nota) return;
+  abrirPopupBlingNota(tipo, nota);
+}
+
+function abrirNotaBlingNoSistema(tipo, nota) {
+  const link = obterLinkNotaBling(nota);
+  if (!link) return false;
+
+  window._notaBlingAtualVisualizacao = { ...nota, _tipoNotaBling: tipo };
+
+  const titulo = document.getElementById('modal-nota-bling-titulo');
+  const frame = document.getElementById('modal-nota-bling-frame');
+  const aviso = document.getElementById('modal-nota-bling-aviso');
+
+  if (titulo) {
+    const prefixo = tipo === 'nfe' ? 'NF-e' : 'NFC-e';
+    titulo.textContent = `${prefixo} ${nota?.numero ? `Nº ${nota.numero}` : ''}`.trim();
+  }
+  if (aviso) {
+    aviso.style.display = 'block';
+    aviso.textContent = 'Se a visualização não carregar dentro do sistema, use "Abrir em nova aba" ou "Abrir no Bling".';
+  }
+  if (frame) frame.src = link;
+
+  abrirModal('modal-nota-bling');
+  return true;
+}
+
 async function copiarTexto(texto) {
   if (!texto) return false;
   try {
@@ -3759,10 +3829,13 @@ async function emitirNFe(vendaId) {
       _vendaAtual.nfe_id = r.nfe?.id ? String(r.nfe.id) : _vendaAtual.nfe_id;
       _vendaAtual.nfe_numero = r.nfe?.numero || _vendaAtual.nfe_numero;
     }
-    popup = abrirPopupBlingNota('nfe', r.nfe);
+    const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
+    if (!abriuNoSistema) popup = abrirPopupBlingNota('nfe', r.nfe);
     const numero = r.nfe?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
-    if (popup) {
+    if (abriuNoSistema) {
+      toast('NF-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+    } else if (popup) {
       toast('NF-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
       toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
@@ -3798,10 +3871,13 @@ async function emitirNFCe(vendaId) {
       _vendaAtual.nfce_id = r.nfce?.id ? String(r.nfce.id) : _vendaAtual.nfce_id;
       _vendaAtual.nfce_numero = r.nfce?.numero || _vendaAtual.nfce_numero;
     }
-    popup = abrirPopupBlingNota('nfce', r.nfce);
+    const abriuNoSistema = abrirNotaBlingNoSistema('nfce', r.nfce);
+    if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', r.nfce);
     const numero = r.nfce?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
-    if (popup) {
+    if (abriuNoSistema) {
+      toast('NFC-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+    } else if (popup) {
       toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
       toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
