@@ -3083,10 +3083,6 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       return cliente;
     })();
     const contribuinte = (() => {
-      if (venda.cli_tipo === 'PJ') {
-        if ((venda.ie || '').trim() && (venda.ie || '').trim().toUpperCase() !== 'ISENTO') return 1;
-        return 2;
-      }
       return 9;
     })();
     const contatoPayload = documentoCliente ? {
