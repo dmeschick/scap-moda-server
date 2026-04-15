@@ -2804,46 +2804,6 @@ async function listarFormasPagamentoBling(token) {
   return [];
 }
 
-async function listarContatosBling(token) {
-  const caminhos = [
-    'contatos?limite=100',
-    'contatos?pagina=1&limite=100',
-    'contatos?pagina=1&limite=100&ordem=DESC'
-  ];
-
-  for (const caminho of caminhos) {
-    try {
-      const consulta = await consultarBlingPorId(caminho, token);
-      const lista = Array.isArray(consulta?.data?.data) ? consulta.data.data : null;
-      if (consulta.status >= 200 && consulta.status < 300 && lista) {
-        return lista;
-      }
-    } catch (err) {
-      console.warn('Falha ao consultar contatos no Bling:', caminho, err.message);
-    }
-  }
-
-  return [];
-}
-
-function buscarContatoBlingPorDocumentoOuNome(contatosBling, documento, nome) {
-  const docNormalizado = String(documento || '').replace(/\D/g, '');
-  const nomeNormalizado = normalizarTextoBling(nome);
-  const contatos = Array.isArray(contatosBling) ? contatosBling : [];
-
-  if (docNormalizado) {
-    const porDocumento = contatos.find(contato => String(contato.numeroDocumento || contato.cpfCnpj || '').replace(/\D/g, '') === docNormalizado);
-    if (porDocumento?.id) return porDocumento;
-  }
-
-  if (nomeNormalizado) {
-    const porNome = contatos.find(contato => normalizarTextoBling(contato.nome) === nomeNormalizado);
-    if (porNome?.id) return porNome;
-  }
-
-  return null;
-}
-
 function mapearFormaPagamentoBling(tipoPagamento, formasBling) {
   const aliases = {
     dinheiro: ['dinheiro', 'a vista', 'avista', 'cash'],
@@ -3082,9 +3042,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       if (documentoCliente) cliente.cpfCnpj = documentoCliente;
       return cliente;
     })();
-    const contribuinte = (() => {
-      return 9;
-    })();
+    const contribuinte = 9;
     const contatoPayload = documentoCliente ? {
       nome: nomeCliente,
       tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
@@ -3194,26 +3152,6 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const nfceId = criacao.data?.data?.id;
     if (!nfceId) {
       return res.status(400).json({ erro: 'Bling não retornou o ID da NFC-e criada.', detalhes: criacao.data || criacao.texto });
-    }
-
-    if (contatoPayload) {
-      const payloadAtualizacao = {
-        ...payload,
-        numero: criacao.data?.data?.numero || payload.numero || ''
-      };
-      const atualizacao = await requisicaoBling(`nfce/${nfceId}`, token, {
-        method: 'PUT',
-        body: payloadAtualizacao
-      });
-      console.log('Bling NFC-e atualizacao status:', atualizacao.status);
-      console.log('Bling NFC-e atualizacao resposta:', atualizacao.data ? JSON.stringify(atualizacao.data, null, 2) : atualizacao.texto);
-
-      if (atualizacao.status < 200 || atualizacao.status >= 300) {
-        return res.status(400).json({
-          erro: resumirErroBling(atualizacao.data, 'Erro ao atualizar NFC-e antes do envio'),
-          detalhes: atualizacao.data || atualizacao.texto
-        });
-      }
     }
 
     const envio = await requisicaoBling(`nfce/${nfceId}/enviar`, token, {
