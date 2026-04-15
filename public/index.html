@@ -3697,13 +3697,39 @@ function abrirPopupBlingNota(tipo, nota) {
   return popup;
 }
 
+function obterNotaExistenteVenda(venda, tipo) {
+  if (!venda) return null;
+  if (tipo === 'nfce' && venda.nfce_id) {
+    return { id: venda.nfce_id, numero: venda.nfce_numero || '' };
+  }
+  if (tipo === 'nfe' && venda.nfe_id) {
+    return { id: venda.nfe_id, numero: venda.nfe_numero || '' };
+  }
+  return null;
+}
+
 async function emitirNFe(vendaId) {
   if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
   const btn = document.getElementById('btn-nfe');
   let popup = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
   try {
+    const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfe');
+    if (notaExistente) {
+      popup = abrirPopupBlingNota('nfe', notaExistente);
+      if (popup) {
+        toast('NF-e já emitida. Reabrindo nota no Bling' + (notaExistente.numero ? ` — Nº ${notaExistente.numero}` : ''));
+      } else {
+        toast('NF-e já emitida' + (notaExistente.numero ? ` Nº ${notaExistente.numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      }
+      return;
+    }
+
     const r = await api('POST', '/api/bling/nfe', { vendaId });
+    if (_vendaAtual && _vendaAtual.id === vendaId) {
+      _vendaAtual.nfe_id = r.nfe?.id ? String(r.nfe.id) : _vendaAtual.nfe_id;
+      _vendaAtual.nfe_numero = r.nfe?.numero || _vendaAtual.nfe_numero;
+    }
     popup = abrirPopupBlingNota('nfe', r.nfe);
     const numero = r.nfe?.numero || '';
     if (popup) {
@@ -3724,7 +3750,22 @@ async function emitirNFCe(vendaId) {
   let popup = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
   try {
+    const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfce');
+    if (notaExistente) {
+      popup = abrirPopupBlingNota('nfce', notaExistente);
+      if (popup) {
+        toast('NFC-e já emitida. Reabrindo nota no Bling' + (notaExistente.numero ? ` — Nº ${notaExistente.numero}` : ''));
+      } else {
+        toast('NFC-e já emitida' + (notaExistente.numero ? ` Nº ${notaExistente.numero}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      }
+      return;
+    }
+
     const r = await api('POST', '/api/bling/nfce', { vendaId });
+    if (_vendaAtual && _vendaAtual.id === vendaId) {
+      _vendaAtual.nfce_id = r.nfce?.id ? String(r.nfce.id) : _vendaAtual.nfce_id;
+      _vendaAtual.nfce_numero = r.nfce?.numero || _vendaAtual.nfce_numero;
+    }
     popup = abrirPopupBlingNota('nfce', r.nfce);
     const numero = r.nfce?.numero || '';
     if (popup) {
