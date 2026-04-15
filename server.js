@@ -3031,9 +3031,13 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const { vendaId } = req.body;
 
     const vendaRes = await pool.query(
-      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.ie, c.tipo as cli_tipo,
+              e.logradouro, e.numero, e.complemento, e.bairro, e.cidade,
+              COALESCE(NULLIF(e.uf, ''), NULLIF(e.estado, '')) as uf,
+              e.cep
        FROM vendas v
        LEFT JOIN clientes c ON c.id = v.cliente_id
+       LEFT JOIN enderecos_cliente e ON e.cliente_id = v.cliente_id AND e.principal = true
        WHERE v.id = $1`,
       [vendaId]
     );
@@ -3078,6 +3082,32 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       if (documentoCliente) cliente.cpfCnpj = documentoCliente;
       return cliente;
     })();
+    const contribuinte = (() => {
+      if (venda.cli_tipo === 'PJ') {
+        if ((venda.ie || '').trim() && (venda.ie || '').trim().toUpperCase() !== 'ISENTO') return 1;
+        return 2;
+      }
+      return 9;
+    })();
+    const contatoPayload = documentoCliente ? {
+      nome: nomeCliente,
+      tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
+      numeroDocumento: documentoCliente,
+      contribuinte,
+      ie: venda.cli_tipo === 'PJ'
+        ? ((venda.ie || '').trim() || 'ISENTO')
+        : 'ISENTO',
+      endereco: {
+        endereco: venda.logradouro || '',
+        numero: venda.numero || 'S/N',
+        complemento: venda.complemento || '',
+        bairro: venda.bairro || '',
+        cep: (venda.cep || '').replace(/\D/g, ''),
+        municipio: venda.cidade || '',
+        uf: venda.uf || '',
+        pais: ''
+      }
+    } : null;
     const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
     const vNF = parseFloat(venda.tot) || 0;
     const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
@@ -3142,10 +3172,14 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       dataOperacao,
       cfop: 5102,
       indicadorPresenca,
-      cliente: clientePayload,
       itens: itensPayload,
       parcelas: parcelasPayload
     };
+    if (contatoPayload) {
+      payload.contato = contatoPayload;
+    } else {
+      payload.cliente = clientePayload;
+    }
 
     console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
     console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
