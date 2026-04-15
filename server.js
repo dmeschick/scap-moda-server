@@ -408,6 +408,12 @@ async function initDB() {
   await pool.query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS uf TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE enderecos_cliente ADD COLUMN IF NOT EXISTS cMun TEXT DEFAULT '9999999'`);
+  await pool.query(`
+    UPDATE enderecos_cliente
+    SET uf = estado
+    WHERE COALESCE(uf, '') = ''
+      AND COALESCE(estado, '') <> ''
+  `);
   // Corrigir cMun via CEP (sem problema de encoding/acento) — faixa Petrópolis 25600000–25799999
   await pool.query(`
     UPDATE enderecos_cliente
@@ -973,9 +979,10 @@ app.post('/api/clientes', auth, async (req, res) => {
     if (c.enderecos !== undefined) {
       await client.query('DELETE FROM enderecos_cliente WHERE cliente_id=$1', [c.id]);
       for (const e of (c.enderecos||[])) {
-        await client.query(`INSERT INTO enderecos_cliente (id,cliente_id,tipo,cep,logradouro,numero,complemento,bairro,cidade,estado,principal)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-          [e.id||uid(),c.id,e.tipo||'Residencial',e.cep,e.logradouro,e.numero,e.complemento,e.bairro,e.cidade,e.estado,e.principal||false]);
+        const ufEndereco = (e.uf || e.estado || '').toUpperCase();
+        await client.query(`INSERT INTO enderecos_cliente (id,cliente_id,tipo,cep,logradouro,numero,complemento,bairro,cidade,estado,uf,principal)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [e.id||uid(),c.id,e.tipo||'Residencial',e.cep,e.logradouro,e.numero,e.complemento,e.bairro,e.cidade,ufEndereco,ufEndereco,e.principal||false]);
       }
     }
     await client.query('COMMIT');
@@ -2244,7 +2251,8 @@ const EMITENTE = {
 };
 
 function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
-  const cfop = calcularCFOP(endereco?.uf, cliente?.tipo, cliente?.ie);
+  const ufDest = endereco?.uf || endereco?.estado || 'RJ';
+  const cfop = calcularCFOP(ufDest, cliente?.tipo, cliente?.ie);
   const d = new Date(venda.data);
   const pad = n => String(n).padStart(2, '0');
   const dhEmi = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}-03:00`;
@@ -2340,7 +2348,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
           <xBairro>${(endereco.bairro || 'Nao Informado').substring(0,60).replace(/[&<>"']/g,' ')}</xBairro>
           <cMun>${enderecoCMun}</cMun>
           <xMun>${xMunDest}</xMun>
-          <UF>${endereco.uf || 'RJ'}</UF>
+          <UF>${ufDest}</UF>
           <CEP>${(endereco.cep || '25625022').replace(/\D/g,'')}</CEP>
           <cPais>1058</cPais>
           <xPais>Brasil</xPais>
@@ -2359,7 +2367,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
         <nNF>${parseInt(nNF)}</nNF>
         <dhEmi>${dhEmi}</dhEmi>
         <tpNF>1</tpNF>
-        <idDest>${endereco?.uf && endereco.uf !== 'RJ' ? '2' : '1'}</idDest>
+        <idDest>${ufDest !== 'RJ' ? '2' : '1'}</idDest>
         <cMunFG>3303906</cMunFG>
         <tpImp>1</tpImp>
         <tpEmis>1</tpEmis>
@@ -2811,7 +2819,9 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const vendaRes = await pool.query(
       `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.ie, c.tipo as cli_tipo,
-              e.logradouro, e.numero, e.bairro, e.cidade, e.uf, e.cep
+              e.logradouro, e.numero, e.bairro, e.cidade,
+              COALESCE(NULLIF(e.uf, ''), NULLIF(e.estado, '')) as uf,
+              e.cep
        FROM vendas v
        LEFT JOIN clientes c ON c.id = v.cliente_id
        LEFT JOIN enderecos_cliente e ON e.cliente_id = v.cliente_id AND e.principal = true
