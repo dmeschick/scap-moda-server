@@ -3637,11 +3637,13 @@ function conectarBling() {
 
 function abrirPopupBlingNota(tipo, nota) {
   const notaId = nota?.id;
-  if (!notaId) return null;
+  const notaNumero = nota?.numero;
+  const buscaId = notaNumero || notaId;
+  if (!buscaId) return null;
 
   const url = tipo === 'nfce'
-    ? `https://www.bling.com.br/nfces.php?buscaid=${encodeURIComponent(notaId)}`
-    : `https://www.bling.com.br/notas.fiscais.php?buscaid=${encodeURIComponent(notaId)}`;
+    ? `https://www.bling.com.br/nfces.php?buscaid=${encodeURIComponent(buscaId)}`
+    : `https://www.bling.com.br/notas.fiscais.php?buscaid=${encodeURIComponent(buscaId)}`;
 
   const largura = Math.min(1200, Math.max(960, Math.floor(window.innerWidth * 0.9)));
   const altura = Math.min(900, Math.max(720, Math.floor(window.innerHeight * 0.9)));
