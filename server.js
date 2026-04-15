@@ -3090,9 +3090,6 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       tipoPessoa: venda.cli_tipo === 'PJ' ? 'J' : 'F',
       numeroDocumento: documentoCliente,
       contribuinte,
-      ie: venda.cli_tipo === 'PJ'
-        ? ((venda.ie || '').trim() || 'ISENTO')
-        : 'ISENTO',
       endereco: {
         endereco: venda.logradouro || '',
         numero: venda.numero || 'S/N',
@@ -3104,6 +3101,9 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         pais: ''
       }
     } : null;
+    if (venda.cli_tipo === 'PJ') {
+      contatoPayload.ie = (venda.ie || '').trim() || 'ISENTO';
+    }
     const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
     const vNF = parseFloat(venda.tot) || 0;
     const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
