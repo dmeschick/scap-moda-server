@@ -2744,6 +2744,50 @@ function buscarContatoBlingPorDocumentoOuNome(contatosBling, documento, nome) {
   return null;
 }
 
+async function enviarContatoBling(token, method, caminho, contato) {
+  const response = await fetch(`https://api.bling.com.br/Api/v3/${caminho}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify(contato)
+  });
+  const texto = await response.text();
+  let data = null;
+  try { data = texto ? JSON.parse(texto) : null; } catch (_) {}
+  return { status: response.status, data, texto };
+}
+
+async function sincronizarContatoBling(token, contatoAtual, dadosContato) {
+  const payloadContato = {
+    nome: dadosContato.nome,
+    tipoPessoa: dadosContato.tipoPessoa,
+    numeroDocumento: dadosContato.numeroDocumento
+  };
+  if (dadosContato.telefone) payloadContato.telefone = dadosContato.telefone;
+  if (dadosContato.email) payloadContato.email = dadosContato.email;
+
+  if (contatoAtual?.id) {
+    const atualizacao = await enviarContatoBling(token, 'PUT', `contatos/${contatoAtual.id}`, payloadContato);
+    console.log('Bling contato update status:', atualizacao.status);
+    console.log('Bling contato update resposta:', JSON.stringify(atualizacao.data || atualizacao.texto || null, null, 2));
+    if (atualizacao.status >= 200 && atualizacao.status < 300) {
+      return { ...contatoAtual, ...payloadContato, id: Number(contatoAtual.id) };
+    }
+  }
+
+  const criacao = await enviarContatoBling(token, 'POST', 'contatos', payloadContato);
+  console.log('Bling contato create status:', criacao.status);
+  console.log('Bling contato create resposta:', JSON.stringify(criacao.data || criacao.texto || null, null, 2));
+  if (criacao.status >= 200 && criacao.status < 300) {
+    const novoId = criacao.data?.data?.id || criacao.data?.data?.[0]?.id || criacao.data?.id;
+    if (novoId) return { ...payloadContato, id: Number(novoId) };
+  }
+
+  return contatoAtual || null;
+}
+
 function mapearFormaPagamentoBling(tipoPagamento, formasBling) {
   const aliases = {
     dinheiro: ['dinheiro', 'a vista', 'avista', 'cash'],
@@ -2929,7 +2973,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const { vendaId } = req.body;
 
     const vendaRes = await pool.query(
-      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj
+      `SELECT v.*, c.nome as cli_nome, c.cpf, c.cnpj, c.tel, c.email
        FROM vendas v
        LEFT JOIN clientes c ON c.id = v.cliente_id
        WHERE v.id = $1`,
@@ -2974,13 +3018,22 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const tipoPessoa = (venda.cnpj || '').replace(/\D/g, '') ? 'J' : 'F';
     const contatosBling = documentoCliente || venda.cliente_id ? await listarContatosBling(token) : [];
     const contatoBling = buscarContatoBlingPorDocumentoOuNome(contatosBling, documentoCliente, nomeCliente);
-    const clientePayload = contatoBling?.id ? null : (() => {
+    const contatoSincronizado = documentoCliente
+      ? await sincronizarContatoBling(token, contatoBling, {
+          nome: nomeCliente,
+          tipoPessoa,
+          numeroDocumento: documentoCliente,
+          telefone: venda.tel,
+          email: venda.email
+        })
+      : contatoBling;
+    const clientePayload = contatoSincronizado?.id ? null : (() => {
       const cliente = { nome: nomeCliente };
       if (documentoCliente) cliente.cpfCnpj = documentoCliente;
       return cliente;
     })();
-    const contatoPayload = contatoBling?.id
-      ? { id: Number(contatoBling.id) }
+    const contatoPayload = contatoSincronizado?.id
+      ? { id: Number(contatoSincronizado.id) }
       : {
           nome: nomeCliente,
           tipoPessoa,
@@ -3056,7 +3109,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     };
     if (clientePayload) payload.cliente = clientePayload;
 
-    console.log('Contato Bling NFC-e escolhido:', JSON.stringify(contatoBling, null, 2));
+    console.log('Contato Bling NFC-e escolhido:', JSON.stringify(contatoSincronizado || contatoBling, null, 2));
     console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
     console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
 
