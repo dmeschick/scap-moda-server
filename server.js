@@ -2776,7 +2776,8 @@ async function enviarContatoBling(token, method, caminho, contato) {
 async function sincronizarContatoBling(token, contatoAtual, dadosContato) {
   const payloadContato = {
     nome: dadosContato.nome,
-    tipoPessoa: dadosContato.tipoPessoa,
+    tipo: dadosContato.tipoPessoa === 'J' ? 'J' : 'F',
+    situacao: 'A',
     numeroDocumento: dadosContato.numeroDocumento
   };
   if (dadosContato.telefone) payloadContato.telefone = dadosContato.telefone;
