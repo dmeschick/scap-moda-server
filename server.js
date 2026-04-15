@@ -2704,6 +2704,46 @@ async function listarFormasPagamentoBling(token) {
   return [];
 }
 
+async function listarContatosBling(token) {
+  const caminhos = [
+    'contatos?limite=100',
+    'contatos?pagina=1&limite=100',
+    'contatos?pagina=1&limite=100&ordem=DESC'
+  ];
+
+  for (const caminho of caminhos) {
+    try {
+      const consulta = await consultarBlingPorId(caminho, token);
+      const lista = Array.isArray(consulta?.data?.data) ? consulta.data.data : null;
+      if (consulta.status >= 200 && consulta.status < 300 && lista) {
+        return lista;
+      }
+    } catch (err) {
+      console.warn('Falha ao consultar contatos no Bling:', caminho, err.message);
+    }
+  }
+
+  return [];
+}
+
+function buscarContatoBlingPorDocumentoOuNome(contatosBling, documento, nome) {
+  const docNormalizado = String(documento || '').replace(/\D/g, '');
+  const nomeNormalizado = normalizarTextoBling(nome);
+  const contatos = Array.isArray(contatosBling) ? contatosBling : [];
+
+  if (docNormalizado) {
+    const porDocumento = contatos.find(contato => String(contato.numeroDocumento || contato.cpfCnpj || '').replace(/\D/g, '') === docNormalizado);
+    if (porDocumento?.id) return porDocumento;
+  }
+
+  if (nomeNormalizado) {
+    const porNome = contatos.find(contato => normalizarTextoBling(contato.nome) === nomeNormalizado);
+    if (porNome?.id) return porNome;
+  }
+
+  return null;
+}
+
 function mapearFormaPagamentoBling(tipoPagamento, formasBling) {
   const aliases = {
     dinheiro: ['dinheiro', 'a vista', 'avista', 'cash'],
@@ -2932,6 +2972,8 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const indicadorPresenca = venda.canal === 'online' ? 4 : 1;
     const nomeCliente = venda.cli_nome || 'Consumidor Final';
     const tipoPessoa = (venda.cnpj || '').replace(/\D/g, '') ? 'J' : 'F';
+    const contatosBling = documentoCliente || venda.cliente_id ? await listarContatosBling(token) : [];
+    const contatoBling = buscarContatoBlingPorDocumentoOuNome(contatosBling, documentoCliente, nomeCliente);
     const clientePayload = {
       nome: nomeCliente
     };
@@ -2941,6 +2983,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       tipoPessoa,
       numeroDocumento: documentoCliente
     };
+    if (contatoBling?.id) contatoPayload.id = Number(contatoBling.id);
     const vProd = itensRes.rows.reduce((acc, item) => acc + (parseFloat(item.preco) || 0) * (parseInt(item.qty) || 0), 0);
     const vNF = parseFloat(venda.tot) || 0;
     const fatorDesc = vProd > 0 && vNF < vProd ? vNF / vProd : 1;
@@ -3011,6 +3054,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       parcelas: parcelasPayload
     };
 
+    console.log('Contato Bling NFC-e escolhido:', JSON.stringify(contatoBling, null, 2));
     console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
     console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
 
