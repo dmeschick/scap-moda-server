@@ -6,8 +6,8 @@ const { Client } = require('pg');
 const action = process.argv[2];
 const targetPath = process.argv[3];
 
-if (!['backup', 'reset'].includes(action)) {
-  console.error('Uso: node scripts/db-maintenance.js <backup|reset> [arquivo]');
+if (!['backup', 'reset', 'prune-funcionarios-ativos'].includes(action)) {
+  console.error('Uso: node scripts/db-maintenance.js <backup|reset|prune-funcionarios-ativos> [arquivo]');
   process.exit(1);
 }
 
@@ -75,10 +75,31 @@ async function resetarBanco() {
   }));
 }
 
+async function limparFuncionariosInativos() {
+  await client.query('BEGIN');
+  try {
+    const antes = await client.query('SELECT COUNT(*)::int AS total FROM funcionarios');
+    const ativos = await client.query(`SELECT COUNT(*)::int AS total FROM funcionarios WHERE COALESCE(status, 'ativo') = 'ativo'`);
+    await client.query(`DELETE FROM funcionarios WHERE COALESCE(status, 'ativo') <> 'ativo'`);
+    await client.query('COMMIT');
+    console.log(JSON.stringify({
+      ok: true,
+      action: 'prune-funcionarios-ativos',
+      before: antes.rows[0].total,
+      after: ativos.rows[0].total,
+      removed: antes.rows[0].total - ativos.rows[0].total
+    }));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+}
+
 (async () => {
   await client.connect();
   if (action === 'backup') await gerarBackup();
   if (action === 'reset') await resetarBanco();
+  if (action === 'prune-funcionarios-ativos') await limparFuncionariosInativos();
   await client.end();
 })().catch(async err => {
   console.error(err.stack || err.message || String(err));
