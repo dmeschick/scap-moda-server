@@ -88,6 +88,11 @@ function normalizarTextoBase(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+function normalizarNCM(valor) {
+  const digitos = String(valor || '').replace(/\D/g, '');
+  return digitos.length === 8 ? digitos : '';
+}
+
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
 }
@@ -903,10 +908,14 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
 app.post('/api/produtos', auth, async (req, res) => {
   try {
     const p = req.body;
+    const ncm = normalizarNCM(p.ncm);
+    if (!ncm) {
+      return res.status(400).json({ erro: 'NCM inválido. Informe exatamente 8 dígitos.' });
+    }
     await pool.query(`INSERT INTO produtos (id,cod,nome,cat,cor,tam,colecao,data_entrada,custo,venda,est,estmin,descricao,foto,forn,ncm,cest,cfop,csosn,origem,unidade,cst_pis,cst_cofins,status,atualizado_em)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW())
       ON CONFLICT (id) DO UPDATE SET cod=$2,nome=$3,cat=$4,cor=$5,tam=$6,colecao=$7,data_entrada=$8,custo=$9,venda=$10,est=$11,estmin=$12,descricao=$13,foto=$14,forn=$15,ncm=$16,cest=$17,cfop=$18,csosn=$19,origem=$20,unidade=$21,cst_pis=$22,cst_cofins=$23,status=$24,atualizado_em=NOW()`,
-      [p.id,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.dataEntrada||null,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,p.ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
+      [p.id,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.dataEntrada||null,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -2387,7 +2396,7 @@ function gerarXMLNFe(venda, itens, cliente, endereco, pgtoItens) {
 
   const itensXML = itens.map((item, idx) => {
     const vItem = parseFloat(item.preco) * parseInt(item.qty);
-    const ncm = (item.ncm || '62034200').replace(/\./g, '');
+    const ncm = normalizarNCM(item.ncm) || '62034200';
     return `
       <det nItem="${idx + 1}">
         <prod>
@@ -2934,7 +2943,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     }
 
     const itensSemNCM = itensRes.rows
-      .filter(item => !(item.ncm || '').replace(/\D/g, ''))
+      .filter(item => !normalizarNCM(item.ncm))
       .map(item => item.nome || item.cod || 'item sem identificação');
     if (itensSemNCM.length) {
       return res.status(400).json({ erro: 'Os seguintes produtos estão sem NCM: ' + itensSemNCM.join(', ') + '.' });
@@ -2973,10 +2982,12 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       },
       itens: itensRes.rows.map(item => {
         const precoComDesc = Math.round(parseFloat(item.preco) * fatorDesc * 100) / 100;
+        const ncm = normalizarNCM(item.ncm);
         return {
           codigo: item.cod || '',
           descricao: item.nome || '',
-          ncm: (item.ncm || '').replace(/\D/g, ''),
+          ncm,
+          classificacaoFiscal: ncm,
           unidade: 'PC',
           quantidade: parseFloat(item.qty),
           valor: precoComDesc,
@@ -3078,7 +3089,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     }
 
     const itensSemNCM = itensRes.rows
-      .filter(item => !(item.ncm || '').replace(/\D/g, ''))
+      .filter(item => !normalizarNCM(item.ncm))
       .map(item => item.nome || item.cod || 'item sem identificação');
     if (itensSemNCM.length) {
       return res.status(400).json({ erro: 'Os seguintes produtos estão sem NCM: ' + itensSemNCM.join(', ') + '.' });
@@ -3122,12 +3133,13 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       const quantidade = parseFloat(item.qty) || 0;
       const valorUnitario = Math.round((parseFloat(item.preco) || 0) * fatorDesc * 100) / 100;
       const valorTotal = Math.round(valorUnitario * quantidade * 100) / 100;
+      const ncm = normalizarNCM(item.ncm);
       return {
         item: idx + 1,
         codigo: item.cod || '',
         descricao: item.nome || '',
-        ncm: (item.ncm || '').replace(/\D/g, ''),
-        classificacaoFiscal: (item.ncm || '').replace(/\D/g, ''),
+        ncm,
+        classificacaoFiscal: ncm,
         cfop: 5102,
         unidade: 'PC',
         quantidade,

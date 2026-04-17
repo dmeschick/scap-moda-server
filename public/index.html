@@ -2002,7 +2002,7 @@ async function abrirModalProduto(id) {
       document.getElementById('prod-est').value = p.est||0;
       document.getElementById('prod-estmin').value = p.estmin||5;
       document.getElementById('prod-forn').value = p.forn||'';
-      document.getElementById('prod-ncm').value = p.ncm||'';
+      document.getElementById('prod-ncm').value = formatarNCMValor(p.ncm||'');
       document.getElementById('prod-cest').value = p.cest||'';
       document.getElementById('prod-cfop').value = p.cfop||'5102';
       document.getElementById('prod-csosn').value = p.csosn||'400';
@@ -2032,7 +2032,7 @@ async function abrirModalProduto(id) {
     // Mantém categoria, coleção e NCM do último cadastro
     // (já preenchidos pelo salvarProduto via _ultimoProdCat)
     if (Object.keys(_ultimasFiscais).length) {
-      if (_ultimasFiscais.ncm) document.getElementById('prod-ncm').value = _ultimasFiscais.ncm;
+      if (_ultimasFiscais.ncm) document.getElementById('prod-ncm').value = formatarNCMValor(_ultimasFiscais.ncm);
       if (_ultimasFiscais.cest) document.getElementById('prod-cest').value = _ultimasFiscais.cest;
       if (_ultimasFiscais.cfop) document.getElementById('prod-cfop').value = _ultimasFiscais.cfop;
       document.getElementById('prod-csosn').value = _ultimasFiscais.csosn || '102';
@@ -2081,9 +2081,9 @@ async function salvarProduto() {
     if (btnGeral) tabProd(btnGeral, 'tab-prod-geral');
     return;
   }
-  const ncm = document.getElementById('prod-ncm').value.trim();
-  if (!ncm) {
-    toast('Informe o NCM do produto', 'warn');
+  const ncm = normalizarNCMValor(document.getElementById('prod-ncm').value);
+  if (ncm.length !== 8) {
+    toast('Informe um NCM válido com 8 dígitos', 'warn');
     const btnFiscal = document.querySelector('#modal-produto .tab:nth-child(2)');
     if (btnFiscal) tabProd(btnFiscal, 'tab-prod-fiscal');
     return;
@@ -2118,7 +2118,7 @@ async function salvarProduto() {
     estmin: parseInt(document.getElementById('prod-estmin').value)||5,
     descricao: document.getElementById('prod-desc').value,
     forn: document.getElementById('prod-forn').value,
-    ncm: document.getElementById('prod-ncm').value,
+    ncm,
     cest: document.getElementById('prod-cest').value,
     cfop: document.getElementById('prod-cfop').value,
     csosn: document.getElementById('prod-csosn').value,
@@ -2132,7 +2132,7 @@ async function salvarProduto() {
     await api('POST', '/api/produtos', prod);
     toast('Produto salvo! ✅');
     _ultimasFiscais = {
-      ncm: document.getElementById('prod-ncm')?.value || '',
+      ncm,
       cest: document.getElementById('prod-cest')?.value || '',
       cfop: document.getElementById('prod-cfop')?.value || '',
       csosn: document.getElementById('prod-csosn')?.value || '102',
@@ -2151,7 +2151,7 @@ async function salvarProduto() {
       abrirModalProduto();
       setTimeout(() => {
         document.getElementById('prod-cat').value = cat;
-        document.getElementById('prod-ncm').value = prod.ncm||'';
+        document.getElementById('prod-ncm').value = formatarNCMValor(prod.ncm||'');
         document.getElementById('prod-colecao').value = prod.colecao||'';
         document.getElementById('prod-nome').focus();
         document.getElementById('prod-nome').select();
@@ -2660,15 +2660,21 @@ function sugerirNCM() {
 }
 
 function selecionarNCM(ncm) {
-  document.getElementById('prod-ncm').value = ncm;
+  document.getElementById('prod-ncm').value = formatarNCMValor(ncm);
   fecharModal('modal-ncm');
   toast('NCM ' + ncm + ' selecionado!');
 }
-function mascaraNCM(el) {
-  let v = el.value.replace(/\D/g,'').slice(0,8);
+function normalizarNCMValor(valor) {
+  return String(valor || '').replace(/\D/g, '').slice(0, 8);
+}
+function formatarNCMValor(valor) {
+  let v = normalizarNCMValor(valor);
   if (v.length > 4) v = v.slice(0,4) + '.' + v.slice(4);
   if (v.replace(/\D/g,'').length > 6) v = v.slice(0,7) + '.' + v.slice(7);
-  el.value = v;
+  return v;
+}
+function mascaraNCM(el) {
+  el.value = formatarNCMValor(el.value);
 }
 function mascaraCEST(el) {
   let v = el.value.replace(/\D/g,'').slice(0,7);
