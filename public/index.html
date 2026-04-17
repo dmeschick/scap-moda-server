@@ -5175,6 +5175,7 @@ async function abrirRomaneio(v, cliNome) {
     '</div>';
 
   const estiloNegritoRomaneio = 'font-weight:700;color:#000';
+  const estiloTotalDireitaRomaneio = 'flex:1;text-align:right;' + estiloNegritoRomaneio;
   const linhasItens = itens.map(i => {
     const precoUnit = Number(i.preco) || 0;
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
@@ -5185,7 +5186,7 @@ async function abrirRomaneio(v, cliNome) {
         '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
         (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
-        '<span style="flex:1;text-align:right">' + fmtMoeda(totalItem) + '</span>' +
+        '<span style="' + estiloTotalDireitaRomaneio + '">' + fmtMoeda(totalItem) + '</span>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -5202,12 +5203,12 @@ async function abrirRomaneio(v, cliNome) {
         '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
         (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
-        '<span style="flex:1;text-align:right">-' + fmtMoeda(totalItem) + '</span>' +
+        '<span style="' + estiloTotalDireitaRomaneio + '">-' + fmtMoeda(totalItem) + '</span>' +
       '</div>' +
     '</div>';
   }).join('');
   const secaoDevolvidos = itensDevolvidos.length
-    ? '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;padding-top:6px;margin-top:6px">' +
+    ? '<div style="font-family:monospace;font-size:11px;padding-top:6px;margin-top:6px">' +
       '<div style="font-weight:bold;margin-bottom:4px">ITENS DEVOLVIDOS:</div>' +
       cabecalhoItens +
       linhasDevolvidos +
@@ -5283,14 +5284,14 @@ async function abrirRomaneio(v, cliNome) {
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
     '<div style="font-family:monospace;font-size:11px;padding:4px 0;border-top:1px solid #000">' +
-      '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
-      (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
+      (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       (itensDevolvidos.length
         ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
-          '<div style="display:flex;justify-content:space-between"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
+          '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
             '<span>' + (creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:') + '</span>' +
             '<span>' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
