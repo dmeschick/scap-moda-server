@@ -1588,6 +1588,12 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const nascDate = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00') : null;
+const hojeISO = () => {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+};
 const iniciais = n => (n||'').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);
 const isMobile = () => window.innerWidth <= 768;
 const normalizarTextoBase = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -1773,17 +1779,26 @@ async function carregarDescontosGlobal() {
 // ===== DASHBOARD =====
 async function carregarDashboard() {
   try {
-    const mes = new Date().toISOString().slice(0,7);
-    const [rel, vendas] = await Promise.all([
-      api('GET', `/api/relatorios/mensal?mes=${mes}`),
-      api('GET', '/api/vendas?limit=5')
-    ]);
-    const r = rel.resumo || {};
+    const hoje = hojeISO();
+    const vendasDia = await api('GET', `/api/vendas?de=${hoje}&ate=${hoje}&limit=500`);
+    const vendas = vendasDia.slice(0, 5);
+    const vendasValidas = vendasDia.filter(v => v.status !== 'cancelada' && v.tipo !== 'vale_funcionaria');
+    const vendasPagas = vendasValidas.filter(v => v.status === 'pago');
+    const totalVendido = vendasValidas.reduce((acc, v) => acc + (Number(v.tot) || 0) + (Number(v.credito_gerado) || 0), 0);
+    const totalPresencial = vendasPagas
+      .filter(v => v.canal === 'presencial')
+      .reduce((acc, v) => acc + (Number(v.tot) || 0) + (Number(v.credito_gerado) || 0), 0);
+    const totalOnline = vendasPagas
+      .filter(v => v.canal === 'online')
+      .reduce((acc, v) => acc + (Number(v.tot) || 0) + (Number(v.credito_gerado) || 0), 0);
+    const qtdPresencial = vendasValidas.filter(v => v.canal === 'presencial').length;
+    const qtdOnline = vendasValidas.filter(v => v.canal === 'online').length;
+    const ticketMedio = vendasValidas.length ? totalVendido / vendasValidas.length : 0;
     document.getElementById('dash-cards').innerHTML = `
-      <div class="metric-card"><div class="icon">💰</div><div class="label">Vendas hoje</div><div class="value">${fmtMoeda(r.faturamento||0)}</div><div class="sub">${r.total_vendas||0} venda(s)</div></div>
-      <div class="metric-card"><div class="icon">🎫</div><div class="label">Ticket médio</div><div class="value">${fmtMoeda(r.ticket_medio||0)}</div></div>
-      <div class="metric-card"><div class="icon">🏪</div><div class="label">Presencial</div><div class="value">${fmtMoeda(r.valor_presencial||0)}</div><div class="sub">${r.presencial||0} venda(s)</div></div>
-      <div class="metric-card"><div class="icon">🌐</div><div class="label">Online</div><div class="value">${fmtMoeda(r.valor_online||0)}</div><div class="sub">${r.online||0} venda(s)</div></div>
+      <div class="metric-card"><div class="icon">💰</div><div class="label">Vendas hoje</div><div class="value">${fmtMoeda(totalVendido)}</div><div class="sub">${vendasValidas.length} venda(s)</div></div>
+      <div class="metric-card"><div class="icon">🎫</div><div class="label">Ticket médio hoje</div><div class="value">${fmtMoeda(ticketMedio)}</div></div>
+      <div class="metric-card"><div class="icon">🏪</div><div class="label">Presencial hoje</div><div class="value">${fmtMoeda(totalPresencial)}</div><div class="sub">${qtdPresencial} venda(s)</div></div>
+      <div class="metric-card"><div class="icon">🌐</div><div class="label">Online hoje</div><div class="value">${fmtMoeda(totalOnline)}</div><div class="sub">${qtdOnline} venda(s)</div></div>
     `;
     document.getElementById('dash-vendas').innerHTML = vendas.length
       ? vendas.map(v => {
@@ -1793,31 +1808,30 @@ async function carregarDashboard() {
             : `<strong>${fmtMoeda(v.tot)}</strong>`;
           return `<tr><td>${v.cliente_nome||'Consumidor final'}</td><td>${valorCell}</td><td style="font-size:12px">${v.pag}</td><td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td></tr>`;
         }).join('')
-      : '<tr><td colspan="4"><div class="empty-state" style="padding:20px"><p>Sem vendas</p></div></td></tr>';
-    // Aniversariantes do mês
+      : '<tr><td colspan="4"><div class="empty-state" style="padding:20px"><p>Sem vendas hoje</p></div></td></tr>';
+    // Aniversariantes de hoje
     try {
       const clis = await api('GET', '/api/clientes');
-      const hoje = new Date();
-      const mesHoje = hoje.getMonth() + 1;
-      const diaHoje = hoje.getDate();
+      const agora = new Date();
+      const mesHoje = agora.getMonth() + 1;
+      const diaHoje = agora.getDate();
       const aniv = clis.filter(c => {
         if (!c.nasc) return false;
-        return nascDate(c.nasc).getMonth() + 1 === mesHoje;
-      }).sort((a, b) => nascDate(a.nasc).getDate() - nascDate(b.nasc).getDate());
+        const nasc = nascDate(c.nasc);
+        return nasc.getMonth() + 1 === mesHoje && nasc.getDate() === diaHoje;
+      }).sort((a, b) => a.nome.localeCompare(b.nome));
       const anivBanner = document.getElementById('aniversariantes-banner');
       if (aniv.length) {
         anivBanner.style.display = 'block';
         anivBanner.className = 'card';
         anivBanner.style.marginBottom = '16px';
-        anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes do mês</div>
+        anivBanner.innerHTML = `<div class="card-title">🎂 Aniversariantes de hoje</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">` +
           aniv.map(c => {
-            const dia = nascDate(c.nasc).getDate();
-            const isHoje = dia === diaHoje;
-            return `<div style="display:flex;align-items:center;gap:8px;background:${isHoje?'var(--amber-light)':'var(--bg)'};border-radius:var(--radius);padding:8px 12px;border:1px solid ${isHoje?'var(--amber)':'var(--border)'}">
+            return `<div style="display:flex;align-items:center;gap:8px;background:var(--amber-light);border-radius:var(--radius);padding:8px 12px;border:1px solid var(--amber)">
               <div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-              <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]}${isHoje?' 🎉':''}</div>
-              <div style="font-size:11px;color:var(--text2)">dia ${dia}</div>
+              <div><div style="font-size:13px;font-weight:600">${c.nome.split(' ')[0]} 🎉</div>
+              <div style="font-size:11px;color:var(--text2)">hoje</div>
               ${c.tel?`<div style="font-size:11px;color:var(--text2)">${c.tel}</div>`:''}</div>
             </div>`;
           }).join('') + '</div>';
