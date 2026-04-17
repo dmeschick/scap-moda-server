@@ -5282,20 +5282,20 @@ async function abrirRomaneio(v, cliNome) {
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
-    '<div style="font-family:monospace;font-size:11px;padding:4px 0;border-top:1px dashed #ccc">' +
+    '<div style="font-family:monospace;font-size:11px;padding:4px 0;border-top:1px solid #000">' +
       '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
       (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       (itensDevolvidos.length
-        ? '<div style="display:flex;justify-content:space-between"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+        ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
             '<span>' + (creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:') + '</span>' +
             '<span>' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
           '</div>'
-        : '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
+        : '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
