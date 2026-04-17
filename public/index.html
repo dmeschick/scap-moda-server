@@ -920,6 +920,40 @@ tr:hover td{background:var(--bg)}
           <button class="btn btn-primary" onclick="salvarTextoCredito()">Salvar</button>
         </div>
         <div class="card" style="margin-top:16px;max-width:800px">
+          <div class="card-title">Impressoras deste computador</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+            Use esta configuração em cada computador da loja. O QZ Tray precisa estar aberto no Windows para listar e imprimir direto.
+          </div>
+          <div id="qz-status" style="font-size:12px;color:var(--text2);margin-bottom:12px">QZ Tray ainda não conectado.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <button class="btn btn-primary" onclick="carregarImpressorasQZ()">Buscar impressoras</button>
+            <button class="btn" onclick="testarQZTray()">Testar conexão</button>
+            <button class="btn" onclick="salvarImpressorasQZ()">Salvar neste computador</button>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Romaneio / comprovante</label>
+              <select id="printer-romaneio"></select>
+            </div>
+            <div class="form-group">
+              <label>Etiquetas</label>
+              <select id="printer-etiquetas"></select>
+            </div>
+            <div class="form-group">
+              <label>Notinha de crédito</label>
+              <select id="printer-credito"></select>
+            </div>
+            <div class="form-group">
+              <label>Relatórios</label>
+              <select id="printer-relatorio"></select>
+            </div>
+            <div class="form-group full">
+              <label>NFC-e / DANFE</label>
+              <select id="printer-danfe"></select>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;max-width:800px">
           <div class="card-title">Backup de dados</div>
           <div style="margin-bottom:16px">
             <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
@@ -1560,6 +1594,7 @@ tr:hover td{background:var(--bg)}
 <!-- Toast container -->
 <div id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js"></script>
 <script>
 const API = 'https://scap-moda-server-production.up.railway.app';
 let TOKEN = null;
@@ -3939,6 +3974,7 @@ async function carregarConfiguracoes() {
   carregarTextoRomaneio();
   carregarTextoCredito();
   carregarEmailBackup();
+  carregarConfigImpressorasLocal();
   const cardAuditoria = document.getElementById('card-auditoria');
   if (cardAuditoria) cardAuditoria.style.display = CARGO_ATUAL === 'Administrador' ? 'block' : 'none';
   const cardRestaurar = document.getElementById('card-restaurar');
@@ -4069,6 +4105,84 @@ async function salvarTextoRomaneio() {
     await api('POST', '/api/config/romaneio_texto', { valor });
     toast('Texto salvo!');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+const QZ_PRINTER_CONFIG_KEY = 'scap_printer_config_v1';
+const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'danfe'];
+
+function obterConfigImpressorasLocal() {
+  try { return JSON.parse(localStorage.getItem(QZ_PRINTER_CONFIG_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+
+function atualizarStatusQZ(msg, tipo = 'info') {
+  const el = document.getElementById('qz-status');
+  if (!el) return;
+  const cor = tipo === 'ok' ? 'var(--green)' : tipo === 'erro' ? 'var(--red)' : 'var(--text2)';
+  el.style.color = cor;
+  el.textContent = msg;
+}
+
+function preencherSelectsImpressoras(nomes) {
+  const salvas = obterConfigImpressorasLocal();
+  QZ_TIPOS_IMPRESSAO.forEach(tipo => {
+    const el = document.getElementById('printer-' + tipo);
+    if (!el) return;
+    const atual = salvas[tipo] || el.value || '';
+    el.innerHTML = '<option value="">Usar janela do navegador</option>' +
+      nomes.map(nome => `<option value="${nome.replace(/"/g, '&quot;')}">${nome}</option>`).join('');
+    if (atual && nomes.includes(atual)) el.value = atual;
+  });
+}
+
+function carregarConfigImpressorasLocal() {
+  preencherSelectsImpressoras(Object.values(obterConfigImpressorasLocal()).filter(Boolean));
+  const salvas = obterConfigImpressorasLocal();
+  const qtd = Object.values(salvas).filter(Boolean).length;
+  atualizarStatusQZ(qtd ? `${qtd} impressora(s) configurada(s) neste computador.` : 'Nenhuma impressora configurada neste computador.');
+}
+
+async function conectarQZTray() {
+  if (typeof qz === 'undefined') throw new Error('Biblioteca do QZ Tray não carregou. Recarregue a página.');
+  if (!qz.websocket.isActive()) await qz.websocket.connect({ retries: 1, delay: 1 });
+}
+
+async function carregarImpressorasQZ() {
+  try {
+    atualizarStatusQZ('Conectando ao QZ Tray...');
+    await conectarQZTray();
+    const detalhes = await qz.printers.details();
+    const nomes = (detalhes || []).map(p => typeof p === 'string' ? p : p.name).filter(Boolean).sort();
+    preencherSelectsImpressoras(nomes);
+    atualizarStatusQZ(`${nomes.length} impressora(s) encontrada(s).`, 'ok');
+    toast('Impressoras carregadas!');
+  } catch(e) {
+    atualizarStatusQZ('Não foi possível conectar ao QZ Tray: ' + e.message, 'erro');
+    toast('QZ Tray não conectado: ' + e.message, 'error');
+  }
+}
+
+async function testarQZTray() {
+  try {
+    await conectarQZTray();
+    const padrao = await qz.printers.getDefault();
+    atualizarStatusQZ('QZ Tray conectado. Impressora padrão: ' + (padrao || 'não identificada'), 'ok');
+    toast('QZ Tray conectado!');
+  } catch(e) {
+    atualizarStatusQZ('Falha ao testar QZ Tray: ' + e.message, 'erro');
+    toast('Erro no QZ Tray: ' + e.message, 'error');
+  }
+}
+
+function salvarImpressorasQZ() {
+  const cfg = {};
+  QZ_TIPOS_IMPRESSAO.forEach(tipo => {
+    const el = document.getElementById('printer-' + tipo);
+    cfg[tipo] = el ? el.value : '';
+  });
+  localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfg));
+  atualizarStatusQZ('Configuração salva neste computador.', 'ok');
+  toast('Impressoras salvas neste computador!');
 }
 
 function renderListaCats() {
