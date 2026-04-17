@@ -5174,6 +5174,7 @@ async function abrirRomaneio(v, cliNome) {
       '<span style="flex:1;text-align:right">Total:</span>' +
     '</div>';
 
+  const estiloNegritoRomaneio = 'font-weight:700;color:#000';
   const linhasItens = itens.map(i => {
     const precoUnit = Number(i.preco) || 0;
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
@@ -5181,7 +5182,7 @@ async function abrirRomaneio(v, cliNome) {
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
       '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
       '<div style="display:flex;margin-top:2px">' +
-        '<span style="width:30px">' + i.qty + '</span>' +
+        '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
         (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
         '<span style="flex:1;text-align:right">' + fmtMoeda(totalItem) + '</span>' +
@@ -5198,7 +5199,7 @@ async function abrirRomaneio(v, cliNome) {
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
       '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
       '<div style="display:flex;margin-top:2px">' +
-        '<span style="width:30px">' + i.qty + '</span>' +
+        '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
         (pct > 0 ? '<span style="flex:1">' + fmtMoeda(precoDesc) + '</span>' : '<span style="flex:1">—</span>') +
         '<span style="flex:1;text-align:right">-' + fmtMoeda(totalItem) + '</span>' +
@@ -5272,7 +5273,7 @@ async function abrirRomaneio(v, cliNome) {
     '</div>' +
     '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:8px 0;text-align:center;font-family:monospace">' +
       '<div style="font-weight:bold">ROMANEIO DE VENDA</div>' +
-      '<div style="font-size:11px">' + (v.num||'') + ' — ' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
+      '<div style="font-size:11px;' + estiloNegritoRomaneio + '">' + (v.num||'') + ' — ' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
     '</div>' +
     '<div style="font-family:monospace;font-size:12px;margin-bottom:8px">' +
       '<div><b>Cliente:</b> ' + (cliNome || v.cliente_nome || 'Consumidor final') + '</div>' +
@@ -5282,28 +5283,28 @@ async function abrirRomaneio(v, cliNome) {
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
     '<div style="font-family:monospace;font-size:11px;padding:4px 0;border-top:1px dashed #ccc">' +
-      '<div style="display:flex;justify-content:space-between"><span>Total de peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
-      (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between"><span>Total de peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças compradas:</span><span>' + totalPecasCompradas + '</span></div>' +
+      (totalPecasDevolvidas > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Total de peças devolvidas:</span><span>' + totalPecasDevolvidas + '</span></div>' : '') +
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       (itensDevolvidos.length
         ? '<div style="display:flex;justify-content:space-between"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-          (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
             '<span>' + (creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:') + '</span>' +
             '<span>' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
           '</div>'
         : '<div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-          (desc > 0 ? '<div style="display:flex;justify-content:space-between"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
-      (creditoGerado > 0 ? '' : '<div style="margin-top:4px"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
+      (creditoGerado > 0 ? '' : '<div style="margin-top:4px;' + estiloNegritoRomaneio + '"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
       (creditoGerado > 0 || trocoTotal <= 0 ? '' : '<div><b>Troco:</b> ' + fmtMoeda(trocoTotal) + '</div>') +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
     secaoCheques +
-    '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:8px;padding-top:6px;text-align:center">' +
+    '<div style="font-family:monospace;font-size:11px;border-top:1px dashed #000;margin-top:8px;padding-top:6px;text-align:center;' + estiloNegritoRomaneio + '">' +
       textoRodape +
     '</div>';
 
