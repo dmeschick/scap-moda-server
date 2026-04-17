@@ -924,6 +924,13 @@ tr:hover td{background:var(--bg)}
           <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
             Use esta configuração em cada computador da loja. O QZ Tray precisa estar aberto no Windows para listar e imprimir direto.
           </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Nome desta estação</label>
+            <input type="text" id="qz-estacao-nome" placeholder="Ex: caixa-1, caixa-2">
+            <div style="font-size:11px;color:var(--text2);margin-top:4px">
+              Use um nome fixo neste computador para manter as margens e impressoras mesmo depois de reiniciar.
+            </div>
+          </div>
           <div id="qz-status" style="font-size:12px;color:var(--text2);margin-bottom:12px">QZ Tray ainda não conectado.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
             <button class="btn btn-primary" onclick="carregarImpressorasQZ()">Buscar impressoras</button>
@@ -4147,6 +4154,7 @@ async function salvarTextoRomaneio() {
 }
 
 const QZ_PRINTER_CONFIG_KEY = 'scap_printer_config_v1';
+const QZ_STATION_KEY = 'scap_qz_station_name';
 const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'danfe'];
 let _qzSegurancaVerificada = false;
 let _qzSegurancaConfigurada = false;
@@ -4163,6 +4171,28 @@ const QZ_ROMANEIO_PADRAO = {
 function obterConfigImpressorasLocal() {
   try { return JSON.parse(localStorage.getItem(QZ_PRINTER_CONFIG_KEY) || '{}'); }
   catch(e) { return {}; }
+}
+
+function normalizarNomeEstacaoQZ(nome) {
+  return String(nome || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+function obterNomeEstacaoQZ() {
+  let nome = normalizarNomeEstacaoQZ(localStorage.getItem(QZ_STATION_KEY) || '');
+  if (!nome) {
+    nome = normalizarNomeEstacaoQZ(navigator.userAgent.includes('Windows') ? 'windows-caixa' : 'computador');
+    localStorage.setItem(QZ_STATION_KEY, nome);
+  }
+  return nome;
+}
+
+function chaveConfigServidorQZ(nome = obterNomeEstacaoQZ()) {
+  return 'qz_printer_config_' + nome;
 }
 
 function obterAjustesRomaneioQZ() {
@@ -4196,8 +4226,10 @@ function preencherSelectsImpressoras(nomes) {
   });
 }
 
-function carregarConfigImpressorasLocal() {
-  preencherSelectsImpressoras(Object.values(obterConfigImpressorasLocal()).filter(Boolean));
+function aplicarConfigImpressorasQZ(cfg = obterConfigImpressorasLocal()) {
+  localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfg || {}));
+  const impressorasSalvas = QZ_TIPOS_IMPRESSAO.map(tipo => cfg?.[tipo]).filter(Boolean);
+  preencherSelectsImpressoras(impressorasSalvas);
   const ajustes = obterAjustesRomaneioQZ();
   const campos = {
     'qz-romaneio-width': ajustes.width,
@@ -4214,8 +4246,24 @@ function carregarConfigImpressorasLocal() {
   const scaleEl = document.getElementById('qz-romaneio-scale');
   if (scaleEl) scaleEl.checked = !!ajustes.scale;
   const salvas = obterConfigImpressorasLocal();
-  const qtd = Object.values(salvas).filter(Boolean).length;
+  const qtd = QZ_TIPOS_IMPRESSAO.map(tipo => salvas[tipo]).filter(Boolean).length;
   atualizarStatusQZ(qtd ? `${qtd} impressora(s) configurada(s) neste computador.` : 'Nenhuma impressora configurada neste computador.');
+}
+
+async function carregarConfigImpressorasLocal() {
+  const estacaoEl = document.getElementById('qz-estacao-nome');
+  if (estacaoEl) estacaoEl.value = obterNomeEstacaoQZ();
+  aplicarConfigImpressorasQZ(obterConfigImpressorasLocal());
+  try {
+    const remoto = await api('GET', '/api/config/' + encodeURIComponent(chaveConfigServidorQZ()));
+    if (remoto?.valor) {
+      const cfg = typeof remoto.valor === 'string' ? JSON.parse(remoto.valor) : remoto.valor;
+      aplicarConfigImpressorasQZ(cfg);
+      atualizarStatusQZ('Configuração carregada para esta estação.', 'ok');
+    }
+  } catch (e) {
+    console.warn('Não foi possível carregar configuração remota do QZ:', e);
+  }
 }
 
 async function configurarSegurancaQZ() {
@@ -4300,8 +4348,17 @@ async function testarQZTray() {
   }
 }
 
-function salvarImpressorasQZ() {
+async function salvarImpressorasQZ() {
   const cfg = {};
+  const estacaoEl = document.getElementById('qz-estacao-nome');
+  const nomeEstacao = normalizarNomeEstacaoQZ(estacaoEl?.value || obterNomeEstacaoQZ());
+  if (!nomeEstacao) {
+    toast('Informe um nome para esta estação.', 'warn');
+    if (estacaoEl) estacaoEl.focus();
+    return;
+  }
+  localStorage.setItem(QZ_STATION_KEY, nomeEstacao);
+  if (estacaoEl) estacaoEl.value = nomeEstacao;
   QZ_TIPOS_IMPRESSAO.forEach(tipo => {
     const el = document.getElementById('printer-' + tipo);
     cfg[tipo] = el ? el.value : '';
@@ -4316,8 +4373,14 @@ function salvarImpressorasQZ() {
     scale: !!document.getElementById('qz-romaneio-scale')?.checked
   };
   localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfg));
-  atualizarStatusQZ('Configuração salva neste computador.', 'ok');
-  toast('Impressoras salvas neste computador!');
+  try {
+    await api('POST', '/api/config/' + encodeURIComponent(chaveConfigServidorQZ(nomeEstacao)), { valor: cfg });
+    atualizarStatusQZ(`Configuração salva para a estação ${nomeEstacao}.`, 'ok');
+    toast('Impressoras e margens salvas!');
+  } catch (e) {
+    atualizarStatusQZ('Configuração salva só neste navegador. Erro ao salvar no servidor: ' + e.message, 'erro');
+    toast('Salvo no navegador, mas não no servidor.', 'warn');
+  }
 }
 
 function obterImpressoraQZ(tipo) {
@@ -5252,6 +5315,14 @@ async function abrirRomaneio(v, cliNome) {
   abrirModal('modal-romaneio');
 }
 
+function montarHtmlQZComMargemInferior(html, ajustesQZ) {
+  const bottom = Math.max(0, parseFloat(ajustesQZ.bottom) || 0);
+  const htmlSemPaddingInferior = html.replace('</style>',
+    `html, body { width: ${ajustesQZ.width}mm !important; min-height: auto !important; } body { padding: ${ajustesQZ.top}mm ${ajustesQZ.right}mm 0 ${ajustesQZ.left}mm !important; overflow: visible !important; }</style>`
+  );
+  return htmlSemPaddingInferior.replace('</body>', `<div style="height:${bottom}mm;line-height:${bottom}mm;font-size:1px">&nbsp;</div></body>`);
+}
+
 async function imprimirRomaneio() {
   const romaneioEl = document.getElementById('romaneio-body');
   const conteudo = romaneioEl.innerHTML;
@@ -5280,9 +5351,7 @@ async function imprimirRomaneio() {
     </style>
   </head><body>${conteudo}</body></html>`;
   const ajustesQZ = obterAjustesRomaneioQZ();
-  const htmlQZ = html.replace('</style>',
-    `html, body { width: ${ajustesQZ.width}mm !important; } body { padding: ${ajustesQZ.top}mm ${ajustesQZ.right}mm ${ajustesQZ.bottom}mm ${ajustesQZ.left}mm !important; }</style>`
-  );
+  const htmlQZ = montarHtmlQZComMargemInferior(html, ajustesQZ);
   if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
