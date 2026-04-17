@@ -4410,6 +4410,29 @@ async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
   return true;
 }
 
+async function imprimirHtmlsQZ(tipo, htmls, opcoes = {}) {
+  const impressora = obterImpressoraQZ(tipo);
+  if (!impressora || !htmls?.length) return false;
+  await conectarQZTray();
+  const config = qz.configs.create(impressora, {
+    copies: opcoes.copies || 1,
+    density: opcoes.density || 203,
+    margins: opcoes.margins || 0,
+    legacy: !!opcoes.legacy,
+    orientation: opcoes.orientation || null,
+    scaleContent: opcoes.scaleContent !== false
+  });
+  const data = htmls.map(html => ({
+    type: 'pixel',
+    format: 'html',
+    flavor: 'plain',
+    data: html,
+    options: opcoes.pageWidth ? { pageWidth: opcoes.pageWidth } : undefined
+  }));
+  await qz.print(config, data);
+  return true;
+}
+
 function prepararTextoTermica(texto) {
   return (texto || '')
     .replace(/\u00a0/g, ' ')
@@ -4455,6 +4478,20 @@ async function tentarImpressaoTextoQZ(tipo, texto, opcoes = {}) {
 async function tentarImpressaoQZ(tipo, html, opcoes = {}) {
   try {
     const impresso = await imprimirHtmlQZ(tipo, html, opcoes);
+    if (impresso) {
+      toast('Enviado para a impressora configurada.');
+      return true;
+    }
+  } catch(e) {
+    console.warn('Falha ao imprimir via QZ Tray:', e);
+    toast('QZ Tray falhou, abrindo impressão do navegador.', 'warn');
+  }
+  return false;
+}
+
+async function tentarImpressaoMultiplosQZ(tipo, htmls, opcoes = {}) {
+  try {
+    const impresso = await imprimirHtmlsQZ(tipo, htmls, opcoes);
     if (impresso) {
       toast('Enviado para a impressora configurada.');
       return true;
@@ -5778,28 +5815,37 @@ async function gerarImpressaoEtiquetas(itens) {
     return '<div class="faixa">' + esq + dir + '</div>';
   }).join('');
 
-  const html = `<!DOCTYPE html><html><head>
-    <title>Etiquetas</title>
-    <style>
+  const estiloEtiquetas = `
       @page { size: 90mm 75mm; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { width: 90mm; font-family: Arial, sans-serif; }
-      .faixa { width: 90mm; height: 75mm; page-break-after: always; display: flex; flex-direction: row; }
-      .etiqueta { width: 45mm; height: 75mm; display: flex; flex-direction: column; }
-      .espaco-fabrica { height: 32mm; }
-      .parte-cima { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
-      .picote { height: 0; border-top: 1px dashed #aaa; margin: 0 2mm; }
-      .parte-baixo { height: 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
+      html, body { width: 90mm; height: 75mm; overflow: hidden; font-family: Arial, sans-serif; }
+      .faixa { width: 90mm; height: 75mm; display: flex; flex-direction: row; overflow: hidden; }
+      .etiqueta { width: 45mm; height: 75mm; display: flex; flex-direction: column; flex: 0 0 45mm; overflow: hidden; }
+      .espaco-fabrica { height: 32mm; flex: 0 0 32mm; }
+      .parte-cima { height: 20mm; flex: 0 0 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
+      .picote { height: 0; border-top: 1px dashed #aaa; margin: 0 2mm; flex: 0 0 0; }
+      .parte-baixo { height: 20mm; flex: 0 0 20mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 2mm; overflow: hidden; }
       .colecao { font-size: 8pt; font-weight: bold; }
       .nome { font-size: 7pt; }
       .codigo { font-size: 8pt; letter-spacing: 1px; }
-      .barcode { max-width: 41mm; height: 7mm; }
-      @media print { body { margin: 0; } .faixa { page-break-after: always; } }
-    </style>
-  </head><body>
-    ${etiquetasHTML}
-  </body></html>`;
-  if (await tentarImpressaoQZ('etiquetas', html)) return;
+      .barcode { max-width: 41mm; height: 7mm; flex: 0 0 7mm; }
+      @media print {
+        html, body { width: 90mm; height: 75mm; margin: 0; }
+        .faixa { page-break-after: always; break-after: page; }
+      }`;
+
+  const montarHtmlEtiqueta = conteudo => `<!DOCTYPE html><html><head>
+    <title>Etiquetas</title>
+    <style>${estiloEtiquetas}</style>
+  </head><body>${conteudo}</body></html>`;
+
+  const html = montarHtmlEtiqueta(etiquetasHTML);
+  const htmlsQZ = pares.map((par, pi) => {
+    const esq = renderEtiqueta(par.esq, pi * 2);
+    const dir = par.dir ? renderEtiqueta(par.dir, pi * 2 + 1) : '<div class="etiqueta"></div>';
+    return montarHtmlEtiqueta('<div class="faixa">' + esq + dir + '</div>');
+  });
+  if (await tentarImpressaoMultiplosQZ('etiquetas', htmlsQZ, { scaleContent: false, pageWidth: 3.54 })) return;
 
   const j = window.open('', '_blank', 'width=400,height=400');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
