@@ -952,6 +952,44 @@ tr:hover td{background:var(--bg)}
               <select id="printer-danfe"></select>
             </div>
           </div>
+          <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:6px">Ajustes do romaneio no QZ</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:10px">
+              Ajuste estes valores neste computador até a impressão ficar centralizada. O navegador não é afetado.
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Largura útil (mm)</label>
+                <input type="number" id="qz-romaneio-width" step="0.1" value="72">
+              </div>
+              <div class="form-group">
+                <label>Largura da página QZ (pol.)</label>
+                <input type="number" id="qz-romaneio-page-width" step="0.01" value="3.15">
+              </div>
+              <div class="form-group">
+                <label>Margem esquerda (mm)</label>
+                <input type="number" id="qz-romaneio-left" step="0.1" value="3.5">
+              </div>
+              <div class="form-group">
+                <label>Margem direita (mm)</label>
+                <input type="number" id="qz-romaneio-right" step="0.1" value="4.5">
+              </div>
+              <div class="form-group">
+                <label>Margem superior (mm)</label>
+                <input type="number" id="qz-romaneio-top" step="0.1" value="2">
+              </div>
+              <div class="form-group">
+                <label>Margem inferior (mm)</label>
+                <input type="number" id="qz-romaneio-bottom" step="0.1" value="2">
+              </div>
+              <div class="form-group full">
+                <label style="display:flex;align-items:center;gap:8px;font-weight:500;color:var(--text1)">
+                  <input type="checkbox" id="qz-romaneio-scale" style="width:auto">
+                  Permitir escala automática do QZ
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="card" style="margin-top:16px;max-width:800px">
           <div class="card-title">Backup de dados</div>
@@ -4110,10 +4148,30 @@ async function salvarTextoRomaneio() {
 
 const QZ_PRINTER_CONFIG_KEY = 'scap_printer_config_v1';
 const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'danfe'];
+const QZ_ROMANEIO_PADRAO = {
+  width: 72,
+  pageWidth: 3.15,
+  left: 3.5,
+  right: 4.5,
+  top: 2,
+  bottom: 2,
+  scale: false
+};
 
 function obterConfigImpressorasLocal() {
   try { return JSON.parse(localStorage.getItem(QZ_PRINTER_CONFIG_KEY) || '{}'); }
   catch(e) { return {}; }
+}
+
+function obterAjustesRomaneioQZ() {
+  const cfg = obterConfigImpressorasLocal();
+  return { ...QZ_ROMANEIO_PADRAO, ...(cfg.romaneioAjustes || {}) };
+}
+
+function numeroInput(id, fallback) {
+  const el = document.getElementById(id);
+  const valor = el ? parseFloat(String(el.value).replace(',', '.')) : NaN;
+  return Number.isFinite(valor) ? valor : fallback;
 }
 
 function atualizarStatusQZ(msg, tipo = 'info') {
@@ -4138,6 +4196,21 @@ function preencherSelectsImpressoras(nomes) {
 
 function carregarConfigImpressorasLocal() {
   preencherSelectsImpressoras(Object.values(obterConfigImpressorasLocal()).filter(Boolean));
+  const ajustes = obterAjustesRomaneioQZ();
+  const campos = {
+    'qz-romaneio-width': ajustes.width,
+    'qz-romaneio-page-width': ajustes.pageWidth,
+    'qz-romaneio-left': ajustes.left,
+    'qz-romaneio-right': ajustes.right,
+    'qz-romaneio-top': ajustes.top,
+    'qz-romaneio-bottom': ajustes.bottom
+  };
+  Object.entries(campos).forEach(([id, valor]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = valor;
+  });
+  const scaleEl = document.getElementById('qz-romaneio-scale');
+  if (scaleEl) scaleEl.checked = !!ajustes.scale;
   const salvas = obterConfigImpressorasLocal();
   const qtd = Object.values(salvas).filter(Boolean).length;
   atualizarStatusQZ(qtd ? `${qtd} impressora(s) configurada(s) neste computador.` : 'Nenhuma impressora configurada neste computador.');
@@ -4181,6 +4254,15 @@ function salvarImpressorasQZ() {
     const el = document.getElementById('printer-' + tipo);
     cfg[tipo] = el ? el.value : '';
   });
+  cfg.romaneioAjustes = {
+    width: numeroInput('qz-romaneio-width', QZ_ROMANEIO_PADRAO.width),
+    pageWidth: numeroInput('qz-romaneio-page-width', QZ_ROMANEIO_PADRAO.pageWidth),
+    left: numeroInput('qz-romaneio-left', QZ_ROMANEIO_PADRAO.left),
+    right: numeroInput('qz-romaneio-right', QZ_ROMANEIO_PADRAO.right),
+    top: numeroInput('qz-romaneio-top', QZ_ROMANEIO_PADRAO.top),
+    bottom: numeroInput('qz-romaneio-bottom', QZ_ROMANEIO_PADRAO.bottom),
+    scale: !!document.getElementById('qz-romaneio-scale')?.checked
+  };
   localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfg));
   atualizarStatusQZ('Configuração salva neste computador.', 'ok');
   toast('Impressoras salvas neste computador!');
@@ -5145,8 +5227,11 @@ async function imprimirRomaneio() {
       }
     </style>
   </head><body>${conteudo}</body></html>`;
-  const htmlQZ = html.replace('</style>', 'html, body { width: 72mm !important; } body { padding: 2mm 4.5mm 2mm 3.5mm !important; }</style>');
-  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: false, pageWidth: 3.15 })) return;
+  const ajustesQZ = obterAjustesRomaneioQZ();
+  const htmlQZ = html.replace('</style>',
+    `html, body { width: ${ajustesQZ.width}mm !important; } body { padding: ${ajustesQZ.top}mm ${ajustesQZ.right}mm ${ajustesQZ.bottom}mm ${ajustesQZ.left}mm !important; }</style>`
+  );
+  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
   j.document.write(html.replace('</body>', `
