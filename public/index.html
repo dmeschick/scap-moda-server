@@ -4213,6 +4213,48 @@ async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
   return true;
 }
 
+function prepararTextoTermica(texto) {
+  return (texto || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[–—]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\S\r\n]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function imprimirTextoQZ(tipo, texto, opcoes = {}) {
+  const impressora = obterImpressoraQZ(tipo);
+  if (!impressora) return false;
+  await conectarQZTray();
+  const config = qz.configs.create(impressora, {
+    copies: opcoes.copies || 1,
+    encoding: opcoes.encoding || 'CP850'
+  });
+  const conteudo = '\x1B@\x1B\x32' + prepararTextoTermica(texto) + '\n\n\n';
+  await qz.print(config, [{
+    type: 'raw',
+    format: 'plain',
+    flavor: 'plain',
+    data: conteudo
+  }]);
+  return true;
+}
+
+async function tentarImpressaoTextoQZ(tipo, texto, opcoes = {}) {
+  try {
+    const impresso = await imprimirTextoQZ(tipo, texto, opcoes);
+    if (impresso) {
+      toast('Enviado para a impressora configurada.');
+      return true;
+    }
+  } catch(e) {
+    console.warn('Falha ao imprimir texto via QZ Tray:', e);
+  }
+  return false;
+}
+
 async function tentarImpressaoQZ(tipo, html, opcoes = {}) {
   try {
     const impresso = await imprimirHtmlQZ(tipo, html, opcoes);
@@ -5077,7 +5119,10 @@ async function abrirRomaneio(v, cliNome) {
 }
 
 async function imprimirRomaneio() {
-  const conteudo = document.getElementById('romaneio-body').innerHTML;
+  const romaneioEl = document.getElementById('romaneio-body');
+  const texto = romaneioEl.innerText || romaneioEl.textContent || '';
+  if (await tentarImpressaoTextoQZ('romaneio', texto)) return;
+  const conteudo = romaneioEl.innerHTML;
   const html = `<!DOCTYPE html><html><head>
     <title>Romaneio</title>
     <meta name="viewport" content="width=302px">
