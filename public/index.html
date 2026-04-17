@@ -4406,15 +4406,6 @@ async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
     data: html,
     options: opcoes.pageWidth ? { pageWidth: opcoes.pageWidth } : undefined
   }];
-  if (opcoes.feedLines > 0) {
-    const linhas = Math.min(30, Math.max(1, Math.ceil(opcoes.feedLines)));
-    data.push({
-      type: 'raw',
-      format: 'command',
-      flavor: 'plain',
-      data: '\x1B\x64' + String.fromCharCode(linhas)
-    });
-  }
   await qz.print(config, data);
   return true;
 }
@@ -5326,10 +5317,14 @@ async function abrirRomaneio(v, cliNome) {
 
 function montarHtmlQZComMargemInferior(html, ajustesQZ) {
   const bottom = Math.max(0, parseFloat(ajustesQZ.bottom) || 0);
+  const linhas = Math.min(80, Math.ceil(bottom / 2));
+  const espacoFinal = Array.from({ length: linhas }, () =>
+    '<div style="height:2mm;line-height:2mm;font-size:1px;color:#fff;background:#fff">.</div>'
+  ).join('');
   const htmlSemPaddingInferior = html.replace('</style>',
     `html, body { width: ${ajustesQZ.width}mm !important; min-height: auto !important; } body { padding: ${ajustesQZ.top}mm ${ajustesQZ.right}mm 0 ${ajustesQZ.left}mm !important; overflow: visible !important; }</style>`
   );
-  return htmlSemPaddingInferior.replace('</body>', `<div style="height:${bottom}mm;line-height:${bottom}mm;font-size:1px">&nbsp;</div></body>`);
+  return htmlSemPaddingInferior.replace('</body>', `${espacoFinal}</body>`);
 }
 
 async function imprimirRomaneio() {
@@ -5361,8 +5356,7 @@ async function imprimirRomaneio() {
   </head><body>${conteudo}</body></html>`;
   const ajustesQZ = obterAjustesRomaneioQZ();
   const htmlQZ = montarHtmlQZComMargemInferior(html, ajustesQZ);
-  const feedLines = Math.ceil((parseFloat(ajustesQZ.bottom) || 0) / 3);
-  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth, feedLines })) return;
+  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
   j.document.write(html.replace('</body>', `
