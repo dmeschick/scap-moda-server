@@ -1595,6 +1595,7 @@ tr:hover td{background:var(--bg)}
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <script>
 const API = 'https://scap-moda-server-production.up.railway.app';
 let TOKEN = null;
@@ -4185,6 +4186,43 @@ function salvarImpressorasQZ() {
   toast('Impressoras salvas neste computador!');
 }
 
+function obterImpressoraQZ(tipo) {
+  return obterConfigImpressorasLocal()[tipo] || '';
+}
+
+async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
+  const impressora = obterImpressoraQZ(tipo);
+  if (!impressora) return false;
+  await conectarQZTray();
+  const config = qz.configs.create(impressora, {
+    copies: opcoes.copies || 1,
+    density: opcoes.density || 203,
+    margins: opcoes.margins || 0,
+    scaleContent: opcoes.scaleContent !== false
+  });
+  const data = [{
+    type: 'html',
+    format: 'plain',
+    data: html
+  }];
+  await qz.print(config, data);
+  return true;
+}
+
+async function tentarImpressaoQZ(tipo, html) {
+  try {
+    const impresso = await imprimirHtmlQZ(tipo, html);
+    if (impresso) {
+      toast('Enviado para a impressora configurada.');
+      return true;
+    }
+  } catch(e) {
+    console.warn('Falha ao imprimir via QZ Tray:', e);
+    toast('QZ Tray falhou, abrindo impressão do navegador.', 'warn');
+  }
+  return false;
+}
+
 function renderListaCats() {
   document.getElementById('lista-cats').innerHTML = categorias.length
     ? categorias.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
@@ -5034,11 +5072,9 @@ async function abrirRomaneio(v, cliNome) {
   abrirModal('modal-romaneio');
 }
 
-function imprimirRomaneio() {
+async function imprimirRomaneio() {
   const conteudo = document.getElementById('romaneio-body').innerHTML;
-  const j = window.open('', '_blank', 'width=302,height=800');
-  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
-  j.document.write(`<!DOCTYPE html><html><head>
+  const html = `<!DOCTYPE html><html><head>
     <title>Romaneio</title>
     <meta name="viewport" content="width=302px">
     <style>
@@ -5061,13 +5097,17 @@ function imprimirRomaneio() {
         html, body { width: 76mm; margin: 0; padding: 2mm; }
       }
     </style>
-  </head><body>${conteudo}
+  </head><body>${conteudo}</body></html>`;
+  if (await tentarImpressaoQZ('romaneio', html)) return;
+  const j = window.open('', '_blank', 'width=302,height=800');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+  j.document.write(html.replace('</body>', `
   <script>
     window.onload = function() {
       setTimeout(function() { window.print(); window.close(); }, 500);
     };
   <\/script>
-  </body></html>`);
+  </body>`));
   j.document.close();
 }
 
@@ -5419,16 +5459,25 @@ function imprimirEtiquetasLote() {
   gerarImpressaoEtiquetas(itens);
 }
 
-function gerarImpressaoEtiquetas(itens) {
+function gerarCodigoBarrasSvg(cod) {
+  if (!cod || typeof JsBarcode === 'undefined') return '';
+  try {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, cod, { format: 'CODE128', width: 1.5, height: 30, displayValue: false, margin: 0 });
+    svg.classList.add('barcode');
+    return svg.outerHTML;
+  } catch(e) {
+    return '';
+  }
+}
+
+async function gerarImpressaoEtiquetas(itens) {
   let todasEtiquetas = [];
   itens.forEach(item => {
     for (let i = 0; i < item.qtd; i++) {
       todasEtiquetas.push(item);
     }
   });
-
-  const j = window.open('', '_blank', 'width=400,height=400');
-  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
 
   function precoInvertido(preco) {
     const str = (parseFloat(preco) || 0).toFixed(2).replace('.', '');
@@ -5446,13 +5495,13 @@ function gerarImpressaoEtiquetas(itens) {
       '<div class="parte-cima">' +
         (colecao ? '<div class="colecao">' + colecao + '</div>' : '') +
         '<div class="nome">' + nome + '</div>' +
-        '<svg class="barcode" id="bc-top-' + idx + '" data-cod="' + cod + '"></svg>' +
+        (gerarCodigoBarrasSvg(cod) || '<svg class="barcode" id="bc-top-' + idx + '" data-cod="' + cod + '"></svg>') +
         '<div class="codigo">' + codLinha + '</div>' +
       '</div>' +
       '<div class="picote"></div>' +
       '<div class="parte-baixo">' +
         '<div class="nome">' + nome + '</div>' +
-        '<svg class="barcode" id="bc-bot-' + idx + '" data-cod="' + cod + '"></svg>' +
+        (gerarCodigoBarrasSvg(cod) || '<svg class="barcode" id="bc-bot-' + idx + '" data-cod="' + cod + '"></svg>') +
         '<div class="codigo">' + codLinha + '</div>' +
       '</div>' +
     '</div>';
@@ -5469,9 +5518,8 @@ function gerarImpressaoEtiquetas(itens) {
     return '<div class="faixa">' + esq + dir + '</div>';
   }).join('');
 
-  j.document.write(`<!DOCTYPE html><html><head>
+  const html = `<!DOCTYPE html><html><head>
     <title>Etiquetas</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
     <style>
       @page { size: 90mm 75mm; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5490,6 +5538,12 @@ function gerarImpressaoEtiquetas(itens) {
     </style>
   </head><body>
     ${etiquetasHTML}
+  </body></html>`;
+  if (await tentarImpressaoQZ('etiquetas', html)) return;
+
+  const j = window.open('', '_blank', 'width=400,height=400');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+  j.document.write(html.replace('</body>', `
     <script>
       window.onload = function() {
         document.querySelectorAll('.barcode').forEach(function(svg) {
@@ -5503,7 +5557,7 @@ function gerarImpressaoEtiquetas(itens) {
         setTimeout(function() { window.print(); window.close(); }, 800);
       };
     <\/script>
-  </body></html>`);
+  </body>`));
   j.document.close();
 }
 
@@ -5576,9 +5630,7 @@ async function imprimirNotinhaCredito(cliNome, valor) {
     if (cfg.valor) textoCredito = cfg.valor;
   } catch(e) {}
 
-  const j = window.open('', '_blank', 'width=302,height=400');
-  if (!j) return;
-  j.document.write(`<!DOCTYPE html><html><head><title>Crédito</title><style>
+  const html = `<!DOCTYPE html><html><head><title>Crédito</title><style>
     @page { size: 80mm auto; margin: 3mm 4mm; }
     body { margin:0;padding:0;width:72mm;font-family:'Courier New',monospace;font-size:10px;line-height:1.4; }
     * { box-sizing:border-box;font-size:10px !important; }
@@ -5599,8 +5651,14 @@ async function imprimirNotinhaCredito(cliNome, valor) {
     <div style="border-top:1px dashed #000;padding-top:6px;text-align:center;font-style:italic">
       ${textoCredito}
     </div>
+  </body></html>`;
+  if (await tentarImpressaoQZ('credito', html)) return;
+
+  const j = window.open('', '_blank', 'width=302,height=400');
+  if (!j) return;
+  j.document.write(html.replace('</body>', `
     <script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script>
-  </body></html>`);
+  </body>`));
   j.document.close();
 }
 
@@ -5934,7 +5992,7 @@ function ordenarPagamentos(porPagamento) {
   return { linhas: resultado, totalCredito, temCredito: creditos.length > 0 };
 }
 
-function imprimirRelatorioDiario() {
+async function imprimirRelatorioDiario() {
   if (!_relDiarioAtual) { toast('Carregue o relatório primeiro', 'warn'); return; }
   const r = _relDiarioAtual;
   const data = document.getElementById('rel-dia-data').value;
@@ -5987,9 +6045,7 @@ function imprimirRelatorioDiario() {
       '</table>' +
     '</div>';
 
-  const j = window.open('', '_blank', 'width=800,height=600');
-  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
-  j.document.write(`<!DOCTYPE html><html><head><title>Relatório do Dia</title><style>
+  const html = `<!DOCTYPE html><html><head><title>Relatório do Dia</title><style>
     @page { size: A4; margin: 15mm; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; }
     @media print { body { margin: 0; } }
@@ -5999,8 +6055,14 @@ function imprimirRelatorioDiario() {
     ${cards}
     ${tabelaVendedor}
     ${tabelaPagamento}
+  </body></html>`;
+  if (await tentarImpressaoQZ('relatorio', html)) return;
+
+  const j = window.open('', '_blank', 'width=800,height=600');
+  if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
+  j.document.write(html.replace('</body>', `
     <script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script>
-  </body></html>`);
+  </body>`));
   j.document.close();
 }
 
