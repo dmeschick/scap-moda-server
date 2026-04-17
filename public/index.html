@@ -5120,8 +5120,6 @@ async function abrirRomaneio(v, cliNome) {
 
 async function imprimirRomaneio() {
   const romaneioEl = document.getElementById('romaneio-body');
-  const texto = romaneioEl.innerText || romaneioEl.textContent || '';
-  if (await tentarImpressaoTextoQZ('romaneio', texto)) return;
   const conteudo = romaneioEl.innerHTML;
   const html = `<!DOCTYPE html><html><head>
     <title>Romaneio</title>
@@ -5147,7 +5145,7 @@ async function imprimirRomaneio() {
       }
     </style>
   </head><body>${conteudo}</body></html>`;
-  const htmlQZ = html.replace('</style>', 'html, body { width: 74mm !important; } body { padding: 2mm 2mm 2mm 3.5mm !important; }</style>');
+  const htmlQZ = html.replace('</style>', 'html, body { width: 72mm !important; } body { padding: 2mm 4mm !important; }</style>');
   if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: false, pageWidth: 3.15 })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
