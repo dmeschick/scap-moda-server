@@ -4198,20 +4198,24 @@ async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
     copies: opcoes.copies || 1,
     density: opcoes.density || 203,
     margins: opcoes.margins || 0,
+    legacy: !!opcoes.legacy,
+    orientation: opcoes.orientation || null,
     scaleContent: opcoes.scaleContent !== false
   });
   const data = [{
-    type: 'html',
-    format: 'plain',
-    data: html
+    type: 'pixel',
+    format: 'html',
+    flavor: 'plain',
+    data: html,
+    options: opcoes.pageWidth ? { pageWidth: opcoes.pageWidth } : undefined
   }];
   await qz.print(config, data);
   return true;
 }
 
-async function tentarImpressaoQZ(tipo, html) {
+async function tentarImpressaoQZ(tipo, html, opcoes = {}) {
   try {
-    const impresso = await imprimirHtmlQZ(tipo, html);
+    const impresso = await imprimirHtmlQZ(tipo, html, opcoes);
     if (impresso) {
       toast('Enviado para a impressora configurada.');
       return true;
@@ -5098,7 +5102,8 @@ async function imprimirRomaneio() {
       }
     </style>
   </head><body>${conteudo}</body></html>`;
-  if (await tentarImpressaoQZ('romaneio', html)) return;
+  const htmlQZ = html.replace('</style>', 'html, body { width: 73mm !important; } body { padding: 2mm 2mm 2mm 5mm !important; }</style>');
+  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: false, pageWidth: 3.15 })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
   j.document.write(html.replace('</body>', `
