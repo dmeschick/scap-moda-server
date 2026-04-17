@@ -718,7 +718,10 @@ app.get('/api/produtos', auth, async (req, res) => {
     if (q) { where.push(`(LOWER(nome) LIKE $${i} OR cod ILIKE $${i})`); params.push('%'+q.toLowerCase()+'%'); i++; }
     if (dataEntradaIni) { where.push(`data_entrada >= $${i++}`); params.push(dataEntradaIni); }
     if (dataEntradaFim) { where.push(`data_entrada <= $${i++}`); params.push(dataEntradaFim); }
-    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ORDER BY criado_em DESC LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
+    const orderBy = cat
+      ? "ORDER BY NULLIF(regexp_replace(cod, '\\D', '', 'g'), '')::bigint DESC NULLS LAST, cod DESC"
+      : 'ORDER BY criado_em DESC';
+    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ${orderBy} LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
