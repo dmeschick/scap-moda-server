@@ -4148,6 +4148,8 @@ async function salvarTextoRomaneio() {
 
 const QZ_PRINTER_CONFIG_KEY = 'scap_printer_config_v1';
 const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'danfe'];
+let _qzSegurancaVerificada = false;
+let _qzSegurancaConfigurada = false;
 const QZ_ROMANEIO_PADRAO = {
   width: 72,
   pageWidth: 3.15,
@@ -4216,8 +4218,58 @@ function carregarConfigImpressorasLocal() {
   atualizarStatusQZ(qtd ? `${qtd} impressora(s) configurada(s) neste computador.` : 'Nenhuma impressora configurada neste computador.');
 }
 
+async function configurarSegurancaQZ() {
+  if (_qzSegurancaVerificada) return _qzSegurancaConfigurada;
+  _qzSegurancaVerificada = true;
+
+  let status = null;
+  try {
+    status = await api('GET', '/api/qz/status');
+  } catch (e) {
+    console.warn('Não foi possível verificar assinatura do QZ Tray:', e);
+    _qzSegurancaConfigurada = false;
+    return false;
+  }
+
+  if (!status?.configurado || !qz?.security) {
+    _qzSegurancaConfigurada = false;
+    return false;
+  }
+
+  if (typeof qz.security.setSignatureAlgorithm === 'function') {
+    qz.security.setSignatureAlgorithm('SHA512');
+  }
+
+  qz.security.setCertificatePromise((resolve, reject) => {
+    fetch(API + '/api/qz/certificate', {
+      headers: TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}
+    })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('Certificado QZ indisponível')))
+      .then(resolve)
+      .catch(reject);
+  });
+
+  qz.security.setSignaturePromise(toSign => (resolve, reject) => {
+    fetch(API + '/api/qz/sign', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {})
+      },
+      body: JSON.stringify({ request: toSign })
+    })
+      .then(r => r.ok ? r.text() : Promise.reject(new Error('Assinatura QZ indisponível')))
+      .then(resolve)
+      .catch(reject);
+  });
+
+  _qzSegurancaConfigurada = true;
+  return true;
+}
+
 async function conectarQZTray() {
   if (typeof qz === 'undefined') throw new Error('Biblioteca do QZ Tray não carregou. Recarregue a página.');
+  await configurarSegurancaQZ();
   if (!qz.websocket.isActive()) await qz.websocket.connect({ retries: 1, delay: 1 });
 }
 
@@ -4228,7 +4280,7 @@ async function carregarImpressorasQZ() {
     const detalhes = await qz.printers.details();
     const nomes = (detalhes || []).map(p => typeof p === 'string' ? p : p.name).filter(Boolean).sort();
     preencherSelectsImpressoras(nomes);
-    atualizarStatusQZ(`${nomes.length} impressora(s) encontrada(s).`, 'ok');
+    atualizarStatusQZ(`${nomes.length} impressora(s) encontrada(s).${_qzSegurancaConfigurada ? ' Conexão assinada.' : ' Conexão sem assinatura.'}`, 'ok');
     toast('Impressoras carregadas!');
   } catch(e) {
     atualizarStatusQZ('Não foi possível conectar ao QZ Tray: ' + e.message, 'erro');
@@ -4240,7 +4292,7 @@ async function testarQZTray() {
   try {
     await conectarQZTray();
     const padrao = await qz.printers.getDefault();
-    atualizarStatusQZ('QZ Tray conectado. Impressora padrão: ' + (padrao || 'não identificada'), 'ok');
+    atualizarStatusQZ(`QZ Tray conectado${_qzSegurancaConfigurada ? ' com assinatura' : ' sem assinatura'}. Impressora padrão: ${padrao || 'não identificada'}`, 'ok');
     toast('QZ Tray conectado!');
   } catch(e) {
     atualizarStatusQZ('Falha ao testar QZ Tray: ' + e.message, 'erro');

@@ -53,6 +53,9 @@ const pool = new Pool({
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1';
+const QZ_CERTIFICATE = carregarTextoEnv('QZ_CERTIFICATE', 'QZ_CERTIFICATE_B64');
+const QZ_PRIVATE_KEY = carregarTextoEnv('QZ_PRIVATE_KEY', 'QZ_PRIVATE_KEY_B64');
+const QZ_PRIVATE_KEY_PASSPHRASE = process.env.QZ_PRIVATE_KEY_PASSPHRASE || '';
 const IMPORT_PRODUTO_CONFIG = {
   'blusas': { categoria: 'Blusas', sufixo: 'B', ncm: '61062000', aliases: ['blusa', 'blusas'] },
   'vestidos': { categoria: 'Vestidos', sufixo: 'V', ncm: '61044300', aliases: ['vestido', 'vestidos'] },
@@ -63,6 +66,23 @@ const IMPORT_PRODUTO_CONFIG = {
   'macacoes': { categoria: 'Macacões', sufixo: 'M', ncm: '61122000', aliases: ['macacao', 'macacoes', 'macacão', 'macacões'] },
   'acessorios': { categoria: 'Acessórios', sufixo: 'A', ncm: '62171000', aliases: ['acessorio', 'acessorios', 'acessório', 'acessórios', 'bolsa', 'bolsas'] }
 };
+
+function carregarTextoEnv(nomeTexto, nomeBase64) {
+  const texto = process.env[nomeTexto];
+  if (texto) return texto.replace(/\\n/g, '\n').trim();
+  const base64 = process.env[nomeBase64];
+  if (!base64) return '';
+  try {
+    return Buffer.from(base64, 'base64').toString('utf8').replace(/\\n/g, '\n').trim();
+  } catch (err) {
+    console.warn(`Não foi possível ler ${nomeBase64}:`, err.message);
+    return '';
+  }
+}
+
+function qzTrayConfigurado() {
+  return !!(QZ_CERTIFICATE && QZ_PRIVATE_KEY);
+}
 
 function normalizarTextoBase(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -1212,6 +1232,36 @@ app.post('/api/config/:chave', auth, async (req, res) => {
       [req.params.chave, JSON.stringify(req.body.valor)]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// QZ TRAY — assinatura das chamadas para evitar prompts de "Untrusted website"
+app.get('/api/qz/status', auth, (req, res) => {
+  res.json({ configurado: qzTrayConfigurado() });
+});
+
+app.get('/api/qz/certificate', auth, (req, res) => {
+  if (!QZ_CERTIFICATE) return res.status(503).type('text/plain').send('Certificado do QZ Tray não configurado.');
+  res.type('text/plain').send(QZ_CERTIFICATE);
+});
+
+app.post('/api/qz/sign', auth, (req, res) => {
+  if (!qzTrayConfigurado()) return res.status(503).type('text/plain').send('Assinatura do QZ Tray não configurada.');
+  const request = req.body?.request;
+  if (!request || typeof request !== 'string') {
+    return res.status(400).type('text/plain').send('Conteúdo para assinatura não informado.');
+  }
+  try {
+    const signer = crypto.createSign('RSA-SHA512');
+    signer.update(request, 'utf8');
+    signer.end();
+    const key = QZ_PRIVATE_KEY_PASSPHRASE
+      ? { key: QZ_PRIVATE_KEY, passphrase: QZ_PRIVATE_KEY_PASSPHRASE }
+      : QZ_PRIVATE_KEY;
+    res.type('text/plain').send(signer.sign(key, 'base64'));
+  } catch (err) {
+    console.error('Erro ao assinar requisição do QZ Tray:', err);
+    res.status(500).type('text/plain').send('Erro ao assinar requisição do QZ Tray.');
+  }
 });
 
 // VALES — Buscar detalhes de uma funcionária no mês (para romaneio)
