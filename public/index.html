@@ -4406,6 +4406,15 @@ async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
     data: html,
     options: opcoes.pageWidth ? { pageWidth: opcoes.pageWidth } : undefined
   }];
+  if (opcoes.feedLines > 0) {
+    const linhas = Math.min(30, Math.max(1, Math.ceil(opcoes.feedLines)));
+    data.push({
+      type: 'raw',
+      format: 'command',
+      flavor: 'plain',
+      data: '\x1B\x64' + String.fromCharCode(linhas)
+    });
+  }
   await qz.print(config, data);
   return true;
 }
@@ -5352,7 +5361,8 @@ async function imprimirRomaneio() {
   </head><body>${conteudo}</body></html>`;
   const ajustesQZ = obterAjustesRomaneioQZ();
   const htmlQZ = montarHtmlQZComMargemInferior(html, ajustesQZ);
-  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth })) return;
+  const feedLines = Math.ceil((parseFloat(ajustesQZ.bottom) || 0) / 3);
+  if (await tentarImpressaoQZ('romaneio', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth, feedLines })) return;
   const j = window.open('', '_blank', 'width=302,height=800');
   if (!j) { toast('Permita popups para imprimir', 'warn'); return; }
   j.document.write(html.replace('</body>', `
