@@ -3898,21 +3898,35 @@ function obterNotaExistenteVenda(venda, tipo) {
   return null;
 }
 
+async function consultarNotaBlingExistente(tipo, notaExistente) {
+  if (!notaExistente?.id) return null;
+  const rota = tipo === 'nfe'
+    ? `/api/bling/nfe/${encodeURIComponent(notaExistente.id)}`
+    : null;
+  if (!rota) return null;
+  const r = await api('GET', rota);
+  const nota = tipo === 'nfe' ? r.nfe : null;
+  return nota ? { ...nota, id: nota.id || notaExistente.id, numero: nota.numero || notaExistente.numero } : null;
+}
+
 async function emitirNFe(vendaId) {
   if (!vendaId) { toast('Venda não identificada', 'warn'); return; }
   const btn = document.getElementById('btn-nfe');
-  let popup = null;
   if (btn) { btn.disabled = true; btn.textContent = 'Emitindo...'; }
   try {
     const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfe');
     if (notaExistente) {
-      popup = abrirPopupBlingNota('nfe', notaExistente);
+      const notaConsultada = await consultarNotaBlingExistente('nfe', notaExistente).catch(err => {
+        console.warn('Falha ao consultar NF-e existente:', err);
+        return null;
+      });
+      const abriuNoSistema = abrirNotaBlingNoSistema('nfe', notaConsultada || notaExistente);
       const numeroLabel = notaExistente.numero ? `Nº ${notaExistente.numero}` : 'nota existente';
       const numeroCopiado = notaExistente.numero ? await copiarTexto(notaExistente.numero) : false;
-      if (popup) {
-        toast('NF-e já emitida. Reabrindo no Bling — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+      if (abriuNoSistema) {
+        toast('NF-e já emitida. Abrindo para impressão — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
       } else {
-        toast('NF-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Permita popups para abrir a nota no Bling.', 'warn');
+        toast('NF-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Não encontrei o link de impressão no retorno do Bling.', 'warn');
       }
       return;
     }
@@ -3923,15 +3937,12 @@ async function emitirNFe(vendaId) {
       _vendaAtual.nfe_numero = r.nfe?.numero || _vendaAtual.nfe_numero;
     }
     const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
-    if (!abriuNoSistema) popup = abrirPopupBlingNota('nfe', r.nfe);
     const numero = r.nfe?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (abriuNoSistema) {
-      toast('NF-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
-    } else if (popup) {
-      toast('NF-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+      toast('NF-e emitida com sucesso! Nota aberta para impressão' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
-      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não encontrei o link de impressão no retorno do Bling.', 'warn');
     }
   } catch(e) {
     console.error('Erro NF-e:', e);

@@ -2530,6 +2530,23 @@ function mapearFormaPagamentoBling(tipoPagamento, formasBling) {
   return null;
 }
 
+app.get('/api/bling/nfe/:id', auth, async (req, res) => {
+  try {
+    const token = await getBlingToken();
+    const consulta = await consultarBlingPorId(`nfe/${req.params.id}`, token);
+    if (consulta.status < 200 || consulta.status >= 300) {
+      return res.status(400).json({
+        erro: resumirErroBling(consulta.data, 'Erro ao consultar NF-e no Bling'),
+        detalhes: consulta.data || consulta.texto
+      });
+    }
+    res.json({ ok: true, nfe: consulta.data?.data });
+  } catch (err) {
+    console.error('Erro ao consultar NF-e:', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
@@ -2649,35 +2666,63 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     console.log('Payload NF-e:', JSON.stringify(payload, null, 2));
 
-    const response = await fetch('https://api.bling.com.br/Api/v3/nfe', {
+    const criacao = await requisicaoBling('nfe', token, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify(payload)
+      body: payload
     });
+    console.log('Bling NF-e criacao status:', criacao.status);
+    console.log('Bling NF-e criacao resposta:', criacao.data ? JSON.stringify(criacao.data, null, 2) : criacao.texto);
 
-    const data = await response.json();
-    console.log('Bling NF-e status:', response.status);
-    console.log('Bling NF-e resposta:', JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      const erroDetalhado = resumirErroBling(data, 'Erro ao emitir NF-e');
+    if (criacao.status < 200 || criacao.status >= 300) {
+      const erroDetalhado = resumirErroBling(criacao.data, 'Erro ao emitir NF-e');
       return res.status(400).json({
         erro: erroDetalhado,
-        detalhes: data
+        detalhes: criacao.data || criacao.texto
       });
     }
 
-    if (data.data?.id) {
-      await pool.query(
-        'UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3',
-        [String(data.data.id), data.data.numero || '', vendaId]
-      );
+    const nfeId = criacao.data?.data?.id;
+    if (!nfeId) {
+      return res.status(400).json({
+        erro: 'Bling não retornou o ID da NF-e criada.',
+        detalhes: criacao.data || criacao.texto
+      });
     }
 
-    res.json({ ok: true, nfe: data.data });
+    await pool.query(
+      'UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3',
+      [String(nfeId), criacao.data?.data?.numero || '', vendaId]
+    );
+
+    const envio = await requisicaoBling(`nfe/${nfeId}/enviar`, token, {
+      method: 'POST',
+      body: {}
+    });
+    console.log('Bling NF-e envio status:', envio.status);
+    console.log('Bling NF-e envio resposta:', envio.data ? JSON.stringify(envio.data, null, 2) : envio.texto);
+
+    if (envio.status < 200 || envio.status >= 300) {
+      return res.status(400).json({
+        erro: resumirErroBling(envio.data, 'Erro ao enviar NF-e'),
+        detalhes: envio.data || envio.texto
+      });
+    }
+
+    try {
+      const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
+      console.log('Bling NF-e consulta status:', consulta.status);
+      console.log('Bling NF-e consulta resposta:', consulta.data ? JSON.stringify(consulta.data, null, 2) : consulta.texto);
+      if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
+        if (consulta.data.data.numero) {
+          await pool.query('UPDATE vendas SET nfe_numero=$1 WHERE id=$2', [consulta.data.data.numero, vendaId]);
+        }
+        return res.json({ ok: true, nfe: consulta.data.data });
+      }
+    } catch (errConsulta) {
+      console.error('Erro ao consultar NF-e criada no Bling:', errConsulta);
+    }
+
+    res.json({ ok: true, nfe: criacao.data?.data });
   } catch (err) {
     console.error('Erro NF-e:', err);
     res.status(500).json({ erro: err.message });
