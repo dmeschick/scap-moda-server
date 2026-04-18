@@ -1162,7 +1162,7 @@ tr:hover td{background:var(--bg)}
       </div>
       <div id="tab-prod-geral">
         <div class="form-grid">
-          <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="gerarCodigoProduto(this.value)"><option value="">— Selecionar —</option></select></div>
+          <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="categoriaProdutoAlterada(this.value)"><option value="">— Selecionar —</option></select></div>
           <div class="form-group"><label>Código</label><input id="prod-cod" placeholder="Gerado automaticamente" readonly style="background:var(--bg)"></div>
           <div class="form-group"><label>Nome *</label><input id="prod-nome" placeholder="Ex: Vestido Floral Midi"></div>
           <div class="form-group"><label>Fornecedor</label><select id="prod-forn"><option value="">— Selecionar —</option></select></div>
@@ -1973,6 +1973,17 @@ async function gerarCodigoProduto(catId) {
     console.log('código gerado:', r.cod);
     document.getElementById('prod-cod').value = r.cod;
   } catch(e) { console.error('erro:', e); }
+}
+
+function aplicarNCMCategoriaProduto(catId) {
+  const cfg = obterConfigImportacaoPorCategoria(catId);
+  if (!cfg?.ncm) return;
+  document.getElementById('prod-ncm').value = formatarNCMValor(cfg.ncm);
+}
+
+function categoriaProdutoAlterada(catId) {
+  aplicarNCMCategoriaProduto(catId);
+  gerarCodigoProduto(catId);
 }
 
 async function abrirModalProduto(id) {
