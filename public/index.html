@@ -1162,18 +1162,18 @@ tr:hover td{background:var(--bg)}
       </div>
       <div id="tab-prod-geral">
         <div class="form-grid">
-          <div class="form-group"><label>Nome *</label><input id="prod-nome" placeholder="Ex: Vestido Floral Midi"></div>
-          <div class="form-group"><label>Código</label><input id="prod-cod" placeholder="Gerado automaticamente" readonly style="background:var(--bg)"></div>
           <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="gerarCodigoProduto(this.value)"><option value="">— Selecionar —</option></select></div>
+          <div class="form-group"><label>Código</label><input id="prod-cod" placeholder="Gerado automaticamente" readonly style="background:var(--bg)"></div>
+          <div class="form-group"><label>Nome *</label><input id="prod-nome" placeholder="Ex: Vestido Floral Midi"></div>
           <div class="form-group"><label>Fornecedor</label><select id="prod-forn"><option value="">— Selecionar —</option></select></div>
-          <div class="form-group"><label>Cor</label><input id="prod-cor" placeholder="Azul, Preto..."></div>
-          <div class="form-group"><label>Tamanhos</label><input id="prod-tam" placeholder="P, M, G, GG"></div>
           <div class="form-group"><label>Preço de custo (R$) *</label><input type="number" id="prod-custo" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Preço de venda (R$) *</label><input type="number" id="prod-venda" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Estoque inicial</label><input type="number" id="prod-est" placeholder="0" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Estoque mínimo</label><input type="number" id="prod-estmin" placeholder="5" min="0" onfocus="this.select()"></div>
-          <div class="form-group"><label>Data de entrada</label><input type="date" id="prod-data-entrada"></div>
           <div class="form-group full"><label>Coleção / Temporada</label><input id="prod-colecao" placeholder="Ex: Outono Inverno 2026"></div>
+          <div class="form-group"><label>Cor</label><input id="prod-cor" placeholder="Azul, Preto..."></div>
+          <div class="form-group"><label>Tamanhos</label><input id="prod-tam" placeholder="P, M, G, GG"></div>
+          <div class="form-group full"><label>Data de entrada</label><input type="date" id="prod-data-entrada"></div>
           <div class="form-group full"><label>Descrição / Observações</label><textarea id="prod-desc" placeholder="Detalhes, material..."></textarea></div>
         </div>
       </div>
