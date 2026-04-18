@@ -2964,7 +2964,6 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     const payload = {
       tipo: 1,
-      numero: parseInt((venda.num || '1').replace('#', '')),
       dataOperacao: dataOperacao,
       contato: {
         nome: venda.cli_nome || 'Consumidor Final',
