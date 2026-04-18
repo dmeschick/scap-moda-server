@@ -911,9 +911,9 @@ tr:hover td{background:var(--bg)}
           <button class="btn btn-primary" onclick="salvarTextoRomaneio()">Salvar</button>
         </div>
         <div class="card" style="margin-top:16px;max-width:800px">
-          <div class="card-title">Texto para notinha de crédito</div>
+          <div class="card-title">Texto para crédito</div>
           <div class="form-group" style="margin-bottom:12px">
-            <label>Mensagem na notinha de crédito</label>
+            <label>Mensagem no crédito</label>
             <textarea id="config-credito-texto" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);resize:vertical;min-height:60px"></textarea>
           </div>
           <button class="btn btn-primary" onclick="salvarTextoCredito()">Salvar</button>
@@ -946,7 +946,7 @@ tr:hover td{background:var(--bg)}
               <select id="printer-etiquetas"></select>
             </div>
             <div class="form-group">
-              <label>Notinha de crédito</label>
+              <label>Crédito</label>
               <select id="printer-credito"></select>
             </div>
             <div class="form-group">
@@ -1507,7 +1507,7 @@ tr:hover td{background:var(--bg)}
       <button class="btn" onclick="fecharModal('modal-romaneio')">Fechar</button>
       <button class="btn btn-sm" onclick="emitirNFe(_vendaAtual?.id)" id="btn-nfe">📄 NF-e</button>
       <button class="btn btn-sm" onclick="emitirNFCe(_vendaAtual?.id)" id="btn-nfce">🧾 NFC-e</button>
-      <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Notinha de crédito</button>
+      <button class="btn btn-secondary" id="btn-imprimir-notinha-credito" style="display:none" onclick="imprimirNotinhaCredito('', _creditoGeradoAtual)">🖨️ Crédito</button>
       <button class="btn btn-sm" onclick="enviarWhatsApp()" title="Enviar resumo pelo WhatsApp">📱 WhatsApp</button>
       <button class="btn btn-primary" onclick="imprimirRomaneio()">🖨 Imprimir</button>
     </div>
