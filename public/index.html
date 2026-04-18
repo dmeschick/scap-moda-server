@@ -2012,6 +2012,8 @@ async function abrirModalProduto(id) {
       document.getElementById('prod-cst-cofins').value = p.cst_cofins||'07';
     } catch(e) { toast('Erro ao carregar produto', 'error'); return; }
   } else {
+    const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
+    const hoje = new Date().toISOString().slice(0,10);
     document.getElementById('prod-id').value = '';
     document.getElementById('prod-nome').value = '';
     document.getElementById('prod-cod').value = '';
@@ -2022,7 +2024,8 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-venda').value = '';
     document.getElementById('prod-est').value = '';
     document.getElementById('prod-estmin').value = '3';
-    document.getElementById('prod-data-entrada').value = '';
+    document.getElementById('prod-colecao').value = memoria.__ultimaColecao || '';
+    document.getElementById('prod-data-entrada').value = memoria.__ultimaDataEntrada || hoje;
     document.getElementById('prod-cfop').value = '5102';
     document.getElementById('prod-csosn').value = '102';
     document.getElementById('prod-origem').value = '0';
@@ -2146,6 +2149,8 @@ async function salvarProduto() {
       // Lembra NCM e coleção por categoria
       const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
       memoria[cat] = { ncm: prod.ncm, colecao: prod.colecao };
+      memoria.__ultimaColecao = prod.colecao;
+      memoria.__ultimaDataEntrada = prod.dataEntrada || new Date().toISOString().slice(0,10);
       localStorage.setItem('scap_prod_mem', JSON.stringify(memoria));
       // Abre novo cadastro mantendo categoria, NCM e coleção, cursor no Nome
       abrirModalProduto();
@@ -2153,6 +2158,7 @@ async function salvarProduto() {
         document.getElementById('prod-cat').value = cat;
         document.getElementById('prod-ncm').value = formatarNCMValor(prod.ncm||'');
         document.getElementById('prod-colecao').value = prod.colecao||'';
+        document.getElementById('prod-data-entrada').value = prod.dataEntrada || new Date().toISOString().slice(0,10);
         document.getElementById('prod-nome').focus();
         document.getElementById('prod-nome').select();
       }, 200);
