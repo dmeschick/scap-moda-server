@@ -6399,9 +6399,29 @@ async function imprimirRelatorioDiario() {
 let _senhaCallback = null;
 let _senhaAcao = '';
 let _senhaDetalhes = '';
+let _senhaExigeAdmin = false;
 
 const CARGOS_COM_RESTRICAO = ['Gerente'];
 const CARGOS_BASICOS = ['Vendedora', 'Auxiliar Geral', 'Costureira'];
+const ACOES_CRITICAS_ADMIN = [
+  'acessar configurações',
+  'ajustar estoque',
+  'operar caixa',
+  'confirmar pagamento',
+  'editar conta',
+  'excluir conta',
+  'compensar cheque',
+  'devolver cheque',
+  'excluir cheque',
+  'editar produto',
+  'editar cliente',
+  'editar fornecedor',
+  'editar funcionário',
+  'excluir funcionário',
+  'excluir produto',
+  'excluir cliente',
+  'excluir fornecedor'
+];
 
 function aplicarPermissoesMenu() {
   if (CARGOS_BASICOS.includes(CARGO_ATUAL)) {
@@ -6423,9 +6443,14 @@ function requerConfirmacao() {
   return CARGOS_COM_RESTRICAO.includes(CARGO_ATUAL);
 }
 
+function requerSenhaAdmin(acao) {
+  return ACOES_CRITICAS_ADMIN.includes(acao);
+}
+
 async function confirmarAcao(acao, detalhes, callback) {
-  if (!requerConfirmacao()) {
-    // Admin — executa direto mas registra auditoria
+  const exigeAdmin = requerSenhaAdmin(acao);
+  if (!exigeAdmin && !requerConfirmacao()) {
+    // Ações não críticas executam direto para perfis liberados, mas ficam auditadas.
     try { await api('POST', '/api/auditoria', { acao, detalhes }); } catch(e) {}
     callback();
     return;
@@ -6433,9 +6458,14 @@ async function confirmarAcao(acao, detalhes, callback) {
   _senhaCallback = callback;
   _senhaAcao = acao;
   _senhaDetalhes = detalhes;
+  _senhaExigeAdmin = exigeAdmin;
   document.getElementById('confirmar-senha-input').value = '';
   document.getElementById('confirmar-senha-erro').style.display = 'none';
-  document.getElementById('confirmar-senha-msg').textContent = 'Para ' + acao + ', confirme sua senha.';
+  document.getElementById('confirmar-senha-msg').textContent = exigeAdmin
+    ? 'Para ' + acao + ', informe a senha de um administrador.'
+    : 'Para ' + acao + ', confirme sua senha.';
+  document.getElementById('confirmar-senha-label').textContent = exigeAdmin ? 'Senha do administrador' : 'Sua senha';
+  document.getElementById('confirmar-senha-input').placeholder = exigeAdmin ? 'Digite a senha do administrador' : 'Digite sua senha';
   abrirModal('modal-confirmar-senha');
   setTimeout(() => document.getElementById('confirmar-senha-input').focus(), 300);
 }
@@ -6444,28 +6474,29 @@ async function confirmarSenhaOk() {
   const senha = document.getElementById('confirmar-senha-input').value;
   if (!senha) { toast('Digite sua senha', 'warn'); return; }
   try {
-    const r = await api('POST', '/api/auth/validar-senha', { senha });
+    const endpoint = _senhaExigeAdmin ? '/api/auth/validar-admin' : '/api/auth/validar-senha';
+    const r = await api('POST', endpoint, { senha });
     if (!r.ok) {
       document.getElementById('confirmar-senha-erro').style.display = 'block';
       document.getElementById('confirmar-senha-input').value = '';
       document.getElementById('confirmar-senha-input').focus();
       return;
     }
-    await api('POST', '/api/auditoria', { acao: _senhaAcao, detalhes: _senhaDetalhes }).catch(() => {});
+    const detalhesAuditoria = _senhaExigeAdmin && r.admin?.nome
+      ? _senhaDetalhes + ' | autorizado por admin: ' + r.admin.nome
+      : _senhaDetalhes;
+    await api('POST', '/api/auditoria', { acao: _senhaAcao, detalhes: detalhesAuditoria }).catch(() => {});
     fecharModal('modal-confirmar-senha');
     if (_senhaCallback) _senhaCallback();
     _senhaCallback = null;
+    _senhaExigeAdmin = false;
   } catch(e) {
     toast('Erro ao validar senha', 'error');
   }
 }
 
 function navegarConfiguracoes() {
-  if (requerConfirmacao()) {
-    confirmarAcao('acessar configurações', 'Acesso a configurações', () => nav('configuracoes', document.querySelector(".nav-item[onclick*=\"'configuracoes'\"]")));
-  } else {
-    nav('configuracoes', document.querySelector(".nav-item[onclick*=\"'configuracoes'\"]"));
-  }
+  confirmarAcao('acessar configurações', 'Acesso a configurações', () => nav('configuracoes', document.querySelector(".nav-item[onclick*=\"'configuracoes'\"]")));
 }
 
 function abrirModalProdutoSeguro(id) {
@@ -7822,7 +7853,7 @@ async function carregarProjecao() {
         Esta ação requer confirmação. Digite sua senha para continuar.
       </div>
       <div class="form-group">
-        <label>Sua senha</label>
+        <label id="confirmar-senha-label">Sua senha</label>
         <input type="password" id="confirmar-senha-input"
           placeholder="Digite sua senha"
           style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"

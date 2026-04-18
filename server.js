@@ -38,6 +38,7 @@ const limiterLogin = rateLimit({
 });
 app.use('/api/login', limiterLogin);
 app.use('/api/auth/validar-senha', limiterLogin);
+app.use('/api/auth/validar-admin', limiterLogin);
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
@@ -613,6 +614,41 @@ app.post('/api/auth/validar-senha', auth, async (req, res) => {
     }
     if (!senhaCorreta) return res.json({ ok: false, erro: 'Senha incorreta' });
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// AUTH - Validar senha de um administrador para ações críticas
+app.post('/api/auth/validar-admin', auth, async (req, res) => {
+  try {
+    const { senha } = req.body;
+    if (!senha) return res.json({ ok: false, erro: 'Informe a senha do administrador.' });
+
+    const r = await pool.query(
+      `SELECT * FROM funcionarios
+       WHERE status='ativo'
+         AND cargo IN ('Administrador', 'Proprietária')
+       ORDER BY cargo, nome`
+    );
+
+    for (const func of r.rows) {
+      let senhaCorreta = false;
+      if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+        senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
+      } else {
+        const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
+        const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
+        senhaCorreta = senha === senhaPadrao;
+        if (senhaCorreta) {
+          const hash = await bcrypt.hash(senha, SALT_ROUNDS);
+          await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
+        }
+      }
+      if (senhaCorreta) {
+        return res.json({ ok: true, admin: { id: func.id, nome: func.nome, cargo: func.cargo } });
+      }
+    }
+
+    res.json({ ok: false, erro: 'Senha de administrador incorreta.' });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
