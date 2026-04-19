@@ -2563,6 +2563,8 @@ async function importarProdutosPorFoto() {
   const existentes = await api('GET', '/api/produtos?limit=2000').catch(() => []);
   const codigosExistentes = new Set((existentes || []).map(p => p.cod));
   const fornecedores = await api('GET', '/api/fornecedores').catch(() => []);
+  const fornecedoresPorNome = new Map((fornecedores || []).map(f => [normalizarTextoBase(f.nome), f]));
+  const fornecedoresCriados = [];
   const duplicados = _importFotoRows.filter(r => codigosExistentes.has(r.codigo)).map(r => r.codigo);
   if (duplicados.length) {
     toast('Já existe produto com código: ' + duplicados.join(', '), 'warn', 5000);
@@ -2572,7 +2574,33 @@ async function importarProdutosPorFoto() {
   try {
     if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
     for (const row of _importFotoRows) {
-      const fornecedorLinha = fornecedores.find(f => normalizarTextoBase(f.nome) === normalizarTextoBase(row.fornecedor || ''));
+      let fornecedorId = fornecedor;
+      const nomeFornecedorLinha = (row.fornecedor || '').trim();
+      if (nomeFornecedorLinha) {
+        const chaveFornecedor = normalizarTextoBase(nomeFornecedorLinha);
+        let fornecedorLinha = fornecedoresPorNome.get(chaveFornecedor);
+        if (!fornecedorLinha) {
+          fornecedorLinha = {
+            id: uid(),
+            nome: nomeFornecedorLinha,
+            cnpj: '',
+            contato: '',
+            tel: '',
+            email: '',
+            cidade: '',
+            cats: categoria,
+            prazo: '',
+            pgto: '',
+            site: '',
+            obs: 'Cadastrado automaticamente pela importação por foto.',
+            status: 'ativo'
+          };
+          await api('POST', '/api/fornecedores', fornecedorLinha);
+          fornecedoresPorNome.set(chaveFornecedor, fornecedorLinha);
+          fornecedoresCriados.push(nomeFornecedorLinha);
+        }
+        fornecedorId = fornecedorLinha.id;
+      }
       const prod = {
         id: uid(),
         cod: row.codigo,
@@ -2587,7 +2615,7 @@ async function importarProdutosPorFoto() {
         est: parseInt(row.qtd) || 0,
         estmin,
         descricao: row.refExt ? 'Ref. ext.: ' + row.refExt : '',
-        forn: fornecedorLinha?.id || fornecedor,
+        forn: fornecedorId,
         ncm: cfg.ncm,
         cest: '',
         cfop: '5102',
@@ -2600,7 +2628,7 @@ async function importarProdutosPorFoto() {
       };
       await api('POST', '/api/produtos', prod);
     }
-    toast(_importFotoRows.length + ' produto(s) importado(s) com sucesso!');
+    toast(_importFotoRows.length + ' produto(s) importado(s) com sucesso!' + (fornecedoresCriados.length ? ' Fornecedor(es) cadastrado(s): ' + fornecedoresCriados.join(', ') : ''));
     fecharModal('modal-importar-produtos-foto');
     carregarProdutos();
     limparImportacaoFoto(true);
