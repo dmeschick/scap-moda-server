@@ -52,6 +52,18 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const dataLocalISO = (data = new Date()) => {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(data).reduce((acc, p) => {
+    acc[p.type] = p.value;
+    return acc;
+  }, {});
+  return `${partes.year}-${partes.month}-${partes.day}`;
+};
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || 'gpt-4.1';
 const QZ_CERTIFICATE = carregarTextoEnv('QZ_CERTIFICATE', 'QZ_CERTIFICATE_B64');
 const QZ_PRIVATE_KEY = carregarTextoEnv('QZ_PRIVATE_KEY', 'QZ_PRIVATE_KEY_B64');
@@ -488,6 +500,9 @@ async function initDB() {
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_numero TEXT`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_id TEXT`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_numero TEXT`);
+  await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS detalhes JSONB DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS fechado_por TEXT`);
+  await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS fechado_em TIMESTAMP`);
   await pool.query(`ALTER TABLE categorias ADD COLUMN IF NOT EXISTS sufixo TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMP DEFAULT NOW()`);
   await pool.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS data_entrada DATE`);
@@ -1994,10 +2009,89 @@ app.delete('/api/financeiro/cheques/:id', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+async function resumoOperacionalDia(data) {
+  const vendas = await pool.query(
+    `SELECT id, num, cliente_nome, vendedor_nome, canal, subtotal, desconto, credito, tot, pag,
+            credito_gerado, nfe_id, nfce_id, status, tipo
+     FROM vendas
+     WHERE DATE(data AT TIME ZONE 'America/Sao_Paulo') = $1
+       AND status != 'cancelada'
+       AND (tipo IS NULL OR tipo NOT IN ('vale_funcionaria'))`,
+    [data]
+  );
+  const pagamentos = await pool.query(
+    `SELECT vp.tipo, vp.valor, vp.parcelas, vp.troco
+     FROM venda_pagamentos vp
+     JOIN vendas v ON v.id = vp.venda_id
+     WHERE DATE(v.data AT TIME ZONE 'America/Sao_Paulo') = $1
+       AND v.status != 'cancelada'
+       AND (v.tipo IS NULL OR v.tipo NOT IN ('vale_funcionaria'))`,
+    [data]
+  );
+  const movimentos = await pool.query(
+    `SELECT cm.tipo, cm.valor
+     FROM caixa_movimentos cm
+     JOIN caixa c ON c.id = cm.caixa_id
+     WHERE c.data = $1`,
+    [data]
+  );
+
+  const formas = {
+    dinheiro: { chave: 'dinheiro', label: 'Dinheiro', sistema: 0, contado: 0 },
+    pix: { chave: 'pix', label: 'PIX', sistema: 0, contado: 0 },
+    debito: { chave: 'debito', label: 'Débito', sistema: 0, contado: 0 },
+    credito: { chave: 'credito', label: 'Crédito', sistema: 0, contado: 0 },
+    cheque: { chave: 'cheque', label: 'Cheque à vista', sistema: 0, contado: 0 },
+    cheque_pre: { chave: 'cheque_pre', label: 'Cheque pré-datado', sistema: 0, contado: 0 },
+    outros: { chave: 'outros', label: 'Outros', sistema: 0, contado: 0 }
+  };
+
+  let troco = 0;
+  pagamentos.rows.forEach(p => {
+    const tipo = String(p.tipo || '').toLowerCase();
+    const valor = parseFloat(p.valor || 0);
+    troco += parseFloat(p.troco || 0);
+    if (tipo === 'dinheiro') formas.dinheiro.sistema += valor;
+    else if (tipo === 'pix') formas.pix.sistema += valor;
+    else if (tipo === 'debito') formas.debito.sistema += valor;
+    else if (tipo === 'credito') formas.credito.sistema += valor;
+    else if (tipo === 'cheque') formas.cheque.sistema += valor;
+    else if (tipo === 'cheque_pre') formas.cheque_pre.sistema += valor;
+    else formas.outros.sistema += valor;
+  });
+  formas.dinheiro.sistema = Math.max(0, formas.dinheiro.sistema - troco);
+
+  const entradas = movimentos.rows
+    .filter(m => m.tipo === 'entrada')
+    .reduce((acc, m) => acc + parseFloat(m.valor || 0), 0);
+  const saidas = movimentos.rows
+    .filter(m => m.tipo === 'saida')
+    .reduce((acc, m) => acc + parseFloat(m.valor || 0), 0);
+  formas.dinheiro.sistema += entradas - saidas;
+
+  const totalVendas = vendas.rows.reduce((acc, v) => acc + parseFloat(v.tot || 0) + parseFloat(v.credito_gerado || 0), 0);
+  const totalSistema = Object.values(formas).reduce((acc, f) => acc + f.sistema, 0);
+  return {
+    data,
+    vendas: vendas.rows.length,
+    totalVendas: Math.round(totalVendas * 100) / 100,
+    totalSistema: Math.round(totalSistema * 100) / 100,
+    troco: Math.round(troco * 100) / 100,
+    movimentos: { entradas: Math.round(entradas * 100) / 100, saidas: Math.round(saidas * 100) / 100 },
+    formas: Object.values(formas).map(f => ({ ...f, sistema: Math.round(f.sistema * 100) / 100 }))
+  };
+}
+
+function pequenoItem(row, campos) {
+  const item = {};
+  campos.forEach(c => item[c] = row[c]);
+  return item;
+}
+
 // FINANCEIRO — CAIXA
 app.get('/api/financeiro/caixa/hoje', auth, async (req, res) => {
   try {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = dataLocalISO();
     const caixa = await pool.query(`SELECT * FROM caixa WHERE data=$1`, [hoje]);
     if (!caixa.rows.length) return res.json(null);
     const movimentos = await pool.query(
@@ -2017,6 +2111,59 @@ app.get('/api/financeiro/caixa/:data', auth, async (req, res) => {
       [caixa.rows[0].id]
     );
     res.json({ ...caixa.rows[0], movimentos: movimentos.rows });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/financeiro/fechamento', auth, async (req, res) => {
+  try {
+    const data = req.query.data || dataLocalISO();
+    const resumo = await resumoOperacionalDia(data);
+    const caixa = await pool.query(`SELECT * FROM caixa WHERE data=$1`, [data]);
+    const fechamento = caixa.rows[0] || null;
+    const detalhes = fechamento?.detalhes || {};
+    if (detalhes?.formas) {
+      resumo.formas = resumo.formas.map(f => ({
+        ...f,
+        contado: Number(detalhes.formas[f.chave] || 0),
+        diferenca: Math.round((Number(detalhes.formas[f.chave] || 0) - f.sistema) * 100) / 100
+      }));
+    }
+    res.json({ data, resumo, fechamento });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/financeiro/fechamento', auth, async (req, res) => {
+  try {
+    const data = req.body.data || dataLocalISO();
+    const valores = req.body.valores || {};
+    const observacao = req.body.observacao || '';
+    const resumo = await resumoOperacionalDia(data);
+    const totalContado = resumo.formas.reduce((acc, f) => acc + (parseFloat(valores[f.chave] || 0) || 0), 0);
+    const totalSistema = resumo.totalSistema;
+    const diferenca = Math.round((totalContado - totalSistema) * 100) / 100;
+    const detalhes = {
+      formas: resumo.formas.reduce((acc, f) => {
+        acc[f.chave] = Math.round((parseFloat(valores[f.chave] || 0) || 0) * 100) / 100;
+        return acc;
+      }, {}),
+      resumo,
+      fechadoPor: req.user?.nome || req.user?.id || null
+    };
+    await pool.query(
+      `INSERT INTO caixa (id, data, valor_abertura, valor_fechamento, valor_sistema, diferenca, status, observacao, detalhes, fechado_por, fechado_em)
+       VALUES ($1,$2,0,$3,$4,$5,'fechado',$6,$7,$8,NOW())
+       ON CONFLICT (data) DO UPDATE SET
+         valor_fechamento=EXCLUDED.valor_fechamento,
+         valor_sistema=EXCLUDED.valor_sistema,
+         diferenca=EXCLUDED.diferenca,
+         observacao=EXCLUDED.observacao,
+         detalhes=EXCLUDED.detalhes,
+         fechado_por=EXCLUDED.fechado_por,
+         fechado_em=NOW(),
+         status='fechado'`,
+      [uid(), data, Math.round(totalContado * 100) / 100, totalSistema, diferenca, observacao, detalhes, req.user?.nome || req.user?.id || null]
+    );
+    res.json({ ok: true, data, resumo, totalContado: Math.round(totalContado * 100) / 100, totalSistema, diferenca });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
@@ -2059,6 +2206,232 @@ app.delete('/api/financeiro/caixa/movimento/:id', auth, async (req, res) => {
   try {
     await pool.query('DELETE FROM caixa_movimentos WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/pendencias', auth, async (req, res) => {
+  try {
+    const hoje = dataLocalISO();
+    const [
+      estoqueBaixo,
+      estoqueZerado,
+      semNcm,
+      semFornecedor,
+      vendasSemNota,
+      contasAtrasadas,
+      contasVencendo,
+      chequesVencendo,
+      valesPendentes
+    ] = await Promise.all([
+      pool.query(`SELECT cod,nome,est,estmin FROM produtos WHERE status='ativo' AND COALESCE(est,0) > 0 AND COALESCE(est,0) <= COALESCE(estmin,0) ORDER BY est ASC, nome LIMIT 8`),
+      pool.query(`SELECT cod,nome,est FROM produtos WHERE status='ativo' AND COALESCE(est,0) <= 0 ORDER BY nome LIMIT 8`),
+      pool.query(`SELECT cod,nome,ncm FROM produtos WHERE status='ativo' AND (COALESCE(ncm,'') = '' OR regexp_replace(ncm,'\\D','','g') !~ '^\\d{8}$') ORDER BY atualizado_em DESC LIMIT 8`),
+      pool.query(`SELECT cod,nome,forn FROM produtos WHERE status='ativo' AND COALESCE(forn,'') = '' ORDER BY atualizado_em DESC LIMIT 8`),
+      pool.query(
+        `SELECT num,cliente_nome,tot,data
+         FROM vendas
+         WHERE status != 'cancelada'
+           AND (tipo IS NULL OR tipo NOT IN ('vale_funcionaria'))
+           AND COALESCE(nfe_id,'') = ''
+           AND COALESCE(nfce_id,'') = ''
+           AND data >= NOW() - INTERVAL '30 days'
+         ORDER BY data DESC LIMIT 8`
+      ),
+      pool.query(`SELECT descricao,valor,vencimento FROM contas_pagar WHERE pago=false AND vencimento < $1 ORDER BY vencimento ASC LIMIT 8`, [hoje]),
+      pool.query(`SELECT descricao,valor,vencimento FROM contas_pagar WHERE pago=false AND vencimento >= $1 AND vencimento <= ($1::date + INTERVAL '7 days') ORDER BY vencimento ASC LIMIT 8`, [hoje]),
+      pool.query(`SELECT nome,valor,data_compensacao,banco FROM cheques WHERE status='pendente' AND data_compensacao <= ($1::date + INTERVAL '7 days') ORDER BY data_compensacao ASC LIMIT 8`, [hoje]),
+      pool.query(`SELECT funcionario_nome,valor,tipo,mes_desconto FROM vales_funcionarios WHERE status='pendente' ORDER BY criado_em DESC LIMIT 8`)
+    ]);
+
+    const grupos = [
+      {
+        chave: 'estoque_baixo',
+        titulo: 'Estoque baixo',
+        severidade: estoqueBaixo.rows.length ? 'aviso' : 'ok',
+        resumo: estoqueBaixo.rows.length ? 'Produtos abaixo ou no mínimo configurado.' : 'Nenhum produto em estoque baixo.',
+        total: estoqueBaixo.rows.length,
+        itens: estoqueBaixo.rows.map(r => pequenoItem(r, ['cod', 'nome', 'est', 'estmin']))
+      },
+      {
+        chave: 'estoque_zerado',
+        titulo: 'Estoque zerado',
+        severidade: estoqueZerado.rows.length ? 'critico' : 'ok',
+        resumo: estoqueZerado.rows.length ? 'Produtos ativos sem estoque.' : 'Nenhum produto zerado.',
+        total: estoqueZerado.rows.length,
+        itens: estoqueZerado.rows.map(r => pequenoItem(r, ['cod', 'nome', 'est']))
+      },
+      {
+        chave: 'fiscal_sem_ncm',
+        titulo: 'Produtos sem NCM válido',
+        severidade: semNcm.rows.length ? 'critico' : 'ok',
+        resumo: semNcm.rows.length ? 'Pode bloquear emissão de nota.' : 'NCM dos produtos ativos está ok.',
+        total: semNcm.rows.length,
+        itens: semNcm.rows.map(r => pequenoItem(r, ['cod', 'nome', 'ncm']))
+      },
+      {
+        chave: 'sem_fornecedor',
+        titulo: 'Produtos sem fornecedor',
+        severidade: semFornecedor.rows.length ? 'aviso' : 'ok',
+        resumo: semFornecedor.rows.length ? 'Ajuda a rastrear entradas e reposição.' : 'Produtos ativos possuem fornecedor.',
+        total: semFornecedor.rows.length,
+        itens: semFornecedor.rows.map(r => pequenoItem(r, ['cod', 'nome', 'forn']))
+      },
+      {
+        chave: 'vendas_sem_nota',
+        titulo: 'Vendas recentes sem NF-e/NFC-e',
+        severidade: vendasSemNota.rows.length ? 'aviso' : 'ok',
+        resumo: vendasSemNota.rows.length ? 'Vendas pagas dos últimos 30 dias sem nota vinculada.' : 'Sem vendas recentes pendentes de nota.',
+        total: vendasSemNota.rows.length,
+        itens: vendasSemNota.rows.map(r => pequenoItem(r, ['num', 'cliente_nome', 'tot', 'data']))
+      },
+      {
+        chave: 'contas_atrasadas',
+        titulo: 'Contas atrasadas',
+        severidade: contasAtrasadas.rows.length ? 'critico' : 'ok',
+        resumo: contasAtrasadas.rows.length ? 'Contas a pagar vencidas.' : 'Nenhuma conta atrasada.',
+        total: contasAtrasadas.rows.length,
+        itens: contasAtrasadas.rows.map(r => pequenoItem(r, ['descricao', 'valor', 'vencimento']))
+      },
+      {
+        chave: 'contas_vencendo',
+        titulo: 'Contas vencendo em 7 dias',
+        severidade: contasVencendo.rows.length ? 'aviso' : 'ok',
+        resumo: contasVencendo.rows.length ? 'Contas próximas do vencimento.' : 'Sem contas vencendo nos próximos 7 dias.',
+        total: contasVencendo.rows.length,
+        itens: contasVencendo.rows.map(r => pequenoItem(r, ['descricao', 'valor', 'vencimento']))
+      },
+      {
+        chave: 'cheques_vencendo',
+        titulo: 'Cheques para compensar',
+        severidade: chequesVencendo.rows.length ? 'aviso' : 'ok',
+        resumo: chequesVencendo.rows.length ? 'Cheques pendentes com compensação próxima.' : 'Sem cheques para compensar nos próximos 7 dias.',
+        total: chequesVencendo.rows.length,
+        itens: chequesVencendo.rows.map(r => pequenoItem(r, ['nome', 'valor', 'data_compensacao', 'banco']))
+      },
+      {
+        chave: 'vales_pendentes',
+        titulo: 'Vales pendentes',
+        severidade: valesPendentes.rows.length ? 'aviso' : 'ok',
+        resumo: valesPendentes.rows.length ? 'Vales ainda não fechados/descontados.' : 'Sem vales pendentes.',
+        total: valesPendentes.rows.length,
+        itens: valesPendentes.rows.map(r => pequenoItem(r, ['funcionario_nome', 'valor', 'tipo', 'mes_desconto']))
+      }
+    ];
+
+    res.json({
+      data: hoje,
+      resumo: {
+        criticos: grupos.filter(g => g.severidade === 'critico').length,
+        avisos: grupos.filter(g => g.severidade === 'aviso').length,
+        ok: grupos.filter(g => g.severidade === 'ok').length
+      },
+      grupos
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.get('/api/pre-producao/checklist', auth, async (req, res) => {
+  try {
+    const [
+      funcionarios,
+      administradores,
+      produtos,
+      produtosSemNcm,
+      categorias,
+      clientesSemCpf,
+      backupEmail,
+      blingToken
+    ] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total FROM funcionarios WHERE status='ativo'`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM funcionarios WHERE status='ativo' AND cargo='Administrador'`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM produtos WHERE status='ativo'`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM produtos WHERE status='ativo' AND (COALESCE(ncm,'') = '' OR regexp_replace(ncm,'\\D','','g') !~ '^\\d{8}$')`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM categorias`),
+      pool.query(`SELECT COUNT(*)::int AS total FROM clientes WHERE status='ativo' AND tipo='PF' AND COALESCE(cpf,'') = ''`),
+      pool.query(`SELECT valor FROM configuracoes WHERE chave='backup_email'`),
+      pool.query(`SELECT expires_at FROM bling_tokens WHERE id=1`)
+    ]);
+    const tokenValido = !!blingToken.rows[0]?.expires_at && new Date(blingToken.rows[0].expires_at) > new Date();
+    const emailBackup = backupEmail.rows[0]?.valor || null;
+    const itens = [
+      {
+        titulo: 'Funcionários ativos',
+        status: funcionarios.rows[0].total > 0 ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: `${funcionarios.rows[0].total} funcionário(s) ativo(s).`
+      },
+      {
+        titulo: 'Administrador configurado',
+        status: administradores.rows[0].total > 0 ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: `${administradores.rows[0].total} administrador(es) ativo(s).`
+      },
+      {
+        titulo: 'Produtos cadastrados',
+        status: produtos.rows[0].total > 0 ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: `${produtos.rows[0].total} produto(s) ativo(s).`
+      },
+      {
+        titulo: 'NCM dos produtos',
+        status: produtosSemNcm.rows[0].total === 0 ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: produtosSemNcm.rows[0].total === 0 ? 'Todos os produtos ativos têm NCM válido.' : `${produtosSemNcm.rows[0].total} produto(s) sem NCM válido.`
+      },
+      {
+        titulo: 'Categorias',
+        status: categorias.rows[0].total > 0 ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: `${categorias.rows[0].total} categoria(s) cadastrada(s).`
+      },
+      {
+        titulo: 'Integração Bling',
+        status: tokenValido ? 'ok' : 'critico',
+        obrigatorio: true,
+        detalhe: tokenValido ? 'Token conectado e dentro da validade.' : 'Conecte novamente com o Bling antes de emitir notas.'
+      },
+      {
+        titulo: 'Backup automático',
+        status: emailBackup ? 'ok' : 'aviso',
+        obrigatorio: false,
+        detalhe: emailBackup ? `Backup configurado para ${emailBackup}.` : 'Configure o e-mail de backup nas configurações.'
+      },
+      {
+        titulo: 'Clientes identificados',
+        status: clientesSemCpf.rows[0].total === 0 ? 'ok' : 'aviso',
+        obrigatorio: false,
+        detalhe: clientesSemCpf.rows[0].total === 0 ? 'Clientes PF ativos possuem CPF quando cadastrados.' : `${clientesSemCpf.rows[0].total} cliente(s) PF ativo(s) sem CPF.`
+      },
+      {
+        titulo: 'Impressoras QZ',
+        status: 'manual',
+        obrigatorio: false,
+        detalhe: 'Valide nos computadores da loja: romaneio, etiquetas, NF-e e NFC-e.'
+      },
+      {
+        titulo: 'Sequência fiscal',
+        status: 'manual',
+        obrigatorio: true,
+        detalhe: 'Antes de ir para produção, confirme no Bling a próxima numeração de NF-e/NFC-e.'
+      },
+      {
+        titulo: 'Ambiente do Bling',
+        status: 'manual',
+        obrigatorio: true,
+        detalhe: 'Confirme a troca de homologação para produção no momento certo.'
+      }
+    ];
+    res.json({
+      atualizadoEm: new Date().toISOString(),
+      resumo: {
+        ok: itens.filter(i => i.status === 'ok').length,
+        avisos: itens.filter(i => i.status === 'aviso').length,
+        criticos: itens.filter(i => i.status === 'critico').length,
+        manuais: itens.filter(i => i.status === 'manual').length,
+        bloqueadores: itens.filter(i => i.obrigatorio && i.status === 'critico').length
+      },
+      itens
+    });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 

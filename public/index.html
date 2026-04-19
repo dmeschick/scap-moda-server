@@ -274,6 +274,9 @@ tr:hover td{background:var(--bg)}
     <div class="nav-item active" onclick="nav('dashboard',this)">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
     </div>
+    <div class="nav-item" onclick="nav('pendencias',this)">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Pendências
+    </div>
     <div class="nav-item" onclick="nav('pdv',this)">
       <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>PDV / Caixa
     </div>
@@ -303,7 +306,13 @@ tr:hover td{background:var(--bg)}
     <div class="nav-item" onclick="nav('financeiro',this)">
       <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Financeiro
     </div>
+    <div class="nav-item" onclick="nav('fechamento',this)">
+      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Fechamento
+    </div>
     <div class="nav-section">Sistema</div>
+    <div class="nav-item" onclick="nav('preproducao',this)">
+      <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c1.67 0 3.24.46 4.58 1.25"/></svg>Pré-produção
+    </div>
     <div class="nav-item" onclick="navegarConfiguracoes()">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Configurações
     </div>
@@ -335,6 +344,60 @@ tr:hover td{background:var(--bg)}
             <tbody id="dash-vendas"></tbody>
           </table></div>
         </div>
+      </div>
+
+      <!-- PENDÊNCIAS -->
+      <div class="page" id="page-pendencias">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">
+            Painel de pendências
+            <button class="btn btn-sm btn-primary" onclick="carregarPendencias()">Atualizar</button>
+          </div>
+          <div class="cards-grid" id="pendencias-resumo"></div>
+        </div>
+        <div id="pendencias-lista" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px"></div>
+      </div>
+
+      <!-- FECHAMENTO -->
+      <div class="page" id="page-fechamento">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">
+            Fechamento de caixa diário
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="date" id="fechamento-data" onchange="carregarFechamento()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
+              <button class="btn btn-sm btn-primary" onclick="carregarFechamento()">Atualizar</button>
+            </div>
+          </div>
+          <div class="cards-grid" id="fechamento-resumo"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Conferência por forma de pagamento</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Forma</th><th>Sistema</th><th>Contado / Conferido</th><th>Diferença</th></tr></thead>
+              <tbody id="fechamento-formas"></tbody>
+            </table>
+          </div>
+          <div class="form-group" style="margin-top:12px">
+            <label>Observação do fechamento</label>
+            <textarea id="fechamento-obs" placeholder="Ex: diferença de troco, cheque ficou no caixa, conferência feita por..."></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+            <button class="btn btn-primary" onclick="salvarFechamento()">Salvar fechamento</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRÉ-PRODUÇÃO -->
+      <div class="page" id="page-preproducao">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">
+            Checklist pré-produção
+            <button class="btn btn-sm btn-primary" onclick="carregarPreProducao()">Atualizar</button>
+          </div>
+          <div class="cards-grid" id="preproducao-resumo"></div>
+        </div>
+        <div id="preproducao-lista" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px"></div>
       </div>
 
       <!-- PDV -->
@@ -1645,6 +1708,7 @@ const IMPORT_PRODUTO_CONFIG = {
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const parseNumero = v => parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')) || 0;
 const diaDoMes = d => {
   if (!d) return '—';
   const data = new Date(d.toString().slice(0, 10) + 'T12:00:00');
@@ -1738,7 +1802,8 @@ window.addEventListener('resize', ajustarMobile);
 
 // ===== NAVEGAÇÃO =====
 const pageTitles = {
-  dashboard:'Dashboard', pdv:'PDV / Caixa', produtos:'Produtos',
+  dashboard:'Dashboard', pendencias:'Pendências', fechamento:'Fechamento de Caixa',
+  preproducao:'Pré-produção', pdv:'PDV / Caixa', produtos:'Produtos',
   clientes:'Clientes', fornecedores:'Fornecedores', funcionarios:'Funcionários',
   vendas:'Histórico de Vendas', relatorios:'Relatórios', estoque:'Estoque',
   configuracoes:'Configurações', financeiro:'Financeiro'
@@ -1751,6 +1816,9 @@ function nav(id, el) {
   if (el) el.classList.add('active');
   document.getElementById('page-title').textContent = pageTitles[id] || id;
   if (id === 'dashboard') carregarDashboard();
+  if (id === 'pendencias') carregarPendencias();
+  if (id === 'fechamento') carregarFechamento();
+  if (id === 'preproducao') carregarPreProducao();
   if (id === 'pdv') initPDV();
   if (id === 'produtos') carregarProdutos();
   if (id === 'clientes') carregarClientes();
@@ -1904,6 +1972,129 @@ async function carregarDashboard() {
       }
     } catch(e) {}
   } catch(e) { toast('Erro ao carregar dashboard: ' + e.message, 'error'); }
+}
+
+// ===== OPERAÇÃO DIÁRIA =====
+let _fechamentoAtual = null;
+
+function badgeOperacao(status) {
+  const mapa = {
+    ok: ['badge-green', 'OK'],
+    aviso: ['badge-amber', 'Atenção'],
+    critico: ['badge-red', 'Crítico'],
+    manual: ['badge-blue', 'Manual']
+  };
+  const [classe, label] = mapa[status] || ['badge-gray', status || '—'];
+  return `<span class="badge ${classe}">${label}</span>`;
+}
+
+function resumoValorPendencia(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—';
+  if (typeof valor === 'number') return Number.isInteger(valor) ? valor : fmtMoeda(valor);
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(valor))) return fmtData(valor);
+  return escaparHtml(String(valor));
+}
+
+async function carregarPendencias() {
+  try {
+    const r = await api('GET', '/api/pendencias');
+    document.getElementById('pendencias-resumo').innerHTML = `
+      <div class="metric-card"><div class="label">Críticas</div><div class="value" style="color:var(--red)">${r.resumo.criticos}</div><div class="sub">precisam de ação</div></div>
+      <div class="metric-card"><div class="label">Avisos</div><div class="value" style="color:var(--amber)">${r.resumo.avisos}</div><div class="sub">acompanhar</div></div>
+      <div class="metric-card"><div class="label">OK</div><div class="value" style="color:var(--green)">${r.resumo.ok}</div><div class="sub">sem pendência</div></div>
+    `;
+    document.getElementById('pendencias-lista').innerHTML = r.grupos.map(g => {
+      const itens = (g.itens || []).length
+        ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">' + g.itens.map(item => {
+            const vals = Object.values(item).filter(v => v !== null && v !== undefined && v !== '');
+            return `<div style="padding:8px 10px;background:var(--bg);border-radius:var(--radius);font-size:12px;line-height:1.4">${vals.map(resumoValorPendencia).join(' · ')}</div>`;
+          }).join('') + '</div>'
+        : '<div style="font-size:12px;color:var(--text3);margin-top:10px">Nada para resolver aqui.</div>';
+      return `<div class="card">
+        <div class="card-title"><span>${escaparHtml(g.titulo)}</span>${badgeOperacao(g.severidade)}</div>
+        <div style="font-size:13px;color:var(--text2)">${escaparHtml(g.resumo || '')}</div>
+        ${itens}
+      </div>`;
+    }).join('');
+  } catch(e) { toast('Erro ao carregar pendências: ' + e.message, 'error'); }
+}
+
+async function carregarFechamento() {
+  try {
+    const dataEl = document.getElementById('fechamento-data');
+    if (dataEl && !dataEl.value) dataEl.value = hojeISO();
+    const data = dataEl?.value || hojeISO();
+    const r = await api('GET', '/api/financeiro/fechamento?data=' + encodeURIComponent(data));
+    _fechamentoAtual = r;
+    const resumo = r.resumo || {};
+    const dif = Number(r.fechamento?.diferenca || 0);
+    document.getElementById('fechamento-resumo').innerHTML = `
+      <div class="metric-card"><div class="label">Vendas do dia</div><div class="value">${fmtMoeda(resumo.totalVendas || 0)}</div><div class="sub">${resumo.vendas || 0} venda(s)</div></div>
+      <div class="metric-card"><div class="label">Sistema espera</div><div class="value">${fmtMoeda(resumo.totalSistema || 0)}</div><div class="sub">formas + movimentos</div></div>
+      <div class="metric-card"><div class="label">Troco</div><div class="value">${fmtMoeda(resumo.troco || 0)}</div><div class="sub">descontado do dinheiro</div></div>
+      <div class="metric-card"><div class="label">Status</div><div class="value" style="color:${r.fechamento ? 'var(--green)' : 'var(--amber)'}">${r.fechamento ? 'Fechado' : 'Aberto'}</div><div class="sub">${r.fechamento ? 'diferença ' + fmtMoeda(dif) : 'aguardando conferência'}</div></div>
+    `;
+    document.getElementById('fechamento-obs').value = r.fechamento?.observacao || '';
+    document.getElementById('fechamento-formas').innerHTML = (resumo.formas || []).map(f => {
+      const contado = Number(f.contado || 0);
+      const diferenca = Math.round((contado - Number(f.sistema || 0)) * 100) / 100;
+      return `<tr>
+        <td><strong>${escaparHtml(f.label)}</strong></td>
+        <td>${fmtMoeda(f.sistema)}</td>
+        <td><input data-fechamento-forma="${f.chave}" value="${contado ? contado.toFixed(2) : ''}" placeholder="0,00" oninput="atualizarDiferencasFechamento()" style="width:130px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"></td>
+        <td data-fechamento-dif="${f.chave}" style="font-weight:700;color:${Math.abs(diferenca)<0.01?'var(--green)':diferenca>0?'var(--green)':'var(--red)'}">${diferenca>=0?'+':''}${fmtMoeda(diferenca)}</td>
+      </tr>`;
+    }).join('');
+    atualizarDiferencasFechamento();
+  } catch(e) { toast('Erro ao carregar fechamento: ' + e.message, 'error'); }
+}
+
+function atualizarDiferencasFechamento() {
+  if (!_fechamentoAtual?.resumo?.formas) return;
+  _fechamentoAtual.resumo.formas.forEach(f => {
+    const input = document.querySelector(`[data-fechamento-forma="${f.chave}"]`);
+    const difEl = document.querySelector(`[data-fechamento-dif="${f.chave}"]`);
+    if (!input || !difEl) return;
+    const dif = Math.round((parseNumero(input.value) - Number(f.sistema || 0)) * 100) / 100;
+    difEl.style.color = Math.abs(dif) < 0.01 ? 'var(--green)' : dif > 0 ? 'var(--green)' : 'var(--red)';
+    difEl.textContent = (dif >= 0 ? '+' : '') + fmtMoeda(dif);
+  });
+}
+
+async function salvarFechamento() {
+  if (!_fechamentoAtual) return;
+  await confirmarAcao('operar caixa', 'Salvar fechamento do dia ' + fmtData(_fechamentoAtual.data), async () => {
+    const valores = {};
+    document.querySelectorAll('[data-fechamento-forma]').forEach(input => {
+      valores[input.dataset.fechamentoForma] = parseNumero(input.value);
+    });
+    await api('POST', '/api/financeiro/fechamento', {
+      data: document.getElementById('fechamento-data')?.value || hojeISO(),
+      valores,
+      observacao: document.getElementById('fechamento-obs')?.value || ''
+    });
+    toast('Fechamento salvo!');
+    carregarFechamento();
+  });
+}
+
+async function carregarPreProducao() {
+  try {
+    const r = await api('GET', '/api/pre-producao/checklist');
+    document.getElementById('preproducao-resumo').innerHTML = `
+      <div class="metric-card"><div class="label">Bloqueadores</div><div class="value" style="color:var(--red)">${r.resumo.bloqueadores}</div><div class="sub">obrigatórios críticos</div></div>
+      <div class="metric-card"><div class="label">OK</div><div class="value" style="color:var(--green)">${r.resumo.ok}</div><div class="sub">validados</div></div>
+      <div class="metric-card"><div class="label">Avisos</div><div class="value" style="color:var(--amber)">${r.resumo.avisos}</div><div class="sub">não bloqueiam</div></div>
+      <div class="metric-card"><div class="label">Manuais</div><div class="value" style="color:var(--blue)">${r.resumo.manuais}</div><div class="sub">conferir na loja/Bling</div></div>
+    `;
+    document.getElementById('preproducao-lista').innerHTML = r.itens.map(item => `
+      <div class="card">
+        <div class="card-title"><span>${escaparHtml(item.titulo)}</span>${badgeOperacao(item.status)}</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.45">${escaparHtml(item.detalhe || '')}</div>
+        <div style="font-size:11px;color:${item.obrigatorio ? 'var(--red)' : 'var(--text3)'};margin-top:8px">${item.obrigatorio ? 'Obrigatório para produção' : 'Recomendado'}</div>
+      </div>
+    `).join('');
+  } catch(e) { toast('Erro ao carregar checklist: ' + e.message, 'error'); }
 }
 
 // ===== PRODUTOS =====
