@@ -3803,7 +3803,10 @@ function abrirPopupBlingNota(tipo, nota) {
   return popup;
 }
 
-function obterLinkNotaBling(nota) {
+function obterLinkNotaBling(nota, tipo = nota?._tipoNotaBling) {
+  if (tipo === 'nfe' && nota?.id && TOKEN) {
+    return `${API}/api/bling/nfe/${encodeURIComponent(nota.id)}/pdf?token=${encodeURIComponent(TOKEN)}`;
+  }
   return nota?.linkPDF || nota?.linkDanfe || nota?.xml || '';
 }
 
@@ -3834,10 +3837,11 @@ function abrirModuloNotaBlingAtual() {
 }
 
 function abrirNotaBlingNoSistema(tipo, nota) {
-  const link = obterLinkNotaBling(nota);
+  const notaVisualizacao = { ...nota, _tipoNotaBling: tipo };
+  const link = obterLinkNotaBling(notaVisualizacao, tipo);
   if (!link) return false;
 
-  window._notaBlingAtualVisualizacao = { ...nota, _tipoNotaBling: tipo };
+  window._notaBlingAtualVisualizacao = notaVisualizacao;
 
   const titulo = document.getElementById('modal-nota-bling-titulo');
   const frame = document.getElementById('modal-nota-bling-frame');
@@ -3849,9 +3853,28 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   }
   if (aviso) {
     aviso.style.display = 'block';
-    aviso.textContent = 'Se a visualização não carregar dentro do sistema, use "Abrir em nova aba" ou "Abrir no Bling".';
+    aviso.textContent = tipo === 'nfe'
+      ? 'Carregando o DANFE da NF-e pelo sistema para evitar o download automático do Bling. Use o botão de imprimir do visualizador, se a janela de impressão não abrir.'
+      : 'Se a visualização não carregar dentro do sistema, use "Abrir em nova aba" ou "Abrir no Bling".';
   }
-  if (frame) frame.src = link;
+  if (frame) {
+    frame.onload = null;
+    frame.src = 'about:blank';
+    if (tipo === 'nfe') {
+      frame.onload = () => {
+        frame.onload = null;
+        setTimeout(() => {
+          try {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+          } catch (err) {
+            console.warn('Não foi possível abrir impressão automática da NF-e:', err);
+          }
+        }, 800);
+      };
+    }
+    setTimeout(() => { frame.src = link; }, 0);
+  }
 
   abrirModal('modal-nota-bling');
   return true;

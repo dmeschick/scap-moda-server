@@ -2561,6 +2561,54 @@ app.get('/api/bling/nfe/:id', auth, async (req, res) => {
   }
 });
 
+app.get('/api/bling/nfe/:id/pdf', auth, async (req, res) => {
+  try {
+    const token = await getBlingToken();
+    const consulta = await consultarBlingPorId(`nfe/${req.params.id}`, token);
+    if (consulta.status < 200 || consulta.status >= 300) {
+      return res.status(400).json({
+        erro: resumirErroBling(consulta.data, 'Erro ao consultar NF-e no Bling'),
+        detalhes: consulta.data || consulta.texto
+      });
+    }
+
+    const nota = consulta.data?.data || {};
+    const linkPDF = nota.linkPDF || nota.linkDanfe;
+    if (!linkPDF) {
+      return res.status(404).json({ erro: 'Bling não retornou o PDF/DANFE da NF-e.' });
+    }
+
+    const pdfResponse = await fetch(linkPDF, {
+      headers: {
+        Accept: 'application/pdf,*/*',
+        Authorization: 'Bearer ' + token
+      }
+    });
+
+    if (!pdfResponse.ok) {
+      const texto = await pdfResponse.text().catch(() => '');
+      return res.status(400).json({
+        erro: 'Não foi possível carregar o PDF da NF-e no Bling.',
+        detalhes: texto.slice(0, 500)
+      });
+    }
+
+    const buffer = Buffer.from(await pdfResponse.arrayBuffer());
+    const contentType = pdfResponse.headers.get('content-type') || 'application/pdf';
+    const numero = String(nota.numero || req.params.id).replace(/[^\w.-]/g, '') || req.params.id;
+
+    res.set({
+      'Content-Type': contentType.includes('pdf') ? contentType : 'application/pdf',
+      'Content-Disposition': `inline; filename="nfe-${numero}.pdf"`,
+      'Content-Length': buffer.length
+    });
+    res.send(buffer);
+  } catch (err) {
+    console.error('Erro ao carregar PDF da NF-e:', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 app.post('/api/bling/nfe', auth, async (req, res) => {
   try {
     const { vendaId } = req.body;
