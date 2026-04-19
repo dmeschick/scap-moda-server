@@ -2471,6 +2471,20 @@ async function consultarBlingPorId(caminho, token) {
   return requisicaoBling(caminho, token);
 }
 
+async function obterProximoNumeroFiscalBling(tipoNota, token) {
+  const consulta = await consultarBlingPorId(`${tipoNota}?limite=100`, token);
+  const notas = Array.isArray(consulta?.data?.data) ? consulta.data.data : [];
+  if (consulta.status < 200 || consulta.status >= 300 || !notas.length) return null;
+
+  const maiorNumero = notas.reduce((maior, nota) => {
+    const numero = parseInt(String(nota.numero || '').replace(/\D/g, ''), 10);
+    return Number.isFinite(numero) && numero > maior ? numero : maior;
+  }, 0);
+
+  if (!maiorNumero) return null;
+  return String(maiorNumero + 1).padStart(6, '0');
+}
+
 function normalizarTextoBling(texto) {
   return String(texto || '')
     .normalize('NFD')
@@ -2614,6 +2628,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     const somaItensComDesc = itensRes.rows.reduce((a, i) => {
       return a + Math.round(parseFloat(i.preco) * fatorDesc * 100) / 100 * parseInt(i.qty);
     }, 0);
+    const proximoNumeroNFe = await obterProximoNumeroFiscalBling('nfe', token);
 
     const payload = {
       tipo: 1,
@@ -2663,6 +2678,7 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
         valor: Math.round(somaItensComDesc * 100) / 100
       }]
     };
+    if (proximoNumeroNFe) payload.numero = proximoNumeroNFe;
 
     const criacao = await requisicaoBling('nfe', token, {
       method: 'POST',
@@ -2823,6 +2839,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
     const totalItens = Math.round(itensPayload.reduce((acc, item) => acc + item.valorTotal, 0) * 100) / 100;
     const pagamentos = Array.isArray(pgtoRes.rows) ? pgtoRes.rows : [];
     const parcelasPayload = [];
+    const proximoNumeroNFCe = await obterProximoNumeroFiscalBling('nfce', token);
 
     pagamentos.forEach(pagamento => {
       const parcelas = Math.max(1, parseInt(pagamento.parcelas) || 1);
@@ -2866,6 +2883,7 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       itens: itensPayload,
       parcelas: parcelasPayload
     };
+    if (proximoNumeroNFCe) payload.numero = proximoNumeroNFCe;
     if (contatoPayload) {
       payload.contato = contatoPayload;
     } else {
