@@ -1645,6 +1645,11 @@ const IMPORT_PRODUTO_CONFIG = {
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const diaDoMes = d => {
+  if (!d) return '—';
+  const data = new Date(d.toString().slice(0, 10) + 'T12:00:00');
+  return Number.isNaN(data.getTime()) ? '—' : data.getDate();
+};
 const nascDate = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00') : null;
 const hojeISO = () => {
   const d = new Date();
@@ -3635,7 +3640,7 @@ async function carregarRelatorio() {
           <div class="card-title">Vendas por dia</div>
           ${rel.porDia.length ? rel.porDia.map(d => `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px">
-              <span style="width:20px;color:var(--text2);text-align:right">${new Date(d.dia+'T12:00:00').getDate()}</span>
+              <span style="width:20px;color:var(--text2);text-align:right">${diaDoMes(d.dia)}</span>
               <div style="flex:1;background:var(--border);border-radius:4px;height:8px">
                 <div style="background:var(--pink);height:8px;border-radius:4px;width:${Math.round((parseFloat(d.total)||0)/maxDia*100)}%"></div>
               </div>
