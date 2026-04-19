@@ -96,6 +96,8 @@ tr:hover td{background:var(--bg)}
 .badge-amber{background:var(--amber-light);color:var(--amber)}
 .badge-blue{background:var(--blue-light);color:var(--blue)}
 .badge-gray{background:var(--gray-light);color:var(--gray)}
+.stock-cell{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.stock-qty{font-size:12px;min-width:20px;text-align:left}
 
 /* ===== MODAL ===== */
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:16px}
@@ -1922,7 +1924,7 @@ async function carregarProdutos() {
         <td><span class="badge badge-pink">${p.cat||'—'}</span></td>
         <td style="font-size:12px">${p.data_entrada ? fmtData(p.data_entrada) : '—'}</td>
         <td style="font-size:12px">${p.tam||'—'}</td>
-        <td><span class="badge ${estBadge}">${estLabel}</span> <span style="font-size:12px">${p.est}</span></td>
+        <td><span class="stock-cell"><span class="badge ${estBadge}">${estLabel}</span><span class="stock-qty">${p.est}</span></span></td>
         <td><strong>${fmtMoeda(p.venda)}</strong></td>
         <td><span class="badge ${p.status==='ativo'?'badge-green':'badge-gray'}">${p.status}</span></td>
         <td><div class="action-btns">
