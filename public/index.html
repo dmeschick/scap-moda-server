@@ -1939,13 +1939,11 @@ async function carregarProdutos() {
 }
 
 async function gerarCodigoProduto(catId) {
-  console.log('gerarCodigoProduto chamado com catId:', catId);
   if (!catId) return;
   const id = document.getElementById('prod-id')?.value;
   if (id) return;
   try {
     const r = await api('GET', '/api/produtos/proximo-codigo?categoriaId=' + catId);
-    console.log('código gerado:', r.cod);
     document.getElementById('prod-cod').value = r.cod;
   } catch(e) { console.error('erro:', e); }
 }
@@ -2618,7 +2616,7 @@ function tabProd(btn, tabId) {
   });
 }
 
-function atualizarCodProduto() {} // placeholder — código gerado ao salvar
+function atualizarCodProduto() {} // placeholder mantido para compatibilidade
 
 function sugerirNCM() {
   const cat = document.getElementById('prod-cat').value.toLowerCase();
@@ -2937,9 +2935,6 @@ async function abrirModalCliente(id) {
       _clientesCache = clis;
       const c = clis.find(x => x.id === id);
       if (!c) return;
-      console.log('dados do cliente:', c);
-      console.log('criado_em:', c.criado_em);
-      console.log('grupo visível:', document.getElementById('cli-cadastro-group')?.style.display);
       document.getElementById('cli-id').value = c.id;
       setTipoCli(c.tipo||'PF');
       document.getElementById('cli-nome').value = c.nome||'';

@@ -2664,14 +2664,10 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       }]
     };
 
-    console.log('Payload NF-e:', JSON.stringify(payload, null, 2));
-
     const criacao = await requisicaoBling('nfe', token, {
       method: 'POST',
       body: payload
     });
-    console.log('Bling NF-e criacao status:', criacao.status);
-    console.log('Bling NF-e criacao resposta:', criacao.data ? JSON.stringify(criacao.data, null, 2) : criacao.texto);
 
     if (criacao.status < 200 || criacao.status >= 300) {
       const erroDetalhado = resumirErroBling(criacao.data, 'Erro ao emitir NF-e');
@@ -2698,8 +2694,6 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       method: 'POST',
       body: {}
     });
-    console.log('Bling NF-e envio status:', envio.status);
-    console.log('Bling NF-e envio resposta:', envio.data ? JSON.stringify(envio.data, null, 2) : envio.texto);
 
     if (envio.status < 200 || envio.status >= 300) {
       return res.status(400).json({
@@ -2710,8 +2704,6 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
 
     try {
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
-      console.log('Bling NF-e consulta status:', consulta.status);
-      console.log('Bling NF-e consulta resposta:', consulta.data ? JSON.stringify(consulta.data, null, 2) : consulta.texto);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
         if (consulta.data.data.numero) {
           await pool.query('UPDATE vendas SET nfe_numero=$1 WHERE id=$2', [consulta.data.data.numero, vendaId]);
@@ -2880,15 +2872,10 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       payload.cliente = clientePayload;
     }
 
-    console.log('Formas pagamento Bling NFC-e:', JSON.stringify(formasPagamentoBling, null, 2));
-    console.log('Payload NFC-e:', JSON.stringify(payload, null, 2));
-
     const criacao = await requisicaoBling('nfce', token, {
       method: 'POST',
       body: payload
     });
-    console.log('Bling NFC-e criacao status:', criacao.status);
-    console.log('Bling NFC-e criacao resposta:', criacao.data ? JSON.stringify(criacao.data, null, 2) : criacao.texto);
 
     if (criacao.status < 200 || criacao.status >= 300) {
       return res.status(400).json({ erro: resumirErroBling(criacao.data, 'Erro ao emitir NFC-e'), detalhes: criacao.data || criacao.texto });
@@ -2903,8 +2890,6 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       method: 'POST',
       body: {}
     });
-    console.log('Bling NFC-e envio status:', envio.status);
-    console.log('Bling NFC-e envio resposta:', envio.data ? JSON.stringify(envio.data, null, 2) : envio.texto);
 
     if (envio.status < 200 || envio.status >= 300) {
       return res.status(400).json({
@@ -2920,8 +2905,6 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       );
       try {
         const consulta = await consultarBlingPorId(`nfce/${nfceId}`, token);
-        console.log('Bling NFC-e consulta status:', consulta.status);
-        console.log('Bling NFC-e consulta resposta:', consulta.data ? JSON.stringify(consulta.data, null, 2) : consulta.texto);
         if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
           return res.json({ ok: true, nfce: consulta.data.data });
         }
