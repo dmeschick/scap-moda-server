@@ -553,6 +553,7 @@ tr:hover td{background:var(--bg)}
           <button class="tab active" onclick="tabFunc(this,'tab-func-lista')">👥 Funcionários</button>
           <button class="tab" onclick="tabFunc(this,'tab-func-ponto')">⏱ Ponto</button>
           <button class="tab" onclick="tabFunc(this,'tab-func-vales')">💵 Vales</button>
+          <button class="tab" onclick="tabFunc(this,'tab-func-comissoes')">Comissões</button>
         </div>
         <!-- Lista -->
         <div id="tab-func-lista">
@@ -638,6 +639,47 @@ tr:hover td{background:var(--bg)}
           </div>
           <!-- Seção todos os pendentes -->
           <div id="vales-pendentes-secao" style="display:none;margin-top:16px"></div>
+        </div>
+
+        <!-- Comissões -->
+        <div id="tab-func-comissoes" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+            <div class="card">
+              <div class="card-title">Metas do mês</div>
+              <div class="form-group" style="margin-bottom:10px">
+                <label>Mês</label>
+                <input type="month" id="com-mes" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label>Faixa 2 — 2,3% (R$)</label>
+                <input type="number" id="com-faixa2" step="0.01" min="0" placeholder="Ex: 5000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:8px">
+                <label>Faixa 3 — 2,8% (R$)</label>
+                <input type="number" id="com-faixa3" step="0.01" min="0" placeholder="Ex: 8000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <div class="form-group" style="margin-bottom:12px">
+                <label>Faixa 4 — 3,3% (R$)</label>
+                <input type="number" id="com-faixa4" step="0.01" min="0" placeholder="Ex: 12000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="salvarMetas()">Salvar Metas</button>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Metas cadastradas</div>
+              <div id="com-metas-lista"></div>
+            </div>
+
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              Comissões calculadas
+              <button class="btn btn-sm" onclick="calcularComissoes()">🔄 Calcular</button>
+            </div>
+            <div id="com-resultado"></div>
+          </div>
         </div>
       </div>
 
@@ -775,10 +817,9 @@ tr:hover td{background:var(--bg)}
         <div class="tabs" id="fin-tabs" style="margin-bottom:16px">
           <button class="tab active" onclick="finTab('contas')">Contas a Pagar</button>
           <button class="tab" onclick="finTab('cheques')">Cheques</button>
-          <button class="tab" onclick="finTab('caixa')">Caixa do Dia</button>
+          <button class="tab" onclick="finTab('caixa')">Movimentos de Caixa</button>
           <button class="tab" onclick="finTab('dre')">DRE</button>
           <button class="tab" onclick="finTab('projecao')">Projeção 30 dias</button>
-          <button class="tab" onclick="finTab('comissoes')">Comissões</button>
         </div>
 
         <!-- ABA: CONTAS A PAGAR -->
@@ -848,24 +889,29 @@ tr:hover td{background:var(--bg)}
           <div id="mobile-cards-cheques" class="mobile-cards-list"></div>
         </div>
 
-        <!-- ABA: CAIXA DO DIA -->
+        <!-- ABA: MOVIMENTOS DE CAIXA -->
         <div id="fin-caixa" style="display:none">
+          <div class="card" style="padding:12px 14px;margin-bottom:16px;background:var(--blue-light);border-color:var(--blue)">
+            <div style="font-size:13px;color:var(--blue);font-weight:600">
+              Esta tela serve para abrir os movimentos do dia e registrar reforços ou sangrias. O fechamento conferido por forma de pagamento fica no menu Fechamento.
+            </div>
+          </div>
           <div id="caixa-fechado" style="display:none">
             <div class="card" style="max-width:400px;margin:0 auto;text-align:center;padding:32px">
               <div style="font-size:40px;margin-bottom:12px">🏦</div>
-              <div style="font-size:16px;font-weight:700;margin-bottom:8px">Caixa fechado</div>
-              <div style="font-size:13px;color:var(--text2);margin-bottom:20px">Abra o caixa para começar o dia</div>
+              <div style="font-size:16px;font-weight:700;margin-bottom:8px">Movimentos fechados</div>
+              <div style="font-size:13px;color:var(--text2);margin-bottom:20px">Abra os movimentos para registrar reforços e sangrias do dia.</div>
               <div class="form-group" style="margin-bottom:12px;text-align:left">
                 <label>Valor de abertura (R$)</label>
                 <input type="number" id="caixa-abertura-val" step="0.01" min="0" placeholder="0,00">
               </div>
-              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="abrirCaixa()">Abrir Caixa</button>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="abrirCaixa()">Abrir Movimentos</button>
             </div>
           </div>
           <div id="caixa-aberto" style="display:none">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
               <div class="card">
-                <div class="card-title">Resumo do dia</div>
+                <div class="card-title">Resumo dos movimentos</div>
                 <div id="caixa-resumo"></div>
               </div>
               <div class="card">
@@ -878,14 +924,12 @@ tr:hover td{background:var(--bg)}
                 <div id="caixa-movimentos-lista" style="max-height:300px;overflow-y:auto"></div>
               </div>
             </div>
-            <div class="card" style="max-width:400px">
-              <div class="card-title">Fechar Caixa</div>
-              <div class="form-group" style="margin-bottom:12px">
-                <label>Valor contado (R$)</label>
-                <input type="number" id="caixa-fechamento-val" step="0.01" min="0" placeholder="0,00">
+            <div class="card" style="max-width:520px">
+              <div class="card-title">Fechamento do dia</div>
+              <div style="font-size:13px;color:var(--text2);margin-bottom:12px">
+                Para conferir dinheiro, PIX, cartões, cheques e divergências, use o fechamento oficial.
               </div>
-              <div id="caixa-diferenca" style="font-size:13px;margin-bottom:12px"></div>
-              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="fecharCaixa()">Fechar Caixa</button>
+              <button class="btn btn-primary" onclick="irParaFechamento()">Ir para Fechamento</button>
             </div>
           </div>
         </div>
@@ -900,47 +944,6 @@ tr:hover td{background:var(--bg)}
             </div>
           </div>
           <div id="dre-content"></div>
-        </div>
-
-        <!-- ABA: COMISSÕES -->
-        <div id="fin-comissoes" style="display:none">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-
-            <div class="card">
-              <div class="card-title">Metas do mês</div>
-              <div class="form-group" style="margin-bottom:10px">
-                <label>Mês</label>
-                <input type="month" id="com-mes" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
-              </div>
-              <div class="form-group" style="margin-bottom:8px">
-                <label>Faixa 2 — 2,3% (R$)</label>
-                <input type="number" id="com-faixa2" step="0.01" min="0" placeholder="Ex: 5000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
-              </div>
-              <div class="form-group" style="margin-bottom:8px">
-                <label>Faixa 3 — 2,8% (R$)</label>
-                <input type="number" id="com-faixa3" step="0.01" min="0" placeholder="Ex: 8000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
-              </div>
-              <div class="form-group" style="margin-bottom:12px">
-                <label>Faixa 4 — 3,3% (R$)</label>
-                <input type="number" id="com-faixa4" step="0.01" min="0" placeholder="Ex: 12000" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);width:100%">
-              </div>
-              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="salvarMetas()">Salvar Metas</button>
-            </div>
-
-            <div class="card">
-              <div class="card-title">Metas cadastradas</div>
-              <div id="com-metas-lista"></div>
-            </div>
-
-          </div>
-
-          <div class="card">
-            <div class="card-title">
-              Comissões calculadas
-              <button class="btn btn-sm" onclick="calcularComissoes()">🔄 Calcular</button>
-            </div>
-            <div id="com-resultado"></div>
-          </div>
         </div>
 
         <!-- ABA: PROJEÇÃO -->
@@ -1829,6 +1832,10 @@ function nav(id, el) {
   if (id === 'estoque') carregarEstoque();
   if (id === 'configuracoes') carregarConfiguracoes();
   if (id === 'financeiro') finTab('contas');
+}
+
+function irParaFechamento() {
+  nav('fechamento', document.querySelector(".nav-item[onclick*=\"'fechamento'\"]"));
 }
 
 // ===== LOGIN =====
@@ -3332,7 +3339,7 @@ async function excluirFornecedor(id, nome) {
 function tabFunc(btn, tabId) {
   document.querySelectorAll('#page-funcionarios .tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  ['tab-func-lista','tab-func-ponto','tab-func-vales'].forEach(id => {
+  ['tab-func-lista','tab-func-ponto','tab-func-vales','tab-func-comissoes'].forEach(id => {
     document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
   });
   if (tabId === 'tab-func-ponto') iniciarPonto();
@@ -3342,6 +3349,7 @@ function tabFunc(btn, tabId) {
     }
     carregarVales();
   }
+  if (tabId === 'tab-func-comissoes') carregarComissoes();
 }
 
 function tabFuncModal(btn, tabId) {
@@ -7452,18 +7460,17 @@ let _caixaAtual = null;
 let _relDiarioAtual = null;
 
 function finTab(aba) {
-  ['contas','cheques','caixa','dre','projecao','comissoes'].forEach(a => {
+  ['contas','cheques','caixa','dre','projecao'].forEach(a => {
     document.getElementById('fin-' + a).style.display = a === aba ? 'block' : 'none';
   });
   document.querySelectorAll('#fin-tabs .tab').forEach((t,i) => {
-    t.classList.toggle('active', ['contas','cheques','caixa','dre','projecao','comissoes'][i] === aba);
+    t.classList.toggle('active', ['contas','cheques','caixa','dre','projecao'][i] === aba);
   });
   if (aba === 'contas') carregarContas();
   if (aba === 'cheques') carregarCheques();
   if (aba === 'caixa') carregarCaixa();
   if (aba === 'dre') { document.getElementById('dre-mes').value = new Date().toISOString().slice(0,7); carregarDRE(); }
   if (aba === 'projecao') carregarProjecao();
-  if (aba === 'comissoes') carregarComissoes();
 }
 
 // --- CONTAS A PAGAR ---
@@ -7752,7 +7759,7 @@ function renderCaixa(caixa) {
     '<div class="m-card-row"><span class="m-card-label">Abertura</span><span>' + fmtMoeda(caixa.valor_abertura) + '</span></div>' +
     '<div class="m-card-row"><span class="m-card-label">Entradas</span><span style="color:var(--green)">' + fmtMoeda(entradas) + '</span></div>' +
     '<div class="m-card-row"><span class="m-card-label">Saídas</span><span style="color:var(--red)">-' + fmtMoeda(saidas) + '</span></div>' +
-    '<div class="m-card-row" style="font-weight:700"><span class="m-card-label">Saldo atual</span><span style="color:var(--pink-dark)">' + fmtMoeda(saldo) + '</span></div>';
+    '<div class="m-card-row" style="font-weight:700"><span class="m-card-label">Saldo físico previsto</span><span style="color:var(--pink-dark)">' + fmtMoeda(saldo) + '</span></div>';
 
   document.getElementById('caixa-movimentos-lista').innerHTML = movs.length
     ? movs.map(m => '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">' +
@@ -7790,8 +7797,8 @@ async function abrirCaixaReal() {
     });
     toast('Caixa aberto!');
     carregarCaixa();
-    if (btn) { btn.disabled = false; btn.textContent = 'Abrir Caixa'; }
-  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Abrir Caixa'; } }
+    if (btn) { btn.disabled = false; btn.textContent = 'Abrir Movimentos'; }
+  } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Abrir Movimentos'; } }
 }
 
 async function fecharCaixa() {
