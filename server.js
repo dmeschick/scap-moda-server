@@ -317,6 +317,39 @@ async function initDB() {
       detalhe VARCHAR(200),
       cheques_json JSONB DEFAULT '[]'
     );
+    CREATE TABLE IF NOT EXISTS orcamentos (
+      id VARCHAR(50) PRIMARY KEY,
+      num VARCHAR(20),
+      data TIMESTAMP DEFAULT NOW(),
+      validade DATE,
+      cliente_id VARCHAR(50),
+      cliente_nome VARCHAR(200),
+      cliente_tel VARCHAR(30),
+      vendedor_id VARCHAR(50),
+      vendedor_nome VARCHAR(200),
+      canal VARCHAR(20) DEFAULT 'presencial',
+      subtotal DECIMAL(10,2) DEFAULT 0,
+      desconto DECIMAL(10,2) DEFAULT 0,
+      desc_pct DECIMAL(5,2) DEFAULT 0,
+      total DECIMAL(10,2) DEFAULT 0,
+      obs TEXT,
+      status VARCHAR(20) DEFAULT 'aberto',
+      convertido_venda_id VARCHAR(50),
+      convertido_em TIMESTAMP,
+      criado_em TIMESTAMP DEFAULT NOW(),
+      atualizado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON orcamentos(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_orcamentos_num ON orcamentos(num);
+    CREATE TABLE IF NOT EXISTS orcamento_itens (
+      id SERIAL PRIMARY KEY,
+      orcamento_id VARCHAR(50) REFERENCES orcamentos(id) ON DELETE CASCADE,
+      produto_id VARCHAR(50),
+      nome VARCHAR(200),
+      cod VARCHAR(50),
+      preco DECIMAL(10,2),
+      qty INTEGER
+    );
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave VARCHAR(100) PRIMARY KEY,
       valor JSONB,
@@ -2489,7 +2522,7 @@ async function gerarBackup() {
   const [
     funcionarios, produtos, clientes, fornecedores,
     vendas, categorias, contasPagar, cheques, caixa,
-    caixaMovimentos, metasComissao
+    caixaMovimentos, metasComissao, orcamentos, orcamentoItens
   ] = await Promise.all([
     pool.query('SELECT * FROM funcionarios'),
     pool.query('SELECT * FROM produtos'),
@@ -2501,7 +2534,9 @@ async function gerarBackup() {
     pool.query('SELECT * FROM cheques'),
     pool.query('SELECT * FROM caixa'),
     pool.query('SELECT * FROM caixa_movimentos'),
-    pool.query('SELECT * FROM metas_comissao')
+    pool.query('SELECT * FROM metas_comissao'),
+    pool.query('SELECT * FROM orcamentos'),
+    pool.query('SELECT * FROM orcamento_itens')
   ]);
   return {
     geradoEm: new Date().toISOString(),
@@ -2516,7 +2551,9 @@ async function gerarBackup() {
     cheques: cheques.rows,
     caixa: caixa.rows,
     caixaMovimentos: caixaMovimentos.rows,
-    metasComissao: metasComissao.rows
+    metasComissao: metasComissao.rows,
+    orcamentos: orcamentos.rows,
+    orcamentoItens: orcamentoItens.rows
   };
 }
 
@@ -2563,7 +2600,8 @@ app.post('/api/backup/enviar-email', auth, requireAdmin, async (req, res) => {
       funcionarios: backup.funcionarios.length,
       produtos: backup.produtos.length,
       clientes: backup.clientes.length,
-      vendas: backup.vendas.length
+      vendas: backup.vendas.length,
+      orcamentos: backup.orcamentos.length
     };
     await resend.emails.send({
       from: 'onboarding@resend.dev',
@@ -2577,6 +2615,7 @@ app.post('/api/backup/enviar-email', auth, requireAdmin, async (req, res) => {
           <li>${stats.produtos} produtos</li>
           <li>${stats.clientes} clientes</li>
           <li>${stats.vendas} vendas</li>
+          <li>${stats.orcamentos} orçamentos</li>
         </ul>
         <p>O arquivo criptografado com todos os dados está em anexo.</p>
       `,
@@ -2618,6 +2657,7 @@ const agendarBackupDiario = () => {
             <li>${backup.produtos.length} produtos</li>
             <li>${backup.clientes.length} clientes</li>
             <li>${backup.vendas.length} vendas</li>
+            <li>${backup.orcamentos.length} orçamentos</li>
           </ul>
           <p>O arquivo criptografado com todos os dados está em anexo.</p>
         `,
@@ -2761,6 +2801,109 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
     const r = await pool.query(`SELECT NEXTVAL('venda_num_seq') as num`);
     const num = '#' + String(r.rows[0].num).padStart(4, '0');
     res.json({ num });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// ORÇAMENTOS
+app.get('/api/orcamentos', auth, async (req, res) => {
+  try {
+    const { status, q, limit, offset } = req.query;
+    let where = ['1=1'];
+    let params = [];
+    let i = 1;
+    if (status) { where.push(`o.status = $${i++}`); params.push(status); }
+    if (q) {
+      where.push(`(LOWER(o.num) LIKE $${i} OR LOWER(o.cliente_nome) LIKE $${i} OR LOWER(o.cliente_tel) LIKE $${i})`);
+      params.push('%' + String(q).toLowerCase() + '%');
+      i++;
+    }
+    const sql = `
+      SELECT o.*,
+        COALESCE(json_agg(jsonb_build_object('id',oi.produto_id,'nome',oi.nome,'cod',oi.cod,'preco',oi.preco,'qty',oi.qty) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),'[]') as itens
+      FROM orcamentos o
+      LEFT JOIN orcamento_itens oi ON oi.orcamento_id = o.id
+      WHERE ${where.join(' AND ')}
+      GROUP BY o.id
+      ORDER BY o.data DESC
+      LIMIT ${parseInt(limit) || 200} OFFSET ${parseInt(offset) || 0}`;
+    const r = await pool.query(sql, params);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/orcamentos', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const o = req.body || {};
+    if (!Array.isArray(o.itens) || !o.itens.length) {
+      return res.status(400).json({ erro: 'Informe ao menos uma peça para salvar o orçamento.' });
+    }
+    await client.query('BEGIN');
+    const orcamentoId = o.id || uid();
+    let num = o.num;
+    if (!num) {
+      const nums = await client.query(`SELECT num FROM orcamentos WHERE num ~ '^ORC-[0-9]+$'`);
+      const prox = nums.rows.reduce((maior, row) => {
+        const n = parseInt(String(row.num || '').replace(/\D/g, ''), 10) || 0;
+        return Math.max(maior, n);
+      }, 0) + 1;
+      num = 'ORC-' + String(prox).padStart(4, '0');
+    }
+    await client.query(
+      `INSERT INTO orcamentos
+       (id,num,data,validade,cliente_id,cliente_nome,cliente_tel,vendedor_id,vendedor_nome,canal,subtotal,desconto,desc_pct,total,obs,status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        orcamentoId, num, o.data || new Date(), o.validade || null,
+        o.clienteId || o.cliente_id || null,
+        o.clienteNome || o.cliente_nome || 'Consumidor final',
+        o.clienteTel || o.cliente_tel || '',
+        o.vendedorId || o.vendedor_id || null,
+        o.vendedorNome || o.vendedor_nome || '',
+        o.canal || 'presencial',
+        o.sub || o.subtotal || 0,
+        o.desc || o.desconto || 0,
+        o.descPct || o.desc_pct || 0,
+        o.total || o.tot || 0,
+        o.obs || '',
+        o.status || 'aberto'
+      ]
+    );
+    for (const item of o.itens) {
+      await client.query(
+        `INSERT INTO orcamento_itens (orcamento_id,produto_id,nome,cod,preco,qty)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [orcamentoId, item.id || item.produto_id, item.nome, item.cod, item.preco, item.qty]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, num });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ erro: err.message });
+  } finally { client.release(); }
+});
+
+app.patch('/api/orcamentos/:id/status', auth, async (req, res) => {
+  try {
+    const status = req.body?.status || 'cancelado';
+    await pool.query(
+      `UPDATE orcamentos SET status=$1, atualizado_em=NOW() WHERE id=$2`,
+      [status, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.patch('/api/orcamentos/:id/converter', auth, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE orcamentos
+       SET status='convertido', convertido_venda_id=$1, convertido_em=NOW(), atualizado_em=NOW()
+       WHERE id=$2`,
+      [req.body?.vendaId || null, req.params.id]
+    );
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 

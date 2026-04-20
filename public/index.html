@@ -280,6 +280,9 @@ tr:hover td{background:var(--bg)}
     <div class="nav-item" onclick="nav('pdv',this)">
       <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>PDV
     </div>
+    <div class="nav-item" onclick="nav('orcamentos',this)">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>Orçamentos
+    </div>
     <div class="nav-item" onclick="nav('caixa',this)">
       <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="2" y1="12" x2="22" y2="12"/><circle cx="17" cy="16" r="1"/></svg>Caixa
     </div>
@@ -531,6 +534,7 @@ tr:hover td{background:var(--bg)}
             </div>
             <input type="text" id="pdv-obs" placeholder="Observação (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:12px">
             <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:12px;font-size:14px;font-weight:700;justify-content:center" onclick="finalizarVenda()">✓ Finalizar Venda</button>
+            <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center;border-color:var(--pink);color:var(--pink-dark);font-weight:700" onclick="abrirModalOrcamento()">Salvar orçamento</button>
             <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center" onclick="limparCarrinho()">Limpar carrinho</button>
           </div>
         </div>
@@ -753,6 +757,28 @@ tr:hover td{background:var(--bg)}
           </table>
         </div>
         <div id="mobile-cards-vendas" class="mobile-cards-list"></div>
+      </div>
+
+      <!-- ORÇAMENTOS -->
+      <div class="page" id="page-orcamentos">
+        <div class="search-bar">
+          <input type="text" id="busca-orcamento" placeholder="Buscar orçamento, cliente ou telefone..." oninput="carregarOrcamentos()">
+          <select id="orcamento-status" onchange="carregarOrcamentos()">
+            <option value="aberto">Abertos</option>
+            <option value="">Todos</option>
+            <option value="convertido">Convertidos</option>
+            <option value="cancelado">Cancelados</option>
+          </select>
+          <button class="btn" onclick="carregarOrcamentos()">Atualizar</button>
+          <button class="btn btn-primary" onclick="nav('pdv', document.querySelector(&quot;.nav-item[onclick*='pdv']&quot;))">+ Novo pelo PDV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Validade</th><th>Peças</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="tabela-orcamentos"></tbody>
+          </table>
+        </div>
+        <div id="mobile-cards-orcamentos" class="mobile-cards-list"></div>
       </div>
 
       <!-- RELATÓRIOS -->
@@ -1555,6 +1581,42 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
+<!-- Modal Salvar Orçamento -->
+<div class="modal-backdrop" id="modal-orcamento">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><h3>Salvar orçamento</h3><button class="modal-close" onclick="fecharModal('modal-orcamento')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Cliente / identificação</label>
+          <input type="text" id="orc-cli-nome" placeholder="Nome do cliente">
+        </div>
+        <div class="form-group">
+          <label>Telefone / WhatsApp</label>
+          <input type="text" id="orc-cli-tel" placeholder="(24) 99999-9999">
+        </div>
+        <div class="form-group">
+          <label>Validade</label>
+          <input type="date" id="orc-validade">
+        </div>
+        <div class="form-group">
+          <label>Total</label>
+          <input type="text" id="orc-total-preview" disabled>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Observação</label>
+        <textarea id="orc-obs" placeholder="Ex: cliente ficou de decidir sábado, separar se possível..."></textarea>
+      </div>
+      <div id="orc-resumo-itens" style="font-size:12px;color:var(--text2);background:var(--bg);border-radius:var(--radius);padding:10px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('modal-orcamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarOrcamento()">Salvar orçamento</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Visualização Nota Bling -->
 <div class="modal-backdrop" id="modal-nota-bling">
   <div class="modal" style="max-width:1100px">
@@ -1811,7 +1873,7 @@ window.addEventListener('resize', ajustarMobile);
 // ===== NAVEGAÇÃO =====
 const pageTitles = {
   dashboard:'Dashboard', pendencias:'Pendências', caixa:'Caixa',
-  preproducao:'Pré-produção', pdv:'PDV', produtos:'Produtos',
+  preproducao:'Pré-produção', pdv:'PDV', orcamentos:'Orçamentos', produtos:'Produtos',
   clientes:'Clientes', fornecedores:'Fornecedores', funcionarios:'Funcionários',
   vendas:'Histórico de Vendas', relatorios:'Relatórios', estoque:'Estoque',
   configuracoes:'Configurações', financeiro:'Financeiro'
@@ -1828,6 +1890,7 @@ function nav(id, el) {
   if (id === 'caixa') caixaTab('movimentos');
   if (id === 'preproducao') carregarPreProducao();
   if (id === 'pdv') initPDV();
+  if (id === 'orcamentos') carregarOrcamentos();
   if (id === 'produtos') carregarProdutos();
   if (id === 'clientes') carregarClientes();
   if (id === 'fornecedores') carregarFornecedores();
@@ -3818,6 +3881,193 @@ async function cancelarVenda(id) {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
+// ===== ORÇAMENTOS =====
+const textoSeguro = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function totaisOrcamentoAtual() {
+  const sub = carrinho.reduce((a, i) => a + (Number(i.preco) || 0) * (Number(i.qty) || 0), 0);
+  const desc = Math.round(sub * (descPct / 100) * 100) / 100;
+  return { sub, desc, total: Math.max(0, sub - desc) };
+}
+
+function clienteAtualPDV() {
+  const clienteId = document.getElementById('pdv-cliente')?.value || '';
+  const textoBusca = document.getElementById('pdv-cliente-busca')?.value?.trim() || '';
+  const cliente = clienteId ? (_clientesCache || []).find(c => c.id === clienteId) : null;
+  const tel = cliente?.tel || cliente?.telefone || cliente?.celular || '';
+  return {
+    id: clienteId,
+    nome: cliente?.nome || textoBusca || '',
+    tel
+  };
+}
+
+function abrirModalOrcamento() {
+  if (!carrinho.length) { toast('Adicione ao menos uma peça para salvar o orçamento.', 'warn'); return; }
+  if (carrinhoTroca.length) { toast('Orçamento ainda não salva devoluções. Remova as peças devolvidas antes de salvar.', 'warn', 5000); return; }
+  const cliente = clienteAtualPDV();
+  const validade = new Date();
+  validade.setDate(validade.getDate() + 7);
+  const totais = totaisOrcamentoAtual();
+  document.getElementById('orc-cli-nome').value = cliente.nome;
+  document.getElementById('orc-cli-tel').value = cliente.tel;
+  document.getElementById('orc-validade').value = validade.toISOString().slice(0, 10);
+  document.getElementById('orc-total-preview').value = fmtMoeda(totais.total);
+  document.getElementById('orc-obs').value = document.getElementById('pdv-obs')?.value || '';
+  document.getElementById('orc-resumo-itens').innerHTML =
+    '<strong>' + carrinho.reduce((a, i) => a + (Number(i.qty) || 0), 0) + ' peça(s)</strong><br>' +
+    carrinho.map(i => textoSeguro(i.qty + 'x ' + i.nome + ' — ' + fmtMoeda(i.preco))).join('<br>') +
+    (descPct > 0 ? '<br><br>Desconto aplicado: <strong>' + descPct + '%</strong>' : '');
+  abrirModal('modal-orcamento');
+}
+
+async function salvarOrcamento() {
+  if (!carrinho.length) { toast('Carrinho vazio', 'warn'); return; }
+  if (carrinhoTroca.length) { toast('Remova devoluções antes de salvar o orçamento.', 'warn'); return; }
+  const nome = document.getElementById('orc-cli-nome').value.trim();
+  if (!nome) { toast('Informe uma identificação para o cliente.', 'warn'); return; }
+  const cliente = clienteAtualPDV();
+  const vendId = document.getElementById('pdv-vendedor')?.value || '';
+  let vendNome = '';
+  try {
+    const funcs = await api('GET', '/api/funcionarios');
+    vendNome = funcs.find(f => f.id === vendId)?.nome || '';
+  } catch(e) {}
+  const totais = totaisOrcamentoAtual();
+  const payload = {
+    id: uid(),
+    data: new Date().toISOString(),
+    validade: document.getElementById('orc-validade').value || null,
+    clienteId: cliente.id || null,
+    clienteNome: nome,
+    clienteTel: document.getElementById('orc-cli-tel').value.trim(),
+    vendedorId: vendId || null,
+    vendedorNome: vendNome,
+    canal,
+    sub: totais.sub,
+    desc: totais.desc,
+    descPct,
+    total: totais.total,
+    obs: document.getElementById('orc-obs').value.trim(),
+    itens: carrinho.map(i => ({ id: i.id, nome: i.nome, cod: i.cod, preco: i.preco, qty: i.qty }))
+  };
+  try {
+    const r = await api('POST', '/api/orcamentos', payload);
+    fecharModal('modal-orcamento');
+    toast('Orçamento ' + r.num + ' salvo.');
+    limparCarrinho();
+    carregarOrcamentos();
+  } catch(e) { toast('Erro ao salvar orçamento: ' + e.message, 'error'); }
+}
+
+async function carregarOrcamentos() {
+  const tb = document.getElementById('tabela-orcamentos');
+  if (!tb) return;
+  const status = document.getElementById('orcamento-status')?.value || '';
+  const q = document.getElementById('busca-orcamento')?.value?.trim() || '';
+  try {
+    let url = '/api/orcamentos?limit=300&';
+    if (status) url += 'status=' + encodeURIComponent(status) + '&';
+    if (q) url += 'q=' + encodeURIComponent(q) + '&';
+    const orcs = await api('GET', url);
+    _orcamentosCache = orcs || [];
+    renderMobileCardsOrcamentos(_orcamentosCache);
+    if (!_orcamentosCache.length) {
+      tb.innerHTML = '<tr><td colspan="8"><div class="empty-state" style="padding:24px"><div class="icon">📝</div><p>Nenhum orçamento</p></div></td></tr>';
+      return;
+    }
+    tb.innerHTML = _orcamentosCache.map(o => {
+      const pecas = (o.itens || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      const badge = o.status === 'aberto' ? 'badge-blue' : o.status === 'convertido' ? 'badge-green' : 'badge-red';
+      const acoes = o.status === 'aberto'
+        ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar no PDV</button>' +
+          '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
+        : '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
+      return '<tr>' +
+        '<td><strong>' + textoSeguro(o.num || '') + '</strong></td>' +
+        '<td>' + new Date(o.data).toLocaleString('pt-BR') + '</td>' +
+        '<td>' + textoSeguro(o.cliente_nome || 'Consumidor final') + '<div style="font-size:11px;color:var(--text3)">' + textoSeguro(o.cliente_tel || '') + '</div></td>' +
+        '<td>' + fmtData(o.validade) + '</td>' +
+        '<td>' + pecas + '</td>' +
+        '<td><strong>' + fmtMoeda(o.total) + '</strong></td>' +
+        '<td><span class="badge ' + badge + '">' + textoSeguro(o.status || '') + '</span></td>' +
+        '<td><div class="action-btns">' + acoes + '</div></td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) { toast('Erro ao carregar orçamentos: ' + e.message, 'error'); }
+}
+
+function renderMobileCardsOrcamentos(orcs) {
+  const el = document.getElementById('mobile-cards-orcamentos');
+  if (!el) return;
+  if (!orcs.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>Nenhum orçamento</p></div>'; return; }
+  el.innerHTML = orcs.map(o => {
+    const pecas = (o.itens || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+    const badge = o.status === 'aberto' ? 'badge-blue' : o.status === 'convertido' ? 'badge-green' : 'badge-red';
+    const actions = o.status === 'aberto'
+      ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button><button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
+      : '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
+    return '<div class="m-card">' +
+      '<div class="m-card-header"><div><div class="m-card-title">' + textoSeguro(o.num || '') + ' · ' + textoSeguro(o.cliente_nome || 'Consumidor final') + '</div><div class="m-card-sub">' + new Date(o.data).toLocaleString('pt-BR') + '</div></div><strong>' + fmtMoeda(o.total) + '</strong></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Peças</span><span class="m-card-value">' + pecas + '</span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Validade</span><span class="m-card-value">' + fmtData(o.validade) + '</span></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + badge + '">' + textoSeguro(o.status || '') + '</span></span></div>' +
+      '<div class="m-card-actions">' + actions + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function abrirOrcamentoNoPDV(id) {
+  const o = _orcamentosCache.find(x => x.id === id);
+  if (!o) { toast('Orçamento não encontrado', 'warn'); return; }
+  if (o.status !== 'aberto') { toast('Só é possível carregar orçamento em aberto.', 'warn'); return; }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-pdv').classList.add('active');
+  document.querySelector(".nav-item[onclick*=\"'pdv'\"]")?.classList.add('active');
+  document.getElementById('page-title').textContent = 'PDV';
+  await initPDV();
+  _orcamentoEmVendaId = id;
+  carrinho = (o.itens || []).map(i => ({
+    id: i.id,
+    nome: i.nome,
+    cod: i.cod,
+    preco: Number(i.preco) || 0,
+    qty: Number(i.qty) || 1
+  }));
+  descPct = Number(o.desc_pct) || 0;
+  canal = o.canal || 'presencial';
+  document.getElementById('pdv-cliente').value = o.cliente_id || '';
+  document.getElementById('pdv-cliente-busca').value = o.cliente_nome || '';
+  if (o.vendedor_id) document.getElementById('pdv-vendedor').value = o.vendedor_id;
+  document.getElementById('pdv-obs').value = [o.obs, 'Orçamento ' + o.num].filter(Boolean).join('\n');
+  setCanal(canal);
+  renderBotoesDesconto();
+  renderCarrinho();
+  renderPgtoLista();
+  toast('Orçamento carregado no PDV.');
+}
+
+async function cancelarOrcamento(id) {
+  if (!confirm('Cancelar este orçamento?')) return;
+  try {
+    await api('PATCH', '/api/orcamentos/' + id + '/status', { status: 'cancelado' });
+    toast('Orçamento cancelado.');
+    carregarOrcamentos();
+  } catch(e) { toast('Erro ao cancelar: ' + e.message, 'error'); }
+}
+
+function enviarOrcamentoWhatsApp(id) {
+  const o = _orcamentosCache.find(x => x.id === id);
+  if (!o) { toast('Orçamento não encontrado', 'warn'); return; }
+  const itens = (o.itens || []).map(i => `${i.qty}x ${i.nome} - ${fmtMoeda(i.preco)}`).join('\n');
+  const msg = `Olá, ${o.cliente_nome || ''}! Segue seu orçamento ${o.num}:\n\n${itens}\n\nTotal: ${fmtMoeda(o.total)}${o.validade ? '\nValidade: ' + fmtData(o.validade) : ''}`;
+  const fone = String(o.cliente_tel || '').replace(/\D/g, '');
+  const destino = fone ? '55' + fone : '';
+  window.open('https://wa.me/' + destino + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
 function reimprimirRomaneio() {
   if (!_vendaAtual) { toast('Nenhuma venda carregada', 'warn'); return; }
   const cliNome = _vendaAtual.cliente_nome || '';
@@ -4365,6 +4615,7 @@ async function descriptografarBackup() {
       (b.produtos?.length || 0) + ' produtos · ' +
       (b.clientes?.length || 0) + ' clientes · ' +
       (b.vendas?.length || 0) + ' vendas · ' +
+      (b.orcamentos?.length || 0) + ' orçamentos · ' +
       (b.funcionarios?.length || 0) + ' funcionários';
     resultEl.style.display = 'block';
   } catch(e) {
@@ -4866,9 +5117,12 @@ let canal = 'presencial';
 let descPct = 0;
 let todosProds = [];
 let _finalizandoVenda = false;
+let _orcamentosCache = [];
+let _orcamentoEmVendaId = null;
 
 async function initPDV() {
   carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0;
+  _orcamentoEmVendaId = null;
   await carregarCategoriasGlobal();
   // Pré-carrega clientes no cache para autocomplete do PDV
   try {
@@ -5071,6 +5325,7 @@ function alterarQty(idx, delta) {
 
 function limparCarrinho() {
   carrinho = []; pgtoItens = [];
+  _orcamentoEmVendaId = null;
   document.getElementById('pdv-produto-info').style.display = 'none';
   document.getElementById('pdv-search').value = '';
   document.getElementById('pdv-cliente-busca').value = '';
@@ -5251,19 +5506,19 @@ async function finalizarVenda() {
   const temChequePre = pgtoItens.some(p => p.tipo === 'cheque_pre');
   if (!carrinho.length && !carrinhoTroca.length) {
     _finalizandoVenda = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     toast('Carrinho vazio', 'warn'); return;
   }
   if (!carrinho.length && carrinhoTroca.length) {
     if (!document.getElementById('pdv-cliente').value) {
       _finalizandoVenda = false;
-      if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
       toast('Selecione o cliente para registrar a devolução', 'warn'); return;
     }
   }
   if (temChequePre && !document.getElementById('pdv-cliente').value) {
     _finalizandoVenda = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     toast('Cheque pré-datado exige cliente cadastrado', 'warn'); return;
   }
   const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
@@ -5277,14 +5532,14 @@ async function finalizarVenda() {
   const totFinal = Math.max(0, tot - totalDev - credUsado);
   if (totFinal > 0.01 && !pgtoItens.length) {
     _finalizandoVenda = false;
-    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     toast('Adicione uma forma de pagamento', 'warn'); return;
   }
   if (totFinal > 0.01) {
     const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
     if (pago < totFinal - 0.01) {
       _finalizandoVenda = false;
-      if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
       toast('Falta ' + fmtMoeda(totFinal-pago) + ' para cobrir o total', 'warn'); return;
     }
   }
@@ -5339,6 +5594,9 @@ async function finalizarVenda() {
   };
   try {
     await api('POST', '/api/vendas', venda);
+    if (_orcamentoEmVendaId) {
+      await api('PATCH', '/api/orcamentos/' + _orcamentoEmVendaId + '/converter', { vendaId: venda.id }).catch(() => {});
+    }
     // Registrar cheques pré-datados no financeiro
     const hoje = new Date().toISOString().split('T')[0];
     for (const p of pgtoItens.filter(p => p.tipo === 'cheque_pre')) {
@@ -5378,9 +5636,9 @@ async function finalizarVenda() {
     _creditoGeradoAtual = creditoGerado;
     abrirRomaneio(venda, cliNome);
     limparCarrinho();
-    if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     _finalizandoVenda = false;
-  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Finalizar'; } _finalizandoVenda = false; }
+  } catch(e) { toast('Erro ao finalizar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; } _finalizandoVenda = false; }
 }
 
 function enviarWhatsApp() {
