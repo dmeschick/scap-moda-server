@@ -348,8 +348,10 @@ async function initDB() {
       nome VARCHAR(200),
       cod VARCHAR(50),
       preco DECIMAL(10,2),
-      qty INTEGER
+      qty INTEGER,
+      tipo VARCHAR(20) DEFAULT 'novo'
     );
+    ALTER TABLE orcamento_itens ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) DEFAULT 'novo';
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave VARCHAR(100) PRIMARY KEY,
       valor JSONB,
@@ -2819,7 +2821,7 @@ app.get('/api/orcamentos', auth, async (req, res) => {
     }
     const sql = `
       SELECT o.*,
-        COALESCE(json_agg(jsonb_build_object('id',oi.produto_id,'nome',oi.nome,'cod',oi.cod,'preco',oi.preco,'qty',oi.qty) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),'[]') as itens
+        COALESCE(json_agg(jsonb_build_object('id',oi.produto_id,'nome',oi.nome,'cod',oi.cod,'preco',oi.preco,'qty',oi.qty,'tipo',COALESCE(oi.tipo,'novo')) ORDER BY oi.id) FILTER (WHERE oi.id IS NOT NULL),'[]') as itens
       FROM orcamentos o
       LEFT JOIN orcamento_itens oi ON oi.orcamento_id = o.id
       WHERE ${where.join(' AND ')}
@@ -2871,9 +2873,9 @@ app.post('/api/orcamentos', auth, async (req, res) => {
     );
     for (const item of o.itens) {
       await client.query(
-        `INSERT INTO orcamento_itens (orcamento_id,produto_id,nome,cod,preco,qty)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [orcamentoId, item.id || item.produto_id, item.nome, item.cod, item.preco, item.qty]
+        `INSERT INTO orcamento_itens (orcamento_id,produto_id,nome,cod,preco,qty,tipo)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [orcamentoId, item.id || item.produto_id, item.nome, item.cod, item.preco, item.qty, item.tipo || 'novo']
       );
     }
     await client.query('COMMIT');

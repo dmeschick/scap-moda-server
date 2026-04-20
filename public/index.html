@@ -3887,7 +3887,12 @@ const textoSeguro = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 function totaisOrcamentoAtual() {
   const sub = carrinho.reduce((a, i) => a + (Number(i.preco) || 0) * (Number(i.qty) || 0), 0);
   const desc = Math.round(sub * (descPct / 100) * 100) / 100;
-  return { sub, desc, total: Math.max(0, sub - desc) };
+  const compras = sub - desc;
+  const devolucoes = carrinhoTroca.reduce((a, i) => {
+    const precoComDesc = descPct > 0 ? Math.round((Number(i.preco) || 0) * (1 - descPct / 100) * 100) / 100 : Number(i.preco) || 0;
+    return a + precoComDesc * (Number(i.qty) || 0);
+  }, 0);
+  return { sub, desc, compras, devolucoes, total: compras - devolucoes };
 }
 
 function clienteAtualPDV() {
@@ -3903,8 +3908,7 @@ function clienteAtualPDV() {
 }
 
 function abrirModalOrcamento() {
-  if (!carrinho.length) { toast('Adicione ao menos uma peça para salvar o orçamento.', 'warn'); return; }
-  if (carrinhoTroca.length) { toast('Orçamento ainda não salva devoluções. Remova as peças devolvidas antes de salvar.', 'warn', 5000); return; }
+  if (!carrinho.length && !carrinhoTroca.length) { toast('Adicione ao menos uma peça para salvar o orçamento.', 'warn'); return; }
   const cliente = clienteAtualPDV();
   const validade = new Date();
   validade.setDate(validade.getDate() + 7);
@@ -3912,18 +3916,24 @@ function abrirModalOrcamento() {
   document.getElementById('orc-cli-nome').value = cliente.nome;
   document.getElementById('orc-cli-tel').value = cliente.tel;
   document.getElementById('orc-validade').value = validade.toISOString().slice(0, 10);
-  document.getElementById('orc-total-preview').value = fmtMoeda(totais.total);
+  document.getElementById('orc-total-preview').value = totais.total < 0 ? 'Crédito ' + fmtMoeda(Math.abs(totais.total)) : fmtMoeda(totais.total);
   document.getElementById('orc-obs').value = document.getElementById('pdv-obs')?.value || '';
+  const linhasCompras = carrinho.length
+    ? '<strong>Peças escolhidas</strong><br>' + carrinho.map(i => textoSeguro(i.qty + 'x ' + i.nome + ' — ' + fmtMoeda(i.preco))).join('<br>')
+    : '';
+  const linhasTrocas = carrinhoTroca.length
+    ? '<strong style="color:var(--red)">Peças devolvidas</strong><br>' + carrinhoTroca.map(i => textoSeguro(i.qty + 'x ' + i.nome + ' — ' + fmtMoeda(i.preco))).join('<br>')
+    : '';
   document.getElementById('orc-resumo-itens').innerHTML =
-    '<strong>' + carrinho.reduce((a, i) => a + (Number(i.qty) || 0), 0) + ' peça(s)</strong><br>' +
-    carrinho.map(i => textoSeguro(i.qty + 'x ' + i.nome + ' — ' + fmtMoeda(i.preco))).join('<br>') +
+    '<strong>' + (carrinho.reduce((a, i) => a + (Number(i.qty) || 0), 0) + carrinhoTroca.reduce((a, i) => a + (Number(i.qty) || 0), 0)) + ' peça(s)</strong><br>' +
+    [linhasCompras, linhasTrocas].filter(Boolean).join('<br><br>') +
+    (totais.devolucoes > 0 ? '<br><br>Devoluções: <strong style="color:var(--red)">-' + fmtMoeda(totais.devolucoes) + '</strong>' : '') +
     (descPct > 0 ? '<br><br>Desconto aplicado: <strong>' + descPct + '%</strong>' : '');
   abrirModal('modal-orcamento');
 }
 
 async function salvarOrcamento() {
-  if (!carrinho.length) { toast('Carrinho vazio', 'warn'); return; }
-  if (carrinhoTroca.length) { toast('Remova devoluções antes de salvar o orçamento.', 'warn'); return; }
+  if (!carrinho.length && !carrinhoTroca.length) { toast('Carrinho vazio', 'warn'); return; }
   const nome = document.getElementById('orc-cli-nome').value.trim();
   if (!nome) { toast('Informe uma identificação para o cliente.', 'warn'); return; }
   const cliente = clienteAtualPDV();
@@ -3949,7 +3959,10 @@ async function salvarOrcamento() {
     descPct,
     total: totais.total,
     obs: document.getElementById('orc-obs').value.trim(),
-    itens: carrinho.map(i => ({ id: i.id, nome: i.nome, cod: i.cod, preco: i.preco, qty: i.qty }))
+    itens: [
+      ...carrinho.map(i => ({ id: i.id, nome: i.nome, cod: i.cod, preco: i.preco, qty: i.qty, tipo: 'novo' })),
+      ...carrinhoTroca.map(i => ({ id: i.id, nome: i.nome, cod: i.cod, preco: i.preco, qty: i.qty, tipo: 'devolvido' }))
+    ]
   };
   try {
     const r = await api('POST', '/api/orcamentos', payload);
@@ -3977,8 +3990,13 @@ async function carregarOrcamentos() {
       return;
     }
     tb.innerHTML = _orcamentosCache.map(o => {
-      const pecas = (o.itens || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      const pecasCompradas = (o.itens || []).filter(i => (i.tipo || 'novo') !== 'devolvido').reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      const pecasDevolvidas = (o.itens || []).filter(i => (i.tipo || 'novo') === 'devolvido').reduce((a, i) => a + (Number(i.qty) || 0), 0);
       const badge = o.status === 'aberto' ? 'badge-blue' : o.status === 'convertido' ? 'badge-green' : 'badge-red';
+      const total = Number(o.total) || 0;
+      const totalCell = total < 0
+        ? '<strong style="color:var(--green)">Crédito ' + fmtMoeda(Math.abs(total)) + '</strong>'
+        : '<strong>' + fmtMoeda(total) + '</strong>';
       const acoes = o.status === 'aberto'
         ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar no PDV</button>' +
           '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>' +
@@ -3989,8 +4007,8 @@ async function carregarOrcamentos() {
         '<td>' + new Date(o.data).toLocaleString('pt-BR') + '</td>' +
         '<td>' + textoSeguro(o.cliente_nome || 'Consumidor final') + '<div style="font-size:11px;color:var(--text3)">' + textoSeguro(o.cliente_tel || '') + '</div></td>' +
         '<td>' + fmtData(o.validade) + '</td>' +
-        '<td>' + pecas + '</td>' +
-        '<td><strong>' + fmtMoeda(o.total) + '</strong></td>' +
+        '<td>' + pecasCompradas + (pecasDevolvidas ? ' <span style="color:var(--red);font-size:11px">/ ' + pecasDevolvidas + ' dev.</span>' : '') + '</td>' +
+        '<td>' + totalCell + '</td>' +
         '<td><span class="badge ' + badge + '">' + textoSeguro(o.status || '') + '</span></td>' +
         '<td><div class="action-btns">' + acoes + '</div></td>' +
       '</tr>';
@@ -4003,14 +4021,17 @@ function renderMobileCardsOrcamentos(orcs) {
   if (!el) return;
   if (!orcs.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>Nenhum orçamento</p></div>'; return; }
   el.innerHTML = orcs.map(o => {
-    const pecas = (o.itens || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+    const pecasCompradas = (o.itens || []).filter(i => (i.tipo || 'novo') !== 'devolvido').reduce((a, i) => a + (Number(i.qty) || 0), 0);
+    const pecasDevolvidas = (o.itens || []).filter(i => (i.tipo || 'novo') === 'devolvido').reduce((a, i) => a + (Number(i.qty) || 0), 0);
+    const total = Number(o.total) || 0;
+    const totalStr = total < 0 ? 'Crédito ' + fmtMoeda(Math.abs(total)) : fmtMoeda(total);
     const badge = o.status === 'aberto' ? 'badge-blue' : o.status === 'convertido' ? 'badge-green' : 'badge-red';
     const actions = o.status === 'aberto'
       ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button><button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
       : '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
     return '<div class="m-card">' +
-      '<div class="m-card-header"><div><div class="m-card-title">' + textoSeguro(o.num || '') + ' · ' + textoSeguro(o.cliente_nome || 'Consumidor final') + '</div><div class="m-card-sub">' + new Date(o.data).toLocaleString('pt-BR') + '</div></div><strong>' + fmtMoeda(o.total) + '</strong></div>' +
-      '<div class="m-card-row"><span class="m-card-label">Peças</span><span class="m-card-value">' + pecas + '</span></div>' +
+      '<div class="m-card-header"><div><div class="m-card-title">' + textoSeguro(o.num || '') + ' · ' + textoSeguro(o.cliente_nome || 'Consumidor final') + '</div><div class="m-card-sub">' + new Date(o.data).toLocaleString('pt-BR') + '</div></div><strong>' + totalStr + '</strong></div>' +
+      '<div class="m-card-row"><span class="m-card-label">Peças</span><span class="m-card-value">' + pecasCompradas + (pecasDevolvidas ? ' / ' + pecasDevolvidas + ' devolvidas' : '') + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Validade</span><span class="m-card-value">' + fmtData(o.validade) + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + badge + '">' + textoSeguro(o.status || '') + '</span></span></div>' +
       '<div class="m-card-actions">' + actions + '</div>' +
@@ -4029,12 +4050,21 @@ async function abrirOrcamentoNoPDV(id) {
   document.getElementById('page-title').textContent = 'PDV';
   await initPDV();
   _orcamentoEmVendaId = id;
-  carrinho = (o.itens || []).map(i => ({
+  const itens = o.itens || [];
+  carrinho = itens.filter(i => (i.tipo || 'novo') !== 'devolvido').map(i => ({
     id: i.id,
     nome: i.nome,
     cod: i.cod,
     preco: Number(i.preco) || 0,
     qty: Number(i.qty) || 1
+  }));
+  carrinhoTroca = itens.filter(i => (i.tipo || 'novo') === 'devolvido').map(i => ({
+    id: i.id,
+    nome: i.nome,
+    cod: i.cod,
+    preco: Number(i.preco) || 0,
+    qty: Number(i.qty) || 1,
+    tipo: 'devolvido'
   }));
   descPct = Number(o.desc_pct) || 0;
   canal = o.canal || 'presencial';
@@ -4044,6 +4074,7 @@ async function abrirOrcamentoNoPDV(id) {
   document.getElementById('pdv-obs').value = [o.obs, 'Orçamento ' + o.num].filter(Boolean).join('\n');
   setCanal(canal);
   renderBotoesDesconto();
+  renderTroca();
   renderCarrinho();
   renderPgtoLista();
   toast('Orçamento carregado no PDV.');
@@ -4061,8 +4092,11 @@ async function cancelarOrcamento(id) {
 function enviarOrcamentoWhatsApp(id) {
   const o = _orcamentosCache.find(x => x.id === id);
   if (!o) { toast('Orçamento não encontrado', 'warn'); return; }
-  const itens = (o.itens || []).map(i => `${i.qty}x ${i.nome} - ${fmtMoeda(i.preco)}`).join('\n');
-  const msg = `Olá, ${o.cliente_nome || ''}! Segue seu orçamento ${o.num}:\n\n${itens}\n\nTotal: ${fmtMoeda(o.total)}${o.validade ? '\nValidade: ' + fmtData(o.validade) : ''}`;
+  const compras = (o.itens || []).filter(i => (i.tipo || 'novo') !== 'devolvido').map(i => `${i.qty}x ${i.nome} - ${fmtMoeda(i.preco)}`).join('\n');
+  const devolucoes = (o.itens || []).filter(i => (i.tipo || 'novo') === 'devolvido').map(i => `${i.qty}x ${i.nome} - ${fmtMoeda(i.preco)}`).join('\n');
+  const total = Number(o.total) || 0;
+  const totalTexto = total < 0 ? 'Crédito: ' + fmtMoeda(Math.abs(total)) : 'Total: ' + fmtMoeda(total);
+  const msg = `Olá, ${o.cliente_nome || ''}! Segue seu orçamento ${o.num}:\n\n${compras ? 'Peças escolhidas:\n' + compras + '\n\n' : ''}${devolucoes ? 'Peças devolvidas:\n' + devolucoes + '\n\n' : ''}${totalTexto}${o.validade ? '\nValidade: ' + fmtData(o.validade) : ''}`;
   const fone = String(o.cliente_tel || '').replace(/\D/g, '');
   const destino = fone ? '55' + fone : '';
   window.open('https://wa.me/' + destino + '?text=' + encodeURIComponent(msg), '_blank');
@@ -5122,6 +5156,7 @@ let _orcamentoEmVendaId = null;
 
 async function initPDV() {
   carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0;
+  carrinhoTroca = []; modoTroca = false;
   _orcamentoEmVendaId = null;
   await carregarCategoriasGlobal();
   // Pré-carrega clientes no cache para autocomplete do PDV
