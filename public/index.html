@@ -4482,6 +4482,54 @@ async function copiarTexto(texto) {
   }
 }
 
+function clienteEhContribuinteICMS(cliente) {
+  if (!cliente || cliente.tipo !== 'PJ') return false;
+  const ie = String(cliente.ie || '').trim().toUpperCase();
+  return !!ie && ie !== 'ISENTO' && ie !== 'ISENTA' && ie !== 'NÃO CONTRIBUINTE' && ie !== 'NAO CONTRIBUINTE';
+}
+
+function enderecoPrincipalCliente(cliente, enderecoId) {
+  const enderecos = Array.isArray(cliente?.enderecos) ? cliente.enderecos.filter(Boolean) : [];
+  return enderecos.find(e => e.id === enderecoId) || _pdvEnderecoSelecionado || enderecos.find(e => e.principal) || enderecos[0] || null;
+}
+
+function decidirNotaAutomaticaVenda(venda) {
+  const pagamentos = venda?.pgtoItens || venda?.pgto_itens || [];
+  const temCartao = pagamentos.some(p => ['debito', 'credito'].includes(p.tipo));
+  if (!temCartao) return null;
+
+  const cliente = venda.clienteId
+    ? (_clientesCache || []).find(c => c.id === venda.clienteId)
+    : null;
+  const endereco = enderecoPrincipalCliente(cliente, venda.enderecoId || venda.endereco_id);
+  const ufEntrega = String(endereco?.uf || endereco?.estado || '').trim().toUpperCase();
+  const entregaForaRJ = venda.canal === 'online' && ufEntrega && ufEntrega !== 'RJ';
+
+  if (clienteEhContribuinteICMS(cliente) || entregaForaRJ) {
+    return {
+      tipo: 'nfe',
+      motivo: clienteEhContribuinteICMS(cliente)
+        ? 'cliente PJ contribuinte de ICMS'
+        : 'entrega fora do RJ'
+    };
+  }
+
+  return { tipo: 'nfce', motivo: 'venda em cartão para consumidor final' };
+}
+
+async function emitirNotaAutomaticaCartao(venda) {
+  const decisao = decidirNotaAutomaticaVenda(venda);
+  if (!decisao) return;
+
+  const label = decisao.tipo === 'nfe' ? 'NF-e' : 'NFC-e';
+  toast(`Emitindo ${label} automaticamente (${decisao.motivo})...`);
+  if (decisao.tipo === 'nfe') {
+    await emitirNFe(venda.id);
+  } else {
+    await emitirNFCe(venda.id);
+  }
+}
+
 function obterNotaExistenteVenda(venda, tipo) {
   if (!venda) return null;
   if (tipo === 'nfce' && venda.nfce_id) {
@@ -5733,7 +5781,11 @@ async function finalizarVenda() {
     // Recarrega produtos para atualizar estoque
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
     _creditoGeradoAtual = creditoGerado;
-    abrirRomaneio(venda, cliNome);
+    await abrirRomaneio(venda, cliNome);
+    setTimeout(() => emitirNotaAutomaticaCartao(venda).catch(e => {
+      console.error('Erro na emissão automática:', e);
+      toast('Erro na emissão automática: ' + e.message, 'error');
+    }), 700);
     limparCarrinho();
     if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     _finalizandoVenda = false;
