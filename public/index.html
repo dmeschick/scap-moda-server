@@ -532,6 +532,11 @@ tr:hover td{background:var(--bg)}
               <div id="pgto-campo" style="margin-top:6px"></div>
               <div id="pgto-lista" style="margin-top:6px;display:flex;flex-direction:column;gap:4px"></div>
             </div>
+            <div style="margin-top:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">DESCONTO MANUAL (R$)</div>
+              <input type="number" id="pdv-desconto-manual" placeholder="0,00" min="0" step="0.01" oninput="atualizarDescontoManual()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)">
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">Desconto avulso no total, sem alterar tabela.</div>
+            </div>
             <input type="text" id="pdv-obs" placeholder="Observação (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:12px">
             <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:12px;font-size:14px;font-weight:700;justify-content:center" onclick="finalizarVenda()">✓ Finalizar Venda</button>
             <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center;border-color:var(--pink);color:var(--pink-dark);font-weight:700" onclick="abrirModalOrcamento()">Salvar orçamento</button>
@@ -5184,15 +5189,18 @@ let carrinho = [];
 let pgtoItens = [];
 let canal = 'presencial';
 let descPct = 0;
+let descontoManual = 0;
 let todosProds = [];
 let _finalizandoVenda = false;
 let _orcamentosCache = [];
 let _orcamentoEmVendaId = null;
 
 async function initPDV() {
-  carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0;
+  carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0; descontoManual = 0;
   carrinhoTroca = []; modoTroca = false;
   _orcamentoEmVendaId = null;
+  const descManualEl = document.getElementById('pdv-desconto-manual');
+  if (descManualEl) descManualEl.value = '';
   await carregarCategoriasGlobal();
   // Pré-carrega clientes no cache para autocomplete do PDV
   try {
@@ -5218,6 +5226,36 @@ async function initPDV() {
   renderCarrinho();
   setCanal('presencial');
   document.getElementById('pdv-search').focus();
+}
+
+function dinheiro2(valor) {
+  return Math.round((Number(valor) || 0) * 100) / 100;
+}
+
+function calcularTotaisPDV() {
+  const sub = dinheiro2(carrinho.reduce((a, i) => a + (Number(i.preco) || 0) * (Number(i.qty) || 0), 0));
+  const descTabela = dinheiro2(sub * (descPct / 100));
+  const totalNovos = dinheiro2(sub - descTabela);
+  const totalDev = dinheiro2(carrinhoTroca.reduce((a, i) => {
+    const preco = Number(i.preco) || 0;
+    const precoComDesc = descPct > 0 ? dinheiro2(preco * (1 - descPct / 100)) : preco;
+    return a + precoComDesc * (Number(i.qty) || 0);
+  }, 0));
+  const creditoUsado = dinheiro2(usarCredito ? Math.min(creditoDisponivel, totalNovos) : 0);
+  const totalAntesManual = dinheiro2(Math.max(0, totalNovos - totalDev - creditoUsado));
+  const descontoManualSolicitado = dinheiro2(Math.max(0, descontoManual));
+  const descontoManualAplicado = dinheiro2(Math.min(descontoManualSolicitado, totalAntesManual));
+  const aPagar = dinheiro2(Math.max(0, totalAntesManual - descontoManualAplicado));
+  const creditoGerado = dinheiro2(Math.max(0, totalDev + creditoUsado - totalNovos));
+  return { sub, descTabela, totalNovos, totalDev, creditoUsado, descontoManualSolicitado, descontoManualAplicado, aPagar, creditoGerado };
+}
+
+function atualizarDescontoManual() {
+  const el = document.getElementById('pdv-desconto-manual');
+  descontoManual = dinheiro2(Math.max(0, parseFloat(el?.value || 0) || 0));
+  renderCarrinho();
+  renderPgtoLista();
+  if (document.getElementById('pgto-tipo')?.value) mostrarCampoPgto();
 }
 
 function filtrarPDV() {
@@ -5325,9 +5363,10 @@ function mostrarInfoProduto(p, modoDevolvido) {
 function renderCarrinho() {
   const count = carrinho.reduce((a,i) => a+i.qty, 0);
   document.getElementById('cart-count').textContent = count ? `(${count} item${count>1?'s':''})` : '';
-  const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
-  const desc = Math.round(sub*(descPct/100)*100)/100;
-  const tot = sub - desc;
+  const totaisPDV = calcularTotaisPDV();
+  const sub = totaisPDV.sub;
+  const desc = totaisPDV.descTabela;
+  const tot = totaisPDV.totalNovos;
   const items = document.getElementById('cart-items');
   const totais = document.getElementById('cart-totais');
   if (!carrinho.length && !carrinhoTroca.length) {
@@ -5361,12 +5400,10 @@ function renderCarrinho() {
   }
   totais.style.display = 'block';
 
-  const totalDev = carrinhoTroca.reduce((a, i) => {
-    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
-    return a + precoComDesc * i.qty;
-  }, 0);
-  const aPagar = Math.max(0, tot - totalDev);
-  const creditoGerado = Math.max(0, totalDev - tot);
+  const totalDev = totaisPDV.totalDev;
+  const aPagar = totaisPDV.aPagar;
+  const creditoGerado = totaisPDV.creditoGerado;
+  const descManualAplicado = totaisPDV.descontoManualAplicado;
 
   let totaisHTML = '';
   if (carrinhoTroca.length) {
@@ -5374,6 +5411,7 @@ function renderCarrinho() {
       '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Compras</span><span>' + fmtMoeda(sub) + '</span></div>' +
       (desc > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Desconto (' + descPct + '%)</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
       '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--red);margin-bottom:8px"><span>Devoluções</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
+      (descManualAplicado > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);margin-bottom:8px"><span>Desconto manual</span><span>-' + fmtMoeda(descManualAplicado) + '</span></div>' : '') +
       '<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;border-top:2px solid var(--border);padding-top:8px">' +
         '<span style="color:' + (creditoGerado > 0 ? 'var(--green)' : 'var(--text1)') + '">' + (creditoGerado > 0 ? 'CRÉDITO GERADO' : 'A PAGAR') + '</span>' +
         '<span style="color:' + (creditoGerado > 0 ? 'var(--green)' : 'var(--pink-dark)') + '">' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
@@ -5381,7 +5419,9 @@ function renderCarrinho() {
   } else {
     totaisHTML =
       '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Subtotal</span><span>' + fmtMoeda(sub) + '</span></div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--pink-dark)">' + fmtMoeda(tot) + '</span></div>';
+      (desc > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Desconto (' + descPct + '%)</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+      (descManualAplicado > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);margin-bottom:4px"><span>Desconto manual</span><span>-' + fmtMoeda(descManualAplicado) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--pink-dark)">' + fmtMoeda(aPagar) + '</span></div>';
   }
   document.getElementById('cart-totais-valores').innerHTML = totaisHTML;
   filtrarPDV();
@@ -5395,12 +5435,15 @@ function alterarQty(idx, delta) {
 
 function limparCarrinho() {
   carrinho = []; pgtoItens = [];
+  descontoManual = 0;
   _orcamentoEmVendaId = null;
   document.getElementById('pdv-produto-info').style.display = 'none';
   document.getElementById('pdv-search').value = '';
   document.getElementById('pdv-cliente-busca').value = '';
   document.getElementById('pdv-cliente').value = '';
   document.getElementById('pdv-obs').value = '';
+  const descManualEl = document.getElementById('pdv-desconto-manual');
+  if (descManualEl) descManualEl.value = '';
   _pdvEnderecoSelecionado = null;
   const _endRow = document.getElementById('pdv-endereco-row');
   if (_endRow) { _endRow.style.display = 'none'; document.getElementById('pdv-endereco-select').style.display = 'none'; }
@@ -5450,20 +5493,12 @@ function renderNumsCheque() {
 
 function mostrarCampoPgto() {
   const tipo = document.getElementById('pgto-tipo').value;
-  const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
-  const desc = Math.round(sub*(descPct/100)*100)/100;
-  const totalNovos = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => {
-    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
-    return a + precoComDesc * i.qty;
-  }, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, totalNovos) : 0;
-  const aPagar = Math.max(0, totalNovos - totalDev - credUsado);
+  const { aPagar } = calcularTotaisPDV();
   const restante = aPagar - pgtoItens.reduce((a,p) => a+p.valor, 0);
   const campo = document.getElementById('pgto-campo');
   if (!tipo) { campo.innerHTML = ''; return; }
 
-  const inputVal = '<input type="number" id="pgto-val" placeholder="Valor" value="' + restante.toFixed(2) + '" step="0.01" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">';
+  const inputVal = '<input type="number" id="pgto-val" placeholder="Valor" value="' + Math.max(0, restante).toFixed(2) + '" step="0.01" style="flex:1;min-width:0;padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">';
   const btnAdd = '<button class="btn btn-sm btn-primary" onclick="adicionarPgto()" style="white-space:nowrap;flex-shrink:0">+ Add</button>';
 
   let html = '';
@@ -5548,12 +5583,7 @@ function adicionarPgto() {
 }
 
 function renderPgtoLista() {
-  const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
-  const desc = Math.round(sub*(descPct/100)*100)/100;
-  const tot = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => a + i.preco * i.qty, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
-  const totFinal = Math.max(0, tot - totalDev - credUsado);
+  const { aPagar: totFinal } = calcularTotaisPDV();
   const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
   const restante = totFinal - pago;
   document.getElementById('pgto-lista').innerHTML = pgtoItens.map((p,i) =>
@@ -5591,15 +5621,14 @@ async function finalizarVenda() {
     if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
     toast('Cheque pré-datado exige cliente cadastrado', 'warn'); return;
   }
-  const sub = carrinho.reduce((a,i) => a+i.preco*i.qty, 0);
-  const desc = Math.round(sub*(descPct/100)*100)/100;
-  const tot = sub - desc;
-  const totalDev = carrinhoTroca.reduce((a, i) => {
-    const precoComDesc = descPct > 0 ? Math.round(i.preco * (1 - descPct/100) * 100) / 100 : i.preco;
-    return a + precoComDesc * i.qty;
-  }, 0);
-  const credUsado = usarCredito ? Math.min(creditoDisponivel, tot) : 0;
-  const totFinal = Math.max(0, tot - totalDev - credUsado);
+  const totaisPDV = calcularTotaisPDV();
+  const sub = totaisPDV.sub;
+  const desc = totaisPDV.descTabela;
+  const tot = totaisPDV.totalNovos;
+  const totalDev = totaisPDV.totalDev;
+  const credUsado = totaisPDV.creditoUsado;
+  const descManualAplicado = totaisPDV.descontoManualAplicado;
+  const totFinal = totaisPDV.aPagar;
   if (totFinal > 0.01 && !pgtoItens.length) {
     _finalizandoVenda = false;
     if (btn) { btn.disabled = false; btn.textContent = '✓ Finalizar Venda'; }
@@ -5629,14 +5658,14 @@ async function finalizarVenda() {
     const funcs = await api('GET', '/api/funcionarios');
     vendNome = funcs.find(f => f.id === vendId)?.nome || '';
   } catch(e) {}
-  const creditoGerado = Math.max(0, totalDev + credUsado - tot);
+  const creditoGerado = totaisPDV.creditoGerado;
   const pagLabel = carrinhoTroca.length
     ? (creditoGerado > 0.01
         ? 'Troca — Crédito gerado'
         : Math.abs(totalDev - tot) < 0.01
           ? 'Troca exata'
           : 'Troca — ' + (pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto'))
-    : (tot <= 0 ? 'Gratuito' : pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
+    : (totFinal <= 0 ? 'Gratuito' : pgtoItens.length === 1 ? pgtoItens[0].label : 'Misto');
   // Número da venda — gerado pelo servidor
   let num = '#0001';
   try {
@@ -5655,7 +5684,7 @@ async function finalizarVenda() {
     data: new Date().toISOString(),
     clienteId: cliId, clienteNome: cliNome,
     vendedorId: vendId, vendedorNome: vendNome,
-    canal, sub, desc, descPct, credito: credUsado, tot: totFinal, creditoGerado, pag: pagLabel, obs,
+    canal, sub, desc, descPct, descManual: descManualAplicado, descontoManual: descManualAplicado, credito: credUsado, tot: totFinal, creditoGerado, pag: pagLabel, obs,
     tipo: 'venda', status: 'pago',
     itens: todosItens,
     pgtoItens: pgtoItens.map(p => ({...p})),
@@ -5717,6 +5746,7 @@ function enviarWhatsApp() {
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
   const sub = parseFloat(v.subtotal || v.sub || 0) || itens.reduce((a, i) => a + parseFloat(i.preco) * parseInt(i.qty), 0);
   const desc = parseFloat(v.desconto || v.desc || 0);
+  const descManual = parseFloat(v.desconto_manual || v.descManual || v.descontoManual || 0);
   const pct = parseFloat(v.desc_pct || v.descPct || 0);
   const tot = parseFloat(v.tot || 0);
   const data = new Date(v.data).toLocaleDateString('pt-BR');
@@ -5745,6 +5775,10 @@ function enviarWhatsApp() {
     texto += '*Subtotal:* ' + fmtMoeda(sub) + '\n';
     texto += '*Desconto (' + pct + '%):* -' + fmtMoeda(desc) + '\n';
   }
+  if (descManual > 0) {
+    if (desc <= 0) texto += '*Subtotal:* ' + fmtMoeda(sub) + '\n';
+    texto += '*Desconto manual:* -' + fmtMoeda(descManual) + '\n';
+  }
   texto += '*TOTAL: ' + fmtMoeda(tot) + '*\n';
   texto += '*Pagamento:* ' + pagLabel + '\n\n';
   texto += 'Obrigada pela preferência! 🛍️';
@@ -5762,6 +5796,7 @@ async function abrirRomaneio(v, cliNome) {
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
   const sub = v.sub || v.subtotal || 0;
   const desc = v.desc || v.desconto || 0;
+  const descManual = Number(v.descManual || v.descontoManual || v.desconto_manual || 0);
   const tot = Number(v.tot) || 0;
   // Busca pct de desconto — primeiro do campo salvo, depois calcula, depois usa 0
   let pct = v.descPct || v.desc_pct || 0;
@@ -5853,7 +5888,7 @@ async function abrirRomaneio(v, cliNome) {
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
     return a + precoDesc * i.qty;
   }, 0);
-  const totBase = sub - desc; // total após desconto, antes das devoluções
+  const totBase = sub - desc - descManual; // total após descontos, antes das devoluções
   const aPagar = Math.max(0, totBase - totalDev);
   const creditoGerado = Math.max(0, totalDev - totBase);
 
@@ -5930,6 +5965,7 @@ async function abrirRomaneio(v, cliNome) {
       (itensDevolvidos.length
         ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (descManual > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto manual:</span><span>-' + fmtMoeda(descManual) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
             '<span>' + (creditoGerado > 0 ? 'CRÉDITO GERADO:' : 'A PAGAR:') + '</span>' +
@@ -5937,6 +5973,7 @@ async function abrirRomaneio(v, cliNome) {
           '</div>'
         : '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (descManual > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto manual:</span><span>-' + fmtMoeda(descManual) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
       (creditoGerado > 0 || v.ocultarPagamento || !pagamentoLabel ? '' : '<div style="margin-top:4px;' + estiloNegritoRomaneio + '"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
