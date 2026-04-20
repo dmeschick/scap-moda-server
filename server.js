@@ -1226,9 +1226,15 @@ app.get('/api/vendas', auth, async (req, res) => {
     if (vendedor_id) { where.push(`v.vendedor_id = $${i++}`); params.push(vendedor_id); }
     const sql = `
       SELECT v.*,
+        MAX(c.cpf) as cpf, MAX(c.cnpj) as cnpj, MAX(c.tel) as cliente_tel, MAX(c.email) as cliente_email,
+        MAX(e.cep) as endereco_cep, MAX(e.logradouro) as endereco_logradouro, MAX(e.numero) as endereco_numero,
+        MAX(e.complemento) as endereco_complemento, MAX(e.bairro) as endereco_bairro, MAX(e.cidade) as endereco_cidade,
+        COALESCE(MAX(NULLIF(e.uf, '')), MAX(NULLIF(e.estado, ''))) as endereco_uf,
         COALESCE(json_agg(DISTINCT jsonb_build_object('id',vi.id,'nome',vi.nome,'cod',vi.cod,'preco',vi.preco,'qty',vi.qty,'tipo',vi.tipo)) FILTER (WHERE vi.id IS NOT NULL),'[]') as itens,
         COALESCE(json_agg(DISTINCT jsonb_build_object('tipo',vp.tipo,'valor',vp.valor,'parcelas',vp.parcelas,'vl_parcela',vp.vl_parcela,'detalhe',vp.detalhe,'cheques_json',vp.cheques_json)) FILTER (WHERE vp.id IS NOT NULL),'[]') as pgto_itens
       FROM vendas v
+      LEFT JOIN clientes c ON c.id = v.cliente_id
+      LEFT JOIN enderecos_cliente e ON e.cliente_id = v.cliente_id AND e.principal = true
       LEFT JOIN venda_itens vi ON vi.venda_id=v.id
       LEFT JOIN venda_pagamentos vp ON vp.venda_id=v.id
       WHERE ${where.join(' AND ')}

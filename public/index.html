@@ -3840,6 +3840,9 @@ async function carregarVendas() {
       const totalCell = _cred > 0
         ? `<span style="color:var(--green);font-weight:700">Crédito: ${fmtMoeda(_cred)}</span>`
         : `<strong>${fmtMoeda(v.tot)}</strong>`;
+      const botaoDanfe = v.canal === 'online'
+        ? `<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda('${v.id}')" title="Imprimir DANFE simplificado 10x15">DANFE 10x15</button>`
+        : '';
       return `<tr>
       <td><strong>${v.num}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
@@ -3851,6 +3854,7 @@ async function carregarVendas() {
       <td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="verVenda('${v.id}')">Ver</button>
+        ${botaoDanfe}
       </div></td>
     </tr>`;
     }).join('');
@@ -4152,6 +4156,118 @@ function abrirRomaneioHistorico(idx, cliNome) {
   const v = (window._historicoCompras || [])[idx];
   if (!v) { toast('Venda não encontrada', 'warn'); return; }
   abrirRomaneio(v, cliNome);
+}
+
+function formatarDataHoraDanfe(valor) {
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return '';
+  return data.toLocaleString('pt-BR');
+}
+
+function montarEnderecoDanfe(v) {
+  const linha1 = [v.endereco_logradouro, v.endereco_numero].filter(Boolean).join(', ');
+  const linha2 = [v.endereco_complemento, v.endereco_bairro].filter(Boolean).join(' - ');
+  const linha3 = [v.endereco_cidade, v.endereco_uf].filter(Boolean).join('/');
+  const linha4 = v.endereco_cep ? 'CEP ' + v.endereco_cep : '';
+  return [linha1, linha2, linha3, linha4].filter(Boolean);
+}
+
+function montarHtmlDanfeSimplificado(v) {
+  const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
+  const endereco = montarEnderecoDanfe(v);
+  const doc = v.cnpj || v.cpf || '';
+  const total = Number(v.tot) || 0;
+  const nf = v.nfe_numero || v.nfce_numero || '';
+  const dataVenda = formatarDataHoraDanfe(v.data);
+  return `
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @page { size: 100mm 150mm; margin: 4mm; }
+          * { box-sizing: border-box; }
+          body {
+            width: 92mm;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111;
+            font-size: 10px;
+            line-height: 1.25;
+          }
+          .topo { text-align:center; border-bottom:1px solid #111; padding-bottom:4px; margin-bottom:5px; }
+          .marca { font-weight:800; font-size:14px; letter-spacing:.4px; }
+          .titulo { font-weight:800; font-size:12px; margin-top:2px; }
+          .box { border:1px solid #111; padding:5px; margin-bottom:5px; border-radius:2px; }
+          .label { font-size:8px; text-transform:uppercase; font-weight:800; color:#555; margin-bottom:2px; }
+          .dest { font-size:13px; font-weight:800; }
+          .linha { margin-top:2px; }
+          table { width:100%; border-collapse:collapse; font-size:9px; }
+          th { text-align:left; border-bottom:1px solid #111; padding:2px 0; }
+          td { border-bottom:1px dashed #bbb; padding:2px 0; vertical-align:top; }
+          .right { text-align:right; }
+          .total { display:flex; justify-content:space-between; font-weight:800; font-size:12px; border-top:1px solid #111; padding-top:4px; margin-top:4px; }
+          .rodape { margin-top:5px; font-size:8px; text-align:center; border-top:1px dashed #111; padding-top:4px; }
+        </style>
+      </head>
+      <body>
+        <div class="topo">
+          <div class="marca">SCAP MODA FEMININA</div>
+          <div>Petrópolis - RJ</div>
+          <div class="titulo">DANFE SIMPLIFICADO / PEDIDO ONLINE</div>
+        </div>
+
+        <div class="box">
+          <div class="label">Venda</div>
+          <div><b>${textoSeguro(v.num || '')}</b>${dataVenda ? ` · ${textoSeguro(dataVenda)}` : ''}</div>
+          ${nf ? `<div class="linha">Nota fiscal: <b>${textoSeguro(nf)}</b></div>` : ''}
+          <div class="linha">Pagamento: ${textoSeguro(v.pag || '')}</div>
+        </div>
+
+        <div class="box">
+          <div class="label">Destinatário</div>
+          <div class="dest">${textoSeguro(v.cliente_nome || 'Consumidor final')}</div>
+          ${doc ? `<div class="linha">Doc: ${textoSeguro(doc)}</div>` : ''}
+          ${v.cliente_tel ? `<div class="linha">Tel: ${textoSeguro(v.cliente_tel)}</div>` : ''}
+          ${endereco.map(l => `<div class="linha">${textoSeguro(l)}</div>`).join('')}
+        </div>
+
+        <div class="box">
+          <div class="label">Itens</div>
+          <table>
+            <thead><tr><th>Qtd</th><th>Produto</th><th class="right">Valor</th></tr></thead>
+            <tbody>
+              ${itens.map(i => `
+                <tr>
+                  <td>${Number(i.qty) || 0}</td>
+                  <td><b>${textoSeguro(i.cod || '')}</b> ${textoSeguro(i.nome || '')}</td>
+                  <td class="right">${fmtMoeda((Number(i.preco) || 0) * (Number(i.qty) || 0))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total"><span>Total</span><span>${fmtMoeda(total)}</span></div>
+        </div>
+
+        <div class="rodape">Documento auxiliar simplificado para separação/envio do pedido.</div>
+      </body>
+    </html>`;
+}
+
+async function imprimirDanfeSimplificadoVenda(id) {
+  try {
+    const vendas = await api('GET', `/api/vendas?limit=500`);
+    const v = vendas.find(x => x.id === id);
+    if (!v) { toast('Venda não encontrada', 'warn'); return; }
+    const html = montarHtmlDanfeSimplificado(v);
+    if (await tentarImpressaoQZ('danfe', html, { pageWidth: 3.94 })) return;
+    const w = window.open('', '_blank', 'width=430,height=720');
+    if (!w) { toast('Permita popups para imprimir o DANFE simplificado.', 'warn'); return; }
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 500);
+  } catch(e) {
+    toast('Erro ao imprimir DANFE simplificado: ' + e.message, 'error');
+  }
 }
 
 // ===== RELATÓRIOS =====
@@ -6230,6 +6346,9 @@ function renderMobileCardsVendas(vendas) {
     const totalStr = _cred > 0
       ? '<span style="color:var(--green)">Crédito: ' + fmtMoeda(_cred) + '</span>'
       : fmtMoeda(v.tot);
+    const botaoDanfe = v.canal === 'online'
+      ? '<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda(\'' + v.id + '\')">DANFE 10x15</button>'
+      : '';
     return '<div class="m-card">' +
       '<div class="m-card-header"><div>' +
         '<div class="m-card-title">' + (v.num||'') + ' · ' + (v.cliente_nome||'Consumidor final') + '</div>' +
@@ -6238,7 +6357,7 @@ function renderMobileCardsVendas(vendas) {
       '<div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">' + (v.pag||'') + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">' + canal + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + v.status + '</span></span></div>' +
-      '<div class="m-card-actions"><button class="btn btn-sm" onclick="verVenda(\'' + v.id + '\')">👁 Ver detalhes</button></div>' +
+      '<div class="m-card-actions"><button class="btn btn-sm" onclick="verVenda(\'' + v.id + '\')">👁 Ver detalhes</button>' + botaoDanfe + '</div>' +
     '</div>';
   }).join('');
 }
