@@ -3998,10 +3998,11 @@ async function carregarOrcamentos() {
         ? '<strong style="color:var(--green)">Crédito ' + fmtMoeda(Math.abs(total)) + '</strong>'
         : '<strong>' + fmtMoeda(total) + '</strong>';
       const acoes = o.status === 'aberto'
-        ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar no PDV</button>' +
+        ? '<button class="btn btn-sm" onclick="abrirRomaneioOrcamento(\'' + o.id + '\')">Imprimir</button>' +
+          '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar no PDV</button>' +
           '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>' +
           '<button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
-        : '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
+        : '<button class="btn btn-sm" onclick="abrirRomaneioOrcamento(\'' + o.id + '\')">Imprimir</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
       return '<tr>' +
         '<td><strong>' + textoSeguro(o.num || '') + '</strong></td>' +
         '<td>' + new Date(o.data).toLocaleString('pt-BR') + '</td>' +
@@ -4027,8 +4028,8 @@ function renderMobileCardsOrcamentos(orcs) {
     const totalStr = total < 0 ? 'Crédito ' + fmtMoeda(Math.abs(total)) : fmtMoeda(total);
     const badge = o.status === 'aberto' ? 'badge-blue' : o.status === 'convertido' ? 'badge-green' : 'badge-red';
     const actions = o.status === 'aberto'
-      ? '<button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button><button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
-      : '<button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
+      ? '<button class="btn btn-sm" onclick="abrirRomaneioOrcamento(\'' + o.id + '\')">Imprimir</button><button class="btn btn-sm btn-primary" onclick="abrirOrcamentoNoPDV(\'' + o.id + '\')">Carregar</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button><button class="btn btn-sm btn-danger" onclick="cancelarOrcamento(\'' + o.id + '\')">Cancelar</button>'
+      : '<button class="btn btn-sm" onclick="abrirRomaneioOrcamento(\'' + o.id + '\')">Imprimir</button><button class="btn btn-sm" onclick="enviarOrcamentoWhatsApp(\'' + o.id + '\')">WhatsApp</button>';
     return '<div class="m-card">' +
       '<div class="m-card-header"><div><div class="m-card-title">' + textoSeguro(o.num || '') + ' · ' + textoSeguro(o.cliente_nome || 'Consumidor final') + '</div><div class="m-card-sub">' + new Date(o.data).toLocaleString('pt-BR') + '</div></div><strong>' + totalStr + '</strong></div>' +
       '<div class="m-card-row"><span class="m-card-label">Peças</span><span class="m-card-value">' + pecasCompradas + (pecasDevolvidas ? ' / ' + pecasDevolvidas + ' devolvidas' : '') + '</span></div>' +
@@ -4078,6 +4079,40 @@ async function abrirOrcamentoNoPDV(id) {
   renderCarrinho();
   renderPgtoLista();
   toast('Orçamento carregado no PDV.');
+}
+
+async function abrirRomaneioOrcamento(id) {
+  const o = _orcamentosCache.find(x => x.id === id);
+  if (!o) { toast('Orçamento não encontrado', 'warn'); return; }
+  const itens = (o.itens || []).map(i => ({
+    id: i.id,
+    nome: i.nome,
+    cod: i.cod,
+    preco: Number(i.preco) || 0,
+    qty: Number(i.qty) || 1,
+    tipo: i.tipo || 'novo'
+  }));
+  const v = {
+    id: o.id,
+    num: o.num,
+    data: o.data,
+    cliente_nome: o.cliente_nome || 'Consumidor final',
+    vendedor_nome: o.vendedor_nome || '',
+    canal: o.canal || 'presencial',
+    sub: Number(o.subtotal) || 0,
+    desc: Number(o.desconto) || 0,
+    desc_pct: Number(o.desc_pct) || 0,
+    tot: Number(o.total) || 0,
+    pag: '',
+    obs: o.obs || '',
+    itens,
+    pgtoItens: [],
+    tipo: 'orcamento',
+    validade: o.validade,
+    tituloRomaneio: 'ORÇAMENTO',
+    ocultarPagamento: true
+  };
+  await abrirRomaneio(v, v.cliente_nome);
 }
 
 async function cancelarOrcamento(id) {
@@ -5721,6 +5756,9 @@ function enviarWhatsApp() {
 
 async function abrirRomaneio(v, cliNome) {
   _vendaAtual = v;
+  const ehOrcamento = v.tipo === 'orcamento';
+  if (ehOrcamento) _creditoGeradoAtual = 0;
+  const tituloRomaneio = v.tituloRomaneio || 'ROMANEIO DE VENDA';
   const itens = (v.itens || []).filter(i => i.tipo !== 'devolvido');
   const sub = v.sub || v.subtotal || 0;
   const desc = v.desc || v.desconto || 0;
@@ -5858,6 +5896,14 @@ async function abrirRomaneio(v, cliNome) {
       }).join(' + ')
     : (v.pag || '');
   const trocoTotal = pgtoItensArr.reduce((acc, p) => acc + (parseFloat(p.troco) || 0), 0);
+  const modalTitulo = document.querySelector('#modal-romaneio .modal-header h3');
+  if (modalTitulo) modalTitulo.textContent = ehOrcamento ? 'Orçamento' : 'Romaneio';
+  const btnNfe = document.getElementById('btn-nfe');
+  const btnNfce = document.getElementById('btn-nfce');
+  const btnWhats = document.querySelector('#modal-romaneio button[onclick="enviarWhatsApp()"]');
+  if (btnNfe) btnNfe.style.display = ehOrcamento ? 'none' : '';
+  if (btnNfce) btnNfce.style.display = ehOrcamento ? 'none' : '';
+  if (btnWhats) btnWhats.style.display = ehOrcamento ? 'none' : '';
 
   document.getElementById('romaneio-body').innerHTML =
     '<div style="font-family:monospace;font-size:12px;text-align:center;margin-bottom:8px">' +
@@ -5865,13 +5911,14 @@ async function abrirRomaneio(v, cliNome) {
       '<div>Petrópolis - RJ</div>' +
     '</div>' +
     '<div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:4px 0;margin:8px 0;text-align:center;font-family:monospace">' +
-      '<div style="font-weight:bold">ROMANEIO DE VENDA</div>' +
+      '<div style="font-weight:bold">' + tituloRomaneio + '</div>' +
       '<div style="font-size:11px;' + estiloNegritoRomaneio + '">' + (v.num||'') + ' — ' + new Date(v.data).toLocaleString('pt-BR') + '</div>' +
     '</div>' +
     '<div style="font-family:monospace;font-size:12px;margin-bottom:8px">' +
       '<div><b>Cliente:</b> ' + (cliNome || v.cliente_nome || 'Consumidor final') + '</div>' +
       '<div><b>Vendedor:</b> ' + (vendedorNome || '—') + '</div>' +
       (nomeDesconto ? '<div><b>Desconto:</b> ' + nomeDesconto + '</div>' : '') +
+      (ehOrcamento && v.validade ? '<div><b>Validade:</b> ' + fmtData(v.validade) + '</div>' : '') +
     '</div>' +
     '<div style="font-family:monospace;font-size:11px;margin-bottom:4px">' + cabecalhoItens + linhasItens + '</div>' +
     secaoDevolvidos +
@@ -5892,7 +5939,7 @@ async function abrirRomaneio(v, cliNome) {
           (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
-      (creditoGerado > 0 ? '' : '<div style="margin-top:4px;' + estiloNegritoRomaneio + '"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
+      (creditoGerado > 0 || v.ocultarPagamento || !pagamentoLabel ? '' : '<div style="margin-top:4px;' + estiloNegritoRomaneio + '"><b>Pagamento:</b> ' + pagamentoLabel + '</div>') +
       (creditoGerado > 0 || trocoTotal <= 0 ? '' : '<div><b>Troco:</b> ' + fmtMoeda(trocoTotal) + '</div>') +
       (v.obs ? '<div><b>Obs:</b> ' + v.obs + '</div>' : '') +
     '</div>' +
