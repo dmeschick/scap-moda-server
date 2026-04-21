@@ -7463,6 +7463,7 @@ async function confirmarAcao(acao, detalhes, callback) {
   _senhaDetalhes = detalhes;
   _senhaExigeAdmin = exigeAdmin;
   document.getElementById('confirmar-senha-input').value = '';
+  document.getElementById('confirmar-senha-erro').textContent = 'Senha incorreta. Tente novamente.';
   document.getElementById('confirmar-senha-erro').style.display = 'none';
   document.getElementById('confirmar-senha-msg').textContent = exigeAdmin
     ? 'Para ' + acao + ', informe a senha de um administrador.'
@@ -7494,7 +7495,10 @@ async function confirmarSenhaOk() {
     _senhaCallback = null;
     _senhaExigeAdmin = false;
   } catch(e) {
-    toast('Erro ao validar senha', 'error');
+    const msg = e?.message || 'Erro ao validar senha';
+    document.getElementById('confirmar-senha-erro').textContent = msg;
+    document.getElementById('confirmar-senha-erro').style.display = 'block';
+    toast(msg, 'error');
   }
 }
 

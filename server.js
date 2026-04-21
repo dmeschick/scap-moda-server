@@ -52,6 +52,7 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const isBcryptHash = hash => /^\$2[aby]\$/.test(String(hash || ''));
 const dataLocalISO = (data = new Date()) => {
   const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -617,7 +618,7 @@ app.post('/api/login', async (req, res) => {
     if (!r.rows.length) return res.status(401).json({ erro: 'Funcionário não encontrado' });
     const func = r.rows[0];
     let senhaValida = false;
-    if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+    if (isBcryptHash(func.senha_hash)) {
       senhaValida = await bcrypt.compare(senha, func.senha_hash);
     } else {
       const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
@@ -660,7 +661,7 @@ app.post('/api/auth/validar-senha', auth, async (req, res) => {
     if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'Usuário não encontrado' });
     const func = r.rows[0];
     let senhaCorreta = false;
-    if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+    if (isBcryptHash(func.senha_hash)) {
       senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
     } else {
       const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
@@ -691,7 +692,7 @@ app.post('/api/auth/validar-admin', auth, async (req, res) => {
 
     for (const func of r.rows) {
       let senhaCorreta = false;
-      if (func.senha_hash && func.senha_hash.startsWith('$2b$')) {
+      if (isBcryptHash(func.senha_hash)) {
         senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
       } else {
         const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
