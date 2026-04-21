@@ -3840,15 +3840,22 @@ async function carregarVendas() {
       const totalCell = _cred > 0
         ? `<span style="color:var(--green);font-weight:700">Crédito: ${fmtMoeda(_cred)}</span>`
         : `<strong>${fmtMoeda(v.tot)}</strong>`;
+      const nfOnlineStatus = v.canal === 'online'
+        ? (v.nfe_id
+            ? `<span class="badge badge-green" title="NF-e autorizada no Bling">NF-e ${v.nfe_numero || 'autorizada'}</span>`
+            : `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`)
+        : '';
       const botaoDanfe = v.canal === 'online'
-        ? `<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda('${v.id}')" title="Imprimir DANFE simplificado 10x15">DANFE 10x15</button>`
+        ? (v.nfe_id
+            ? `<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda('${v.id}')" title="Imprimir DANFE simplificado 10x15">DANFE 10x15</button>`
+            : `<button class="btn btn-sm" disabled title="Emita a NF-e antes de imprimir o DANFE simplificado">DANFE 10x15</button>`)
         : '';
       return `<tr>
       <td><strong>${v.num}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
       <td>${v.cliente_nome||'Consumidor final'}</td>
       <td style="font-size:12px">${v.vendedor_nome||'—'}</td>
-      <td>${v.canal==='online'?'<span class="badge badge-blue">🌐 Online</span>':'<span class="badge badge-green">🏪 Presencial</span>'}</td>
+      <td><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">${v.canal==='online'?'<span class="badge badge-blue">🌐 Online</span>':'<span class="badge badge-green">🏪 Presencial</span>'}${nfOnlineStatus}</div></td>
       <td>${totalCell}</td>
       <td style="font-size:12px">${v.pag}</td>
       <td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td>
@@ -6403,8 +6410,15 @@ function renderMobileCardsVendas(vendas) {
     const totalStr = _cred > 0
       ? '<span style="color:var(--green)">Crédito: ' + fmtMoeda(_cred) + '</span>'
       : fmtMoeda(v.tot);
+    const nfOnlineStatus = v.canal === 'online'
+      ? (v.nfe_id
+          ? '<span class="badge badge-green">NF-e ' + (v.nfe_numero || 'autorizada') + '</span>'
+          : '<span class="badge badge-amber">Aguardando NF-e</span>')
+      : '';
     const botaoDanfe = v.canal === 'online'
-      ? '<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda(\'' + v.id + '\')">DANFE 10x15</button>'
+      ? (v.nfe_id
+          ? '<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda(\'' + v.id + '\')">DANFE 10x15</button>'
+          : '<button class="btn btn-sm" disabled>DANFE 10x15</button>')
       : '';
     return '<div class="m-card">' +
       '<div class="m-card-header"><div>' +
@@ -6413,6 +6427,7 @@ function renderMobileCardsVendas(vendas) {
       '</div><strong style="font-size:16px">' + totalStr + '</strong></div>' +
       '<div class="m-card-row"><span class="m-card-label">Pagamento</span><span class="m-card-value">' + (v.pag||'') + '</span></div>' +
       '<div class="m-card-row"><span class="m-card-label">Canal</span><span class="m-card-value">' + canal + '</span></div>' +
+      (nfOnlineStatus ? '<div class="m-card-row"><span class="m-card-label">Fiscal</span><span class="m-card-value">' + nfOnlineStatus + '</span></div>' : '') +
       '<div class="m-card-row"><span class="m-card-label">Status</span><span class="m-card-value"><span class="badge ' + stBadge + '">' + v.status + '</span></span></div>' +
       '<div class="m-card-actions"><button class="btn btn-sm" onclick="verVenda(\'' + v.id + '\')">👁 Ver detalhes</button>' + botaoDanfe + '</div>' +
     '</div>';
