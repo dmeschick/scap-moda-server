@@ -357,6 +357,15 @@ async function initDB() {
       valor JSONB,
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS importacao_foto_correcoes (
+      id VARCHAR(50) PRIMARY KEY,
+      categoria VARCHAR(100),
+      colecao VARCHAR(100),
+      original JSONB NOT NULL DEFAULT '{}',
+      corrigido JSONB NOT NULL DEFAULT '{}',
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_importacao_foto_correcoes_cat ON importacao_foto_correcoes(categoria, criado_em DESC);
     CREATE TABLE IF NOT EXISTS enderecos_cliente (
       id VARCHAR(50) PRIMARY KEY,
       cliente_id VARCHAR(50) REFERENCES clientes(id) ON DELETE CASCADE,
@@ -868,6 +877,93 @@ app.get('/api/relatorios/entradas-produtos', auth, async (req, res) => {
     });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
+
+function limparLinhaCorrecaoImportacao(linha = {}) {
+  return {
+    ref_papel: String(linha.ref_papel ?? linha.refInt ?? '').trim(),
+    ref_ext: String(linha.ref_ext ?? linha.refExt ?? '').trim(),
+    descricao: String(linha.descricao ?? linha.nome ?? '').trim(),
+    fornecedor: String(linha.fornecedor ?? '').trim(),
+    data: String(linha.data ?? '').trim(),
+    pc: Number(linha.pc ?? linha.custo ?? 0) || 0,
+    pv: Number(linha.pv ?? linha.venda ?? 0) || 0,
+    qtd: Number(linha.qtd ?? 0) || 0,
+    categoria: String(linha.categoria ?? '').trim()
+  };
+}
+
+function linhaCorrecaoTemValor(linha = {}) {
+  return Boolean(
+    linha.ref_papel ||
+    linha.ref_ext ||
+    linha.descricao ||
+    linha.fornecedor ||
+    linha.data ||
+    linha.pc ||
+    linha.pv ||
+    linha.qtd
+  );
+}
+
+function linhaCorrecaoMudou(original, corrigido) {
+  return JSON.stringify(original) !== JSON.stringify(corrigido);
+}
+
+async function buscarCorrecoesImportacaoFoto(categoria, limite = 12) {
+  const params = [];
+  const where = [];
+  if (categoria) {
+    params.push(categoria);
+    where.push(`(categoria = $${params.length} OR COALESCE(categoria, '') = '')`);
+  }
+  params.push(Math.max(1, Math.min(parseInt(limite) || 12, 30)));
+  const sql = `
+    SELECT original, corrigido
+    FROM importacao_foto_correcoes
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+    ORDER BY criado_em DESC
+    LIMIT $${params.length}
+  `;
+  const r = await pool.query(sql, params);
+  return r.rows.map(row => ({
+    original: limparLinhaCorrecaoImportacao(row.original || {}),
+    corrigido: limparLinhaCorrecaoImportacao(row.corrigido || {})
+  }));
+}
+
+function formatarCorrecoesParaPrompt(correcoes = []) {
+  if (!correcoes.length) return '';
+  return correcoes.map((ex, idx) => {
+    return [
+      `Exemplo ${idx + 1}:`,
+      `IA leu: ${JSON.stringify(ex.original)}`,
+      `Correção confirmada: ${JSON.stringify(ex.corrigido)}`
+    ].join(' ');
+  }).join('\n');
+}
+
+app.post('/api/produtos/importar-foto/correcoes', auth, async (req, res) => {
+  try {
+    const { categoria, colecao, linhas } = req.body || {};
+    if (!Array.isArray(linhas) || !linhas.length) {
+      return res.status(400).json({ erro: 'Nenhuma correção enviada' });
+    }
+    let salvas = 0;
+    for (const item of linhas.slice(0, 100)) {
+      const original = limparLinhaCorrecaoImportacao(item.original || {});
+      const corrigido = limparLinhaCorrecaoImportacao(item.corrigido || {});
+      if (!linhaCorrecaoTemValor(corrigido) || !linhaCorrecaoMudou(original, corrigido)) continue;
+      await pool.query(
+        `INSERT INTO importacao_foto_correcoes (id, categoria, colecao, original, corrigido)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [uid(), categoria || corrigido.categoria || '', colecao || '', original, corrigido]
+      );
+      salvas++;
+    }
+    res.json({ ok: true, salvas });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -879,6 +975,8 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
     const categoriasTexto = Object.values(IMPORT_PRODUTO_CONFIG)
       .map(cfg => `${cfg.categoria} => sufixo ${cfg.sufixo}, NCM ${cfg.ncm}`)
       .join('; ');
+    const exemplosCorrecoes = await buscarCorrecoesImportacaoFoto(categoria, 12);
+    const exemplosCorrecoesTexto = formatarCorrecoesParaPrompt(exemplosCorrecoes);
 
     const systemPrompt = [
       'Você extrai dados de fichas manuscritas de cadastro de produtos de moda feminina.',
@@ -898,7 +996,10 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
       '- Extraia a data de cada linha no formato DD-MM ou DD/MM/AAAA quando legível.',
       '- Para cada item, preencha confianca com alta, media ou baixa para ref_papel, ref_ext, descricao, fornecedor, data, pc, pv e qtd.',
       '- Em campos ilegíveis ou estimados, use confiança baixa e explique em observacoes.',
-      '- Categorias válidas: ' + categoriasTexto
+      '- Categorias válidas: ' + categoriasTexto,
+      exemplosCorrecoesTexto
+        ? 'Exemplos reais de correções anteriores desta loja. Use como referência para interpretar a caligrafia, abreviações e padrões de preço:\n' + exemplosCorrecoesTexto
+        : ''
     ].join('\n');
 
     const userPrompt = [
