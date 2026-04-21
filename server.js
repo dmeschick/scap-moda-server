@@ -2996,6 +2996,125 @@ async function consultarBlingPorId(caminho, token) {
   return requisicaoBling(caminho, token);
 }
 
+function decodificarXml(texto = '') {
+  return String(texto)
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function obterBlocoXml(xml = '', tag) {
+  const match = String(xml).match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return match ? match[1] : '';
+}
+
+function obterValorXml(xml = '', tag) {
+  const match = String(xml).match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return match ? decodificarXml(match[1].trim()) : '';
+}
+
+function limparDocumentoFiscal(valor = '') {
+  return String(valor || '').replace(/\D/g, '');
+}
+
+function formatarDataHoraFiscal(valor = '') {
+  if (!valor) return '';
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return valor;
+  return data.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+function extrairEnderecoFiscal(bloco = '') {
+  return {
+    logradouro: obterValorXml(bloco, 'xLgr'),
+    numero: obterValorXml(bloco, 'nro'),
+    complemento: obterValorXml(bloco, 'xCpl'),
+    bairro: obterValorXml(bloco, 'xBairro'),
+    municipio: obterValorXml(bloco, 'xMun'),
+    uf: obterValorXml(bloco, 'UF'),
+    cep: obterValorXml(bloco, 'CEP')
+  };
+}
+
+function extrairDanfeSimplificadoDoXml(xml = {}, nota = {}) {
+  const textoXml = String(xml || '');
+  const infNFe = obterBlocoXml(textoXml, 'infNFe') || textoXml;
+  const ide = obterBlocoXml(infNFe, 'ide');
+  const emit = obterBlocoXml(infNFe, 'emit');
+  const dest = obterBlocoXml(infNFe, 'dest');
+  const infProt = obterBlocoXml(textoXml, 'infProt');
+  const total = obterBlocoXml(obterBlocoXml(infNFe, 'total'), 'ICMSTot');
+  const chaveDoId = (String(textoXml.match(/<infNFe\b[^>]*\bId=["']NFe(\d{44})["']/i)?.[1] || '').replace(/\D/g, ''));
+
+  const itens = [...textoXml.matchAll(/<det\b[^>]*>([\s\S]*?)<\/det>/gi)]
+    .map(match => {
+      const prod = obterBlocoXml(match[1], 'prod');
+      return {
+        codigo: obterValorXml(prod, 'cProd'),
+        descricao: obterValorXml(prod, 'xProd'),
+        quantidade: obterValorXml(prod, 'qCom'),
+        valorUnitario: obterValorXml(prod, 'vUnCom'),
+        valorTotal: obterValorXml(prod, 'vProd')
+      };
+    })
+    .filter(item => item.descricao || item.codigo);
+
+  return {
+    chaveAcesso: limparDocumentoFiscal(obterValorXml(infProt, 'chNFe') || chaveDoId || nota.chaveAcesso || nota.chave || nota.chaveNFe),
+    protocolo: obterValorXml(infProt, 'nProt') || nota.protocolo || nota.numeroProtocolo || '',
+    dataAutorizacao: formatarDataHoraFiscal(obterValorXml(infProt, 'dhRecbto') || nota.dataAutorizacao || ''),
+    ambiente: obterValorXml(ide, 'tpAmb') || '',
+    modelo: obterValorXml(ide, 'mod') || '55',
+    tipoOperacao: obterValorXml(ide, 'tpNF') === '0' ? 'Entrada' : 'Saída',
+    serie: obterValorXml(ide, 'serie') || nota.serie || '',
+    numero: obterValorXml(ide, 'nNF') || nota.numero || '',
+    dataEmissao: formatarDataHoraFiscal(obterValorXml(ide, 'dhEmi') || obterValorXml(ide, 'dEmi') || nota.dataOperacao || nota.dataEmissao || ''),
+    naturezaOperacao: obterValorXml(ide, 'natOp') || '',
+    valorTotal: obterValorXml(total, 'vNF') || nota.valorNota || nota.total || '',
+    emitente: {
+      nome: obterValorXml(emit, 'xNome'),
+      fantasia: obterValorXml(emit, 'xFant'),
+      cnpj: obterValorXml(emit, 'CNPJ'),
+      ie: obterValorXml(emit, 'IE'),
+      endereco: extrairEnderecoFiscal(obterBlocoXml(emit, 'enderEmit'))
+    },
+    destinatario: {
+      nome: obterValorXml(dest, 'xNome') || nota.contato?.nome || '',
+      documento: obterValorXml(dest, 'CNPJ') || obterValorXml(dest, 'CPF') || nota.contato?.numeroDocumento || '',
+      ie: obterValorXml(dest, 'IE') || '',
+      endereco: extrairEnderecoFiscal(obterBlocoXml(dest, 'enderDest'))
+    },
+    itens: itens.slice(0, 8)
+  };
+}
+
+async function carregarXmlNotaBling(nota = {}, token) {
+  const fonteXmlBruta = nota.xml || nota.linkXML || nota.linkXml || nota.linkXmlNfe || nota.linkXMLNfe || nota.linkXmlNotaFiscal;
+  const fonteXml = typeof fonteXmlBruta === 'object' && fonteXmlBruta !== null
+    ? (fonteXmlBruta.url || fonteXmlBruta.link || fonteXmlBruta.href || fonteXmlBruta.download)
+    : fonteXmlBruta;
+  if (!fonteXml) return '';
+
+  const textoFonte = String(fonteXml);
+  if (textoFonte.trim().startsWith('<')) return textoFonte;
+
+  try {
+    const response = await fetch(textoFonte, {
+      headers: {
+        Accept: 'application/xml,text/xml,*/*',
+        Authorization: 'Bearer ' + token
+      }
+    });
+    if (!response.ok) return '';
+    return response.text();
+  } catch (err) {
+    console.warn('Não foi possível carregar XML da NF-e pelo link do Bling:', err.message);
+    return '';
+  }
+}
+
 async function obterProximoNumeroFiscalBling(tipoNota, token) {
   const consulta = await consultarBlingPorId(`${tipoNota}?limite=100`, token);
   const notas = Array.isArray(consulta?.data?.data) ? consulta.data.data : [];
@@ -3130,6 +3249,42 @@ app.get('/api/bling/nfe/:id/pdf', auth, async (req, res) => {
     res.send(buffer);
   } catch (err) {
     console.error('Erro ao carregar PDF da NF-e:', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+app.get('/api/bling/nfe/:id/danfe-simplificado', auth, async (req, res) => {
+  try {
+    const token = await getBlingToken();
+    const consulta = await consultarBlingPorId(`nfe/${req.params.id}`, token);
+    if (consulta.status < 200 || consulta.status >= 300) {
+      return res.status(400).json({
+        erro: resumirErroBling(consulta.data, 'Erro ao consultar NF-e no Bling'),
+        detalhes: consulta.data || consulta.texto
+      });
+    }
+
+    const nota = consulta.data?.data || {};
+    const xml = await carregarXmlNotaBling(nota, token);
+    const danfe = xml ? extrairDanfeSimplificadoDoXml(xml, nota) : extrairDanfeSimplificadoDoXml('', nota);
+
+    if (!danfe.chaveAcesso || danfe.chaveAcesso.length !== 44) {
+      return res.status(400).json({
+        erro: 'Não consegui obter a chave de acesso da NF-e no Bling. Abra o DANFE completo do Bling para esta nota.',
+        detalhes: { notaId: req.params.id, numero: nota.numero || '', temXml: !!xml }
+      });
+    }
+
+    if (!danfe.protocolo) {
+      return res.status(400).json({
+        erro: 'Não consegui obter o protocolo de autorização da NF-e no Bling. A etiqueta DANFE simplificada só deve ser impressa com a NF-e autorizada.',
+        detalhes: { notaId: req.params.id, numero: danfe.numero || nota.numero || '' }
+      });
+    }
+
+    res.json({ ok: true, danfe });
+  } catch (err) {
+    console.error('Erro ao montar DANFE simplificado:', err);
     res.status(500).json({ erro: err.message });
   }
 });
