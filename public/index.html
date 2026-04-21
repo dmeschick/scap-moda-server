@@ -2629,12 +2629,33 @@ function parseLinhaImportacaoFoto(linha, categoria) {
 
 function validarLinhaImportacaoFoto(linha) {
   const erros = [];
+  const avisos = [];
   if (!linha.nome) erros.push('Sem descrição');
   if (!linha.codigo) erros.push('Sem código');
   if (!(linha.custo > 0)) erros.push('PC inválido');
   if (!(linha.venda > 0)) erros.push('PV inválido');
   if (!(linha.qtd >= 0)) erros.push('Qtd inválida');
-  return erros;
+  const conf = linha.confianca || {};
+  Object.entries({
+    ref_papel: 'ref. papel',
+    descricao: 'produto',
+    data: 'data',
+    pc: 'PC',
+    pv: 'PV',
+    qtd: 'qtd'
+  }).forEach(([campo, label]) => {
+    if (conf[campo] === 'baixa') avisos.push(label + ' incerto');
+  });
+  if (linha.venda > 0 && Math.abs((linha.venda * 100) % 100 - 90) > 0.001) avisos.push('PV fora de ,90');
+  if (linha.observacoes) avisos.push(linha.observacoes);
+  return { erros, avisos };
+}
+
+function estiloCampoConfiancaImportacao(row, campo) {
+  const conf = row?.confianca?.[campo];
+  if (conf === 'baixa') return 'border-color:var(--amber);background:#fff8e6;';
+  if (conf === 'media') return 'border-color:#d9c5a0;background:#fffdf7;';
+  return '';
 }
 
 function renderTabelaImportacaoFoto() {
@@ -2647,20 +2668,24 @@ function renderTabelaImportacaoFoto() {
   }
   let validos = 0;
   tbody.innerHTML = _importFotoRows.map((row, idx) => {
-    const erros = validarLinhaImportacaoFoto(row);
+    const { erros, avisos } = validarLinhaImportacaoFoto(row);
     if (!erros.length) validos++;
+    const detalhe = [
+      erros.length ? '<div style="margin-top:4px;font-size:11px;color:var(--red)">' + escaparHtml(erros.join(' · ')) + '</div>' : '',
+      avisos.length ? '<div style="margin-top:4px;font-size:11px;color:#9a6a00">' + escaparHtml(avisos.join(' · ')) + '</div>' : ''
+    ].join('');
     return '<tr>' +
       '<td><code style="font-size:12px">' + escaparHtml(row.codigo) + '</code>' +
-        (erros.length ? '<div style="margin-top:4px;font-size:11px;color:var(--red)">' + escaparHtml(erros.join(' · ')) + '</div>' : '') +
+        detalhe +
       '</td>' +
-      '<td><input value="' + escaparHtml(row.refInt) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'refInt\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input value="' + escaparHtml(row.refExt) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'refExt\', this.value)" style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input value="' + escaparHtml(row.fornecedor || '') + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'fornecedor\', this.value)" style="width:140px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input value="' + escaparHtml(row.data || '') + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'data\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input value="' + escaparHtml(row.nome) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'nome\', this.value)" style="min-width:220px;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.custo)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'custo\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.venda)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'venda\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
-      '<td><input type="text" inputmode="numeric" value="' + escaparHtml(String(row.qtd || 0)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'qtd\', this.value)" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)"></td>' +
+      '<td><input value="' + escaparHtml(row.refInt) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'refInt\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'ref_papel') + '"></td>' +
+      '<td><input value="' + escaparHtml(row.refExt) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'refExt\', this.value)" style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'ref_ext') + '"></td>' +
+      '<td><input value="' + escaparHtml(row.fornecedor || '') + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'fornecedor\', this.value)" style="width:140px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'fornecedor') + '"></td>' +
+      '<td><input value="' + escaparHtml(row.data || '') + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'data\', this.value)" style="width:92px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'data') + '"></td>' +
+      '<td><input value="' + escaparHtml(row.nome) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'nome\', this.value)" style="min-width:220px;width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'descricao') + '"></td>' +
+      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.custo)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'custo\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'pc') + '"></td>' +
+      '<td><input type="text" inputmode="decimal" value="' + escaparHtml(formatarValorImportacao(row.venda)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'venda\', this.value)" style="width:88px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'pv') + '"></td>' +
+      '<td><input type="text" inputmode="numeric" value="' + escaparHtml(String(row.qtd || 0)) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'qtd\', this.value)" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);' + estiloCampoConfiancaImportacao(row, 'qtd') + '"></td>' +
       '<td><button class="btn btn-sm btn-danger" onclick="removerLinhaImportacaoFoto(' + idx + ')">Remover</button></td>' +
     '</tr>';
   }).join('');
@@ -2836,6 +2861,8 @@ async function executarOCRImportacaoFoto() {
         custo: normalizarValorImportacao(item.pc),
         venda: normalizarPVImportacao(item.pv),
         qtd: normalizarValorImportacao(item.qtd, true),
+        confianca: item.confianca || {},
+        observacoes: item.observacoes || '',
         categoria: categoriaDetectada || categoriaAtual,
         codigo: normalizarCodigoImportacao(item.ref_papel, categoriaDetectada || categoriaAtual)
       })));

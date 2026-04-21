@@ -889,9 +889,15 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
       '- Não invente linhas inexistentes.',
       '- Se um campo estiver ilegível, use string vazia para texto e 0 para números.',
       '- Os campos pc, pv e qtd devem ser números.',
+      '- Preço de venda normalmente termina com centavos 90. Se ler apenas 159, considere 159.90. Se tiver dúvida, marque confiança baixa no campo pv.',
+      '- Preço de custo pode ter centavos variados e deve ser lido exatamente como aparece.',
+      '- Quantidade é sempre número inteiro.',
+      '- Não confunda data, referência externa, preço e quantidade.',
       '- Se houver coleção escrita na folha, extraia. Caso contrário, use a coleção enviada pelo usuário se existir.',
       '- Se cada linha tiver seu próprio fornecedor, extraia no item. Se houver um fornecedor geral, repita nos itens quando fizer sentido.',
       '- Extraia a data de cada linha no formato DD-MM ou DD/MM/AAAA quando legível.',
+      '- Para cada item, preencha confianca com alta, media ou baixa para ref_papel, ref_ext, descricao, fornecedor, data, pc, pv e qtd.',
+      '- Em campos ilegíveis ou estimados, use confiança baixa e explique em observacoes.',
       '- Categorias válidas: ' + categoriasTexto
     ].join('\n');
 
@@ -955,9 +961,25 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
                       data: { type: 'string' },
                       pc: { type: 'number' },
                       pv: { type: 'number' },
-                      qtd: { type: 'integer' }
+                      qtd: { type: 'integer' },
+                      confianca: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                          ref_papel: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          ref_ext: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          descricao: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          fornecedor: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          data: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          pc: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          pv: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                          qtd: { type: 'string', enum: ['alta', 'media', 'baixa'] }
+                        },
+                        required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd']
+                      },
+                      observacoes: { type: 'string' }
                     },
-                    required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd']
+                    required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd', 'confianca', 'observacoes']
                   }
                 }
               },
