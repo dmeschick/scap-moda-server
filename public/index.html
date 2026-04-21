@@ -2251,7 +2251,61 @@ function categoriaProdutoAlterada(catId) {
   gerarCodigoProduto(catId);
 }
 
+function dataHojeInput() {
+  const agora = new Date();
+  const yyyy = agora.getFullYear();
+  const mm = String(agora.getMonth() + 1).padStart(2, '0');
+  const dd = String(agora.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function capitalizarPrimeiraLetraProduto() {
+  const input = document.getElementById('prod-nome');
+  if (!input) return;
+  const valor = input.value;
+  const idx = valor.search(/\S/);
+  if (idx < 0) return;
+  const letra = valor.charAt(idx);
+  const maiuscula = letra.toLocaleUpperCase('pt-BR');
+  if (letra === maiuscula) return;
+  const inicioSelecao = input.selectionStart;
+  const fimSelecao = input.selectionEnd;
+  input.value = valor.slice(0, idx) + maiuscula + valor.slice(idx + 1);
+  input.setSelectionRange(inicioSelecao, fimSelecao);
+}
+
+function configurarAtalhosModalProduto() {
+  const modal = document.getElementById('modal-produto');
+  if (!modal || modal.dataset.enterTabConfigurado === '1') return;
+  modal.dataset.enterTabConfigurado = '1';
+
+  document.getElementById('prod-nome')?.addEventListener('input', capitalizarPrimeiraLetraProduto);
+
+  modal.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    const alvo = e.target;
+    if (!alvo || alvo.tagName === 'BUTTON') return;
+    if (!alvo.matches('input, select, textarea')) return;
+    if (alvo.tagName === 'TEXTAREA' && e.shiftKey) return;
+
+    e.preventDefault();
+    const campos = [...modal.querySelectorAll('input, select, textarea, button')]
+      .filter(el => {
+        if (el.disabled || el.type === 'hidden') return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+        if (el.offsetParent === null && style.position !== 'fixed') return false;
+        return true;
+      });
+    const idx = campos.indexOf(alvo);
+    const proximo = campos[idx + 1] || campos[0];
+    proximo?.focus();
+    if (proximo?.select && proximo.tagName === 'INPUT' && proximo.type !== 'date') proximo.select();
+  });
+}
+
 async function abrirModalProduto(id) {
+  configurarAtalhosModalProduto();
   document.getElementById('modal-prod-titulo').textContent = id ? 'Editar Produto' : 'Novo Produto';
   await carregarCategoriasGlobal();
   try {
@@ -2289,7 +2343,7 @@ async function abrirModalProduto(id) {
     } catch(e) { toast('Erro ao carregar produto', 'error'); return; }
   } else {
     const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
-    const hoje = new Date().toISOString().slice(0,10);
+    const hoje = dataHojeInput();
     document.getElementById('prod-id').value = '';
     document.getElementById('prod-nome').value = '';
     document.getElementById('prod-cod').value = '';
@@ -2301,7 +2355,7 @@ async function abrirModalProduto(id) {
     document.getElementById('prod-est').value = '';
     document.getElementById('prod-estmin').value = '3';
     document.getElementById('prod-colecao').value = memoria.__ultimaColecao || '';
-    document.getElementById('prod-data-entrada').value = memoria.__ultimaDataEntrada || hoje;
+    document.getElementById('prod-data-entrada').value = hoje;
     document.getElementById('prod-cfop').value = '5102';
     document.getElementById('prod-csosn').value = '102';
     document.getElementById('prod-origem').value = '0';
@@ -2330,11 +2384,16 @@ async function abrirModalProduto(id) {
   document.getElementById('tab-prod-geral').style.display = 'block';
   document.getElementById('tab-prod-fiscal').style.display = 'none';
   abrirModal('modal-produto');
-  // Cursor no Nome ao abrir novo
-  if (!id) setTimeout(() => document.getElementById('prod-nome').focus(), 100);
+  // Se a categoria já estiver escolhida, continua no Nome para cadastro em sequência.
+  if (!id) setTimeout(() => {
+    const cat = document.getElementById('prod-cat');
+    const nome = document.getElementById('prod-nome');
+    (cat?.value ? nome : cat)?.focus();
+  }, 100);
 }
 
 async function salvarProduto() {
+  capitalizarPrimeiraLetraProduto();
   const nome = document.getElementById('prod-nome').value.trim();
   const cat = document.getElementById('prod-cat').value;
   const custo = parseFloat(document.getElementById('prod-custo').value)||0;
@@ -2426,7 +2485,6 @@ async function salvarProduto() {
       const memoria = JSON.parse(localStorage.getItem('scap_prod_mem')||'{}');
       memoria[cat] = { ncm: prod.ncm, colecao: prod.colecao };
       memoria.__ultimaColecao = prod.colecao;
-      memoria.__ultimaDataEntrada = prod.dataEntrada || new Date().toISOString().slice(0,10);
       localStorage.setItem('scap_prod_mem', JSON.stringify(memoria));
       // Abre novo cadastro mantendo categoria, NCM e coleção, cursor no Nome
       abrirModalProduto();
@@ -2434,7 +2492,7 @@ async function salvarProduto() {
         document.getElementById('prod-cat').value = cat;
         document.getElementById('prod-ncm').value = formatarNCMValor(prod.ncm||'');
         document.getElementById('prod-colecao').value = prod.colecao||'';
-        document.getElementById('prod-data-entrada').value = prod.dataEntrada || new Date().toISOString().slice(0,10);
+        document.getElementById('prod-data-entrada').value = dataHojeInput();
         document.getElementById('prod-nome').focus();
         document.getElementById('prod-nome').select();
       }, 200);
