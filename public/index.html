@@ -4261,9 +4261,9 @@ function montarHtmlDanfeSimplificado(danfe) {
           </div>
           <div class="box">
             <div class="label">Autorização</div>
-            <div>Protocolo:</div>
-            <div><b>${textoSeguro(danfe.protocolo || '')}</b></div>
-            <div class="linha">${textoSeguro(danfe.dataAutorizacao || '')}</div>
+            ${danfe.protocolo ? `<div>Protocolo:</div><div><b>${textoSeguro(danfe.protocolo)}</b></div>` : ''}
+            <div class="linha">Status: <b>${textoSeguro(danfe.situacao || 'Autorizada')}</b></div>
+            ${danfe.dataAutorizacao ? `<div class="linha">${textoSeguro(danfe.dataAutorizacao)}</div>` : ''}
           </div>
         </div>
 

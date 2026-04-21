@@ -3006,12 +3006,12 @@ function decodificarXml(texto = '') {
 }
 
 function obterBlocoXml(xml = '', tag) {
-  const match = String(xml).match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  const match = String(xml).match(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${tag}>`, 'i'));
   return match ? match[1] : '';
 }
 
 function obterValorXml(xml = '', tag) {
-  const match = String(xml).match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  const match = String(xml).match(new RegExp(`<(?:[\\w.-]+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${tag}>`, 'i'));
   return match ? decodificarXml(match[1].trim()) : '';
 }
 
@@ -3046,7 +3046,7 @@ function extrairDanfeSimplificadoDoXml(xml = {}, nota = {}) {
   const dest = obterBlocoXml(infNFe, 'dest');
   const infProt = obterBlocoXml(textoXml, 'infProt');
   const total = obterBlocoXml(obterBlocoXml(infNFe, 'total'), 'ICMSTot');
-  const chaveDoId = (String(textoXml.match(/<infNFe\b[^>]*\bId=["']NFe(\d{44})["']/i)?.[1] || '').replace(/\D/g, ''));
+  const chaveDoId = (String(textoXml.match(/<(?:[\w.-]+:)?infNFe\b[^>]*\bId=["']NFe(\d{44})["']/i)?.[1] || '').replace(/\D/g, ''));
 
   const itens = [...textoXml.matchAll(/<det\b[^>]*>([\s\S]*?)<\/det>/gi)]
     .map(match => {
@@ -3065,6 +3065,7 @@ function extrairDanfeSimplificadoDoXml(xml = {}, nota = {}) {
     chaveAcesso: limparDocumentoFiscal(obterValorXml(infProt, 'chNFe') || chaveDoId || nota.chaveAcesso || nota.chave || nota.chaveNFe),
     protocolo: obterValorXml(infProt, 'nProt') || nota.protocolo || nota.numeroProtocolo || '',
     dataAutorizacao: formatarDataHoraFiscal(obterValorXml(infProt, 'dhRecbto') || nota.dataAutorizacao || ''),
+    situacao: nota.situacao?.descricao || nota.situacao?.valor || nota.situacao || nota.status || '',
     ambiente: obterValorXml(ide, 'tpAmb') || '',
     modelo: obterValorXml(ide, 'mod') || '55',
     tipoOperacao: obterValorXml(ide, 'tpNF') === '0' ? 'Entrada' : 'Saída',
@@ -3097,11 +3098,16 @@ async function carregarXmlNotaBling(nota = {}, token) {
     : fonteXmlBruta;
   if (!fonteXml) return '';
 
-  const textoFonte = String(fonteXml);
+  const textoFonte = String(fonteXml).trim();
   if (textoFonte.trim().startsWith('<')) return textoFonte;
+  const urlXml = textoFonte.startsWith('//')
+    ? 'https:' + textoFonte
+    : textoFonte.startsWith('/')
+      ? 'https://www.bling.com.br' + textoFonte
+      : textoFonte;
 
   try {
-    const response = await fetch(textoFonte, {
+    const response = await fetch(urlXml, {
       headers: {
         Accept: 'application/xml,text/xml,*/*',
         Authorization: 'Bearer ' + token
@@ -3272,13 +3278,6 @@ app.get('/api/bling/nfe/:id/danfe-simplificado', auth, async (req, res) => {
       return res.status(400).json({
         erro: 'Não consegui obter a chave de acesso da NF-e no Bling. Abra o DANFE completo do Bling para esta nota.',
         detalhes: { notaId: req.params.id, numero: nota.numero || '', temXml: !!xml }
-      });
-    }
-
-    if (!danfe.protocolo) {
-      return res.status(400).json({
-        erro: 'Não consegui obter o protocolo de autorização da NF-e no Bling. A etiqueta DANFE simplificada só deve ser impressa com a NF-e autorizada.',
-        detalhes: { notaId: req.params.id, numero: danfe.numero || nota.numero || '' }
       });
     }
 
