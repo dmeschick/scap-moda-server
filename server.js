@@ -35,9 +35,17 @@ const limiterLogin = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
+const limiterConfirmacaoSenha = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 80,
+  message: { erro: 'Muitas confirmações de senha. Aguarde alguns minutos e tente novamente.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true
+});
 app.use('/api/login', limiterLogin);
-app.use('/api/auth/validar-senha', limiterLogin);
-app.use('/api/auth/validar-admin', limiterLogin);
+app.use('/api/auth/validar-senha', limiterConfirmacaoSenha);
+app.use('/api/auth/validar-admin', limiterConfirmacaoSenha);
 app.use((req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
