@@ -3019,6 +3019,56 @@ function limparDocumentoFiscal(valor = '') {
   return String(valor || '').replace(/\D/g, '');
 }
 
+function normalizarNomeCampoFiscal(campo = '') {
+  return String(campo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
+function buscarValorFiscalProfundo(obj, nomes = [], filtro = () => true) {
+  const nomesNormalizados = new Set(nomes.map(normalizarNomeCampoFiscal));
+  const visitados = new Set();
+
+  function visitar(valor) {
+    if (!valor || typeof valor !== 'object') return '';
+    if (visitados.has(valor)) return '';
+    visitados.add(valor);
+
+    if (Array.isArray(valor)) {
+      for (const item of valor) {
+        const achado = visitar(item);
+        if (achado) return achado;
+      }
+      return '';
+    }
+
+    for (const [chave, conteudo] of Object.entries(valor)) {
+      if (nomesNormalizados.has(normalizarNomeCampoFiscal(chave)) && filtro(conteudo)) {
+        return conteudo;
+      }
+    }
+
+    for (const conteudo of Object.values(valor)) {
+      const achado = visitar(conteudo);
+      if (achado) return achado;
+    }
+
+    return '';
+  }
+
+  return visitar(obj);
+}
+
+function buscarDocumentoFiscalProfundo(obj, nomes = [], tamanho = null) {
+  const valor = buscarValorFiscalProfundo(obj, nomes, conteudo => {
+    const doc = limparDocumentoFiscal(conteudo);
+    return tamanho ? doc.length === tamanho : !!doc;
+  });
+  return limparDocumentoFiscal(valor);
+}
+
 function formatarDataHoraFiscal(valor = '') {
   if (!valor) return '';
   const data = new Date(valor);
@@ -3047,6 +3097,18 @@ function extrairDanfeSimplificadoDoXml(xml = {}, nota = {}) {
   const infProt = obterBlocoXml(textoXml, 'infProt');
   const total = obterBlocoXml(obterBlocoXml(infNFe, 'total'), 'ICMSTot');
   const chaveDoId = (String(textoXml.match(/<(?:[\w.-]+:)?infNFe\b[^>]*\bId=["']NFe(\d{44})["']/i)?.[1] || '').replace(/\D/g, ''));
+  const chaveNota = buscarDocumentoFiscalProfundo(nota, [
+    'chaveAcesso', 'chaveAcessoNFe', 'chaveAcessoNfe', 'chaveNFe', 'chaveNfe', 'chave'
+  ], 44);
+  const protocoloNota = buscarValorFiscalProfundo(nota, [
+    'protocolo', 'numeroProtocolo', 'protocoloAutorizacao', 'nProt', 'numeroProtocoloAutorizacao'
+  ], conteudo => !!String(conteudo || '').trim());
+  const dataAutorizacaoNota = buscarValorFiscalProfundo(nota, [
+    'dataAutorizacao', 'dataHoraAutorizacao', 'dhRecbto', 'dataProtocolo', 'dataEmissao'
+  ], conteudo => !!String(conteudo || '').trim());
+  const situacaoNota = buscarValorFiscalProfundo(nota, [
+    'situacao', 'status', 'descricaoSituacao', 'situacaoNota'
+  ], conteudo => typeof conteudo !== 'object' && !!String(conteudo || '').trim());
 
   const itens = [...textoXml.matchAll(/<det\b[^>]*>([\s\S]*?)<\/det>/gi)]
     .map(match => {
@@ -3062,10 +3124,10 @@ function extrairDanfeSimplificadoDoXml(xml = {}, nota = {}) {
     .filter(item => item.descricao || item.codigo);
 
   return {
-    chaveAcesso: limparDocumentoFiscal(obterValorXml(infProt, 'chNFe') || chaveDoId || nota.chaveAcesso || nota.chave || nota.chaveNFe),
-    protocolo: obterValorXml(infProt, 'nProt') || nota.protocolo || nota.numeroProtocolo || '',
-    dataAutorizacao: formatarDataHoraFiscal(obterValorXml(infProt, 'dhRecbto') || nota.dataAutorizacao || ''),
-    situacao: nota.situacao?.descricao || nota.situacao?.valor || nota.situacao || nota.status || '',
+    chaveAcesso: limparDocumentoFiscal(obterValorXml(infProt, 'chNFe') || chaveDoId || chaveNota),
+    protocolo: obterValorXml(infProt, 'nProt') || protocoloNota || '',
+    dataAutorizacao: formatarDataHoraFiscal(obterValorXml(infProt, 'dhRecbto') || dataAutorizacaoNota || ''),
+    situacao: situacaoNota || '',
     ambiente: obterValorXml(ide, 'tpAmb') || '',
     modelo: obterValorXml(ide, 'mod') || '55',
     tipoOperacao: obterValorXml(ide, 'tpNF') === '0' ? 'Entrada' : 'Saída',
