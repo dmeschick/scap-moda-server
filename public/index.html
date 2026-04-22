@@ -1269,7 +1269,13 @@ tr:hover td{background:var(--bg)}
           <div class="form-group"><label>Categoria *</label><select id="prod-cat" onchange="categoriaProdutoAlterada(this.value)"><option value="">— Selecionar —</option></select></div>
           <div class="form-group"><label>Código</label><input id="prod-cod" placeholder="Gerado automaticamente" readonly style="background:var(--bg)"></div>
           <div class="form-group"><label>Nome *</label><input id="prod-nome" placeholder="Ex: Vestido Floral Midi"></div>
-          <div class="form-group"><label>Fornecedor</label><select id="prod-forn"><option value="">— Selecionar —</option></select></div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span>Fornecedor</span>
+              <button type="button" class="btn btn-sm" data-enter-skip="1" onclick="abrirModalFornecedor(null, true)" style="padding:3px 8px;font-size:11px">+ Novo</button>
+            </label>
+            <select id="prod-forn"><option value="">— Selecionar —</option></select>
+          </div>
           <div class="form-group"><label>Preço de custo (R$) *</label><input type="number" id="prod-custo" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Preço de venda (R$) *</label><input type="number" id="prod-venda" placeholder="0,00" step="0.01" min="0" onfocus="this.select()"></div>
           <div class="form-group"><label>Estoque inicial</label><input type="number" id="prod-est" placeholder="0" min="0" onfocus="this.select()"></div>
@@ -2307,6 +2313,7 @@ function configurarAtalhosModalProduto() {
     e.preventDefault();
     const campos = [...modal.querySelectorAll('input, select, textarea, button')]
       .filter(el => {
+        if (el.dataset.enterSkip === '1') return false;
         if (el.disabled || el.type === 'hidden') return false;
         const style = window.getComputedStyle(el);
         if (style.display === 'none' || style.visibility === 'hidden') return false;
@@ -2320,14 +2327,23 @@ function configurarAtalhosModalProduto() {
   });
 }
 
+let _fornecedorRetornoProduto = false;
+
+async function carregarSelectFornecedoresProduto(selecionarId = '') {
+  const forns = await api('GET', '/api/fornecedores');
+  const select = document.getElementById('prod-forn');
+  select.innerHTML = '<option value="">— Selecionar —</option>' +
+    forns.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  if (selecionarId) select.value = selecionarId;
+  return forns;
+}
+
 async function abrirModalProduto(id) {
   configurarAtalhosModalProduto();
   document.getElementById('modal-prod-titulo').textContent = id ? 'Editar Produto' : 'Novo Produto';
   await carregarCategoriasGlobal();
   try {
-    const forns = await api('GET', '/api/fornecedores');
-    document.getElementById('prod-forn').innerHTML = '<option value="">— Selecionar —</option>' +
-      forns.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+    await carregarSelectFornecedoresProduto();
   } catch(e) {}
   if (id) {
     try {
@@ -3649,7 +3665,8 @@ async function carregarFornecedores() {
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
 }
 
-async function abrirModalFornecedor(id) {
+async function abrirModalFornecedor(id, retornoProduto = false) {
+  _fornecedorRetornoProduto = !!retornoProduto;
   document.getElementById('modal-forn-titulo').textContent = id ? 'Editar Fornecedor' : 'Novo Fornecedor';
   if (id) {
     try {
@@ -3668,8 +3685,13 @@ async function abrirModalFornecedor(id) {
       const el = document.getElementById('forn-' + k);
       if (el) el.value = '';
     });
+    if (retornoProduto) {
+      const catProduto = document.getElementById('prod-cat')?.value || '';
+      if (catProduto) document.getElementById('forn-cats').value = catProduto;
+    }
   }
   abrirModal('modal-fornecedor');
+  if (!id) setTimeout(() => document.getElementById('forn-nome')?.focus(), 80);
 }
 
 async function salvarFornecedor() {
@@ -3693,9 +3715,16 @@ async function salvarFornecedor() {
   };
   try {
     await api('POST', '/api/fornecedores', forn);
+    const deveVoltarProduto = _fornecedorRetornoProduto && document.getElementById('modal-produto')?.classList.contains('open');
     fecharModal('modal-fornecedor');
     toast('Fornecedor salvo!');
-    carregarFornecedores();
+    if (deveVoltarProduto) {
+      await carregarSelectFornecedoresProduto(forn.id);
+      document.getElementById('prod-forn').focus();
+    } else {
+      carregarFornecedores();
+    }
+    _fornecedorRetornoProduto = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
   } catch(e) { toast('Erro: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } }
 }
