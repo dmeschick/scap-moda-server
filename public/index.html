@@ -147,6 +147,7 @@ tr:hover td{background:var(--bg)}
 /* ===== PDV ===== */
 .pdv-grid{display:grid;grid-template-columns:minmax(380px,1.35fr) minmax(340px,.95fr) minmax(340px,.95fr);gap:16px;align-items:start}
 .pdv-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.pdv-search-panel,.pdv-cart-panel,.pdv-pgto-panel{position:sticky;top:12px;max-height:calc(100dvh - 132px);overflow-y:auto;scrollbar-width:thin}
 .pdv-abas{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .pdv-aba{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;box-shadow:var(--shadow)}
 .pdv-aba.active{background:var(--pink);border-color:var(--pink);color:#fff}
@@ -209,7 +210,7 @@ tr:hover td{background:var(--bg)}
   /* ---- PDV ---- */
   .pdv-grid{grid-template-columns:1fr;gap:10px}
   .pdv-panel{padding:10px}
-  .pdv-cart-panel,.pdv-pgto-panel{position:static}
+  .pdv-search-panel,.pdv-cart-panel,.pdv-pgto-panel{position:static;max-height:none;overflow:visible}
   .pdv-search-panel{padding-bottom:0}
 
   /* ---- BOTÕES ---- */
@@ -477,7 +478,7 @@ tr:hover td{background:var(--bg)}
             <div id="pdv-empty" class="empty-state" style="display:none"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>
           </div>
           <!-- Coluna 2 — Carrinho -->
-          <div class="pdv-panel pdv-cart-panel" style="position:sticky;top:0">
+          <div class="pdv-panel pdv-cart-panel">
             <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
               🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
             </div>
@@ -517,7 +518,7 @@ tr:hover td{background:var(--bg)}
             </div>
           </div>
           <!-- Coluna 3 — Pagamento e finalização -->
-          <div class="pdv-panel pdv-pgto-panel" style="position:sticky;top:0">
+          <div class="pdv-panel pdv-pgto-panel">
             <div style="font-size:14px;font-weight:700;margin-bottom:12px">💳 Pagamento</div>
             <!-- Canal -->
             <div style="display:flex;gap:6px;margin-bottom:12px">
