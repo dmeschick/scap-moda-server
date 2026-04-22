@@ -3645,6 +3645,15 @@ function extrairSituacaoNotaFiscal(nota = {}) {
   return '';
 }
 
+function valorParaCentavos(valor) {
+  const numero = parseFloat(valor) || 0;
+  return Math.round(numero * 100);
+}
+
+function centavosParaValor(centavos) {
+  return Math.round(centavos) / 100;
+}
+
 async function listarFormasPagamentoBling(token) {
   const caminhos = [
     'formas-pagamentos?limite=100',
@@ -4070,25 +4079,37 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
       };
     });
     const totalItens = Math.round(itensPayload.reduce((acc, item) => acc + item.valorTotal, 0) * 100) / 100;
-    const pagamentos = Array.isArray(pgtoRes.rows) ? pgtoRes.rows : [];
+    const pagamentos = (Array.isArray(pgtoRes.rows) ? pgtoRes.rows : [])
+      .filter(pagamento => valorParaCentavos(pagamento.valor) > 0);
     const parcelasPayload = [];
     const proximoNumeroNFCe = await obterProximoNumeroFiscalBling('nfce', token);
+    const totalItensCentavos = valorParaCentavos(totalItens);
+    const somaPagamentosCentavos = pagamentos.reduce((acc, pagamento) => acc + valorParaCentavos(pagamento.valor), 0);
+    let centavosAlocadosPagamentos = 0;
 
-    pagamentos.forEach(pagamento => {
+    pagamentos.forEach((pagamento, pagamentoIdx) => {
       const parcelas = Math.max(1, parseInt(pagamento.parcelas) || 1);
-      const valorTotalPagamento = Math.round((parseFloat(pagamento.valor) || 0) * 100) / 100;
-      if (valorTotalPagamento <= 0) return;
+      const valorOriginalCentavos = valorParaCentavos(pagamento.valor);
+      const ehUltimoPagamento = pagamentoIdx === pagamentos.length - 1;
+      const valorPagamentoCentavos = somaPagamentosCentavos > 0
+        ? (ehUltimoPagamento
+            ? totalItensCentavos - centavosAlocadosPagamentos
+            : Math.round(valorOriginalCentavos * totalItensCentavos / somaPagamentosCentavos))
+        : 0;
+      centavosAlocadosPagamentos += valorPagamentoCentavos;
+      if (valorPagamentoCentavos <= 0) return;
 
       const formaPagamentoId = mapearFormaPagamentoBling(pagamento.tipo, formasPagamentoBling);
-      const valorBase = Math.floor((valorTotalPagamento / parcelas) * 100) / 100;
-      const valorUltima = Math.round((valorTotalPagamento - valorBase * (parcelas - 1)) * 100) / 100;
+      const valorBaseCentavos = Math.floor(valorPagamentoCentavos / parcelas);
 
       for (let i = 0; i < parcelas; i++) {
-        const valorParcela = i < parcelas - 1 ? valorBase : valorUltima;
+        const valorParcelaCentavos = i < parcelas - 1
+          ? valorBaseCentavos
+          : valorPagamentoCentavos - valorBaseCentavos * (parcelas - 1);
         const parcela = {
           dias: i * 30,
           data: dataOperacao,
-          valor: valorParcela
+          valor: centavosParaValor(valorParcelaCentavos)
         };
         if (formaPagamentoId) {
           parcela.formaPagamento = { id: formaPagamentoId };
