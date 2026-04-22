@@ -212,6 +212,7 @@ tr:hover td{background:var(--bg)}
 
   /* ---- PONTO ---- */
   .ponto-grid{grid-template-columns:1fr!important}
+  .import-produtos-layout{grid-template-columns:1fr!important}
 }
 
 @media(max-width:400px){
@@ -1334,7 +1335,7 @@ tr:hover td{background:var(--bg)}
         <div class="form-group"><label>Estoque mínimo</label><input type="number" id="import-foto-estmin" value="3" min="0"></div>
       </div>
 
-      <div style="display:grid;grid-template-columns:minmax(280px, 360px) 1fr;gap:16px;align-items:start">
+      <div class="import-produtos-layout" style="display:grid;grid-template-columns:minmax(280px, 360px) 1fr;gap:16px;align-items:start">
         <div>
           <div class="card" style="padding:12px">
             <div style="font-weight:700;font-size:14px;margin-bottom:8px">Pré-visualização</div>
@@ -1401,6 +1402,7 @@ tr:hover td{background:var(--bg)}
                 </tbody>
               </table>
             </div>
+            <div class="mobile-cards-list" id="import-foto-mobile-list"></div>
           </div>
         </div>
       </div>
@@ -2743,12 +2745,69 @@ function estiloCampoConfiancaImportacao(row, campo) {
   return '';
 }
 
+function inputImportacaoFotoMobile(idx, campo, valor, label, tipo = 'text', largura = '100%') {
+  const inputMode = tipo === 'decimal' ? ' inputmode="decimal"' : (tipo === 'numeric' ? ' inputmode="numeric"' : '');
+  const campoConf = {
+    refInt: 'ref_papel',
+    refExt: 'ref_ext',
+    nome: 'descricao',
+    custo: 'pc',
+    venda: 'pv',
+    qtd: 'qtd'
+  }[campo] || campo;
+  return '<label style="display:flex;flex-direction:column;gap:4px;min-width:0">' +
+    '<span class="m-card-label">' + label + '</span>' +
+    '<input type="text"' + inputMode + ' value="' + escaparHtml(valor) + '" onchange="atualizarLinhaImportacaoFoto(' + idx + ', \'' + campo + '\', this.value)" style="width:' + largura + ';padding:8px 9px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font);' + estiloCampoConfiancaImportacao(_importFotoRows[idx], campoConf) + '">' +
+  '</label>';
+}
+
+function renderMobileImportacaoFoto() {
+  const lista = document.getElementById('import-foto-mobile-list');
+  if (!lista) return;
+  if (!_importFotoRows.length) {
+    lista.innerHTML = '<div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div>';
+    return;
+  }
+  lista.innerHTML = _importFotoRows.map((row, idx) => {
+    const { erros, avisos } = validarLinhaImportacaoFoto(row);
+    const detalhe = [
+      erros.length ? '<div style="font-size:12px;color:var(--red);margin-top:6px">' + escaparHtml(erros.join(' · ')) + '</div>' : '',
+      avisos.length ? '<div style="font-size:12px;color:#9a6a00;margin-top:6px">' + escaparHtml(avisos.join(' · ')) + '</div>' : ''
+    ].join('');
+    return '<div class="m-card">' +
+      '<div class="m-card-header">' +
+        '<div>' +
+          '<div class="m-card-title">' + escaparHtml(row.nome || 'Produto sem nome') + '</div>' +
+          '<div class="m-card-sub"><code>' + escaparHtml(row.codigo || 'Sem código') + '</code></div>' +
+        '</div>' +
+        '<button class="btn btn-sm btn-danger" onclick="removerLinhaImportacaoFoto(' + idx + ')">Remover</button>' +
+      '</div>' +
+      detalhe +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
+        inputImportacaoFotoMobile(idx, 'refInt', row.refInt, 'Ref. papel') +
+        inputImportacaoFotoMobile(idx, 'refExt', row.refExt, 'Ref. ext.') +
+        inputImportacaoFotoMobile(idx, 'fornecedor', row.fornecedor || '', 'Fornecedor') +
+        inputImportacaoFotoMobile(idx, 'data', row.data || '', 'Data') +
+      '</div>' +
+      '<div style="margin-top:10px">' +
+        inputImportacaoFotoMobile(idx, 'nome', row.nome, 'Produto') +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">' +
+        inputImportacaoFotoMobile(idx, 'custo', formatarValorImportacao(row.custo), 'PC', 'decimal') +
+        inputImportacaoFotoMobile(idx, 'venda', formatarValorImportacao(row.venda), 'PV', 'decimal') +
+        inputImportacaoFotoMobile(idx, 'qtd', String(row.qtd || 0), 'Qtd', 'numeric') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
 function renderTabelaImportacaoFoto() {
   const tbody = document.getElementById('import-foto-tabela');
   const resumo = document.getElementById('import-foto-resumo');
   if (!_importFotoRows.length) {
     tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state" style="padding:24px"><p>Nenhuma linha montada</p></div></td></tr>';
     resumo.textContent = 'Nenhuma linha montada';
+    renderMobileImportacaoFoto();
     return;
   }
   let validos = 0;
@@ -2775,6 +2834,7 @@ function renderTabelaImportacaoFoto() {
     '</tr>';
   }).join('');
   resumo.textContent = validos + ' produto(s) prontos de ' + _importFotoRows.length + ' linha(s)';
+  renderMobileImportacaoFoto();
 }
 
 function atualizarLinhaImportacaoFoto(idx, campo, valor) {
