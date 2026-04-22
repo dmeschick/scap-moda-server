@@ -361,6 +361,23 @@ async function initDB() {
       tipo VARCHAR(20) DEFAULT 'novo'
     );
     ALTER TABLE orcamento_itens ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) DEFAULT 'novo';
+    CREATE TABLE IF NOT EXISTS atendimentos_pdv (
+      id VARCHAR(50) PRIMARY KEY,
+      nome VARCHAR(100),
+      usuario_id VARCHAR(50),
+      usuario_nome VARCHAR(200),
+      cliente_id VARCHAR(50),
+      cliente_nome VARCHAR(200),
+      vendedor_id VARCHAR(50),
+      vendedor_nome VARCHAR(200),
+      total NUMERIC(10,2) DEFAULT 0,
+      qtd_pecas INTEGER DEFAULT 0,
+      estado JSONB NOT NULL DEFAULT '{}',
+      status VARCHAR(20) DEFAULT 'aberto',
+      criado_em TIMESTAMP DEFAULT NOW(),
+      atualizado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_atendimentos_pdv_status ON atendimentos_pdv(status, atualizado_em DESC);
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave VARCHAR(100) PRIMARY KEY,
       valor JSONB,
@@ -3135,6 +3152,81 @@ app.post('/api/vendas/proximo-numero', auth, async (req, res) => {
     const r = await pool.query(`SELECT NEXTVAL('venda_num_seq') as num`);
     const num = '#' + String(r.rows[0].num).padStart(4, '0');
     res.json({ num });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+// ATENDIMENTOS ABERTOS DO PDV
+app.get('/api/pdv/atendimentos', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id,nome,usuario_id,usuario_nome,cliente_id,cliente_nome,vendedor_id,vendedor_nome,total,qtd_pecas,estado,status,criado_em,atualizado_em
+       FROM atendimentos_pdv
+       WHERE status='aberto'
+       ORDER BY atualizado_em DESC
+       LIMIT 100`
+    );
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.put('/api/pdv/atendimentos/:id', auth, async (req, res) => {
+  try {
+    const estado = req.body?.estado || {};
+    const clienteId = estado.clienteId || null;
+    const clienteNome = estado.clienteBusca || 'Consumidor final';
+    const vendedorId = estado.vendedorId || null;
+    const vendedor = vendedorId
+      ? await pool.query('SELECT nome FROM funcionarios WHERE id=$1', [vendedorId]).then(r => r.rows[0]?.nome || '')
+      : '';
+    const qtdPecas = [...(estado.carrinho || []), ...(estado.carrinhoTroca || [])]
+      .reduce((acc, item) => acc + (parseInt(item.qty, 10) || 0), 0);
+    const totalCompras = (estado.carrinho || []).reduce((acc, item) => acc + (Number(item.preco) || 0) * (Number(item.qty) || 0), 0);
+    const descontoTabela = totalCompras * ((Number(estado.descPct) || 0) / 100);
+    const total = Math.max(0, totalCompras - descontoTabela - (Number(estado.descontoManual) || 0));
+    await pool.query(
+      `INSERT INTO atendimentos_pdv
+       (id,nome,usuario_id,usuario_nome,cliente_id,cliente_nome,vendedor_id,vendedor_nome,total,qtd_pecas,estado,status,atualizado_em)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'aberto',NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         nome=EXCLUDED.nome,
+         usuario_id=EXCLUDED.usuario_id,
+         usuario_nome=EXCLUDED.usuario_nome,
+         cliente_id=EXCLUDED.cliente_id,
+         cliente_nome=EXCLUDED.cliente_nome,
+         vendedor_id=EXCLUDED.vendedor_id,
+         vendedor_nome=EXCLUDED.vendedor_nome,
+         total=EXCLUDED.total,
+         qtd_pecas=EXCLUDED.qtd_pecas,
+         estado=EXCLUDED.estado,
+         status='aberto',
+         atualizado_em=NOW()`,
+      [
+        req.params.id,
+        estado.nome || req.body?.nome || 'Tela PDV',
+        req.user.id,
+        req.user.nome,
+        clienteId,
+        clienteNome,
+        vendedorId,
+        vendedor,
+        total,
+        qtdPecas,
+        JSON.stringify(estado)
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.delete('/api/pdv/atendimentos/:id', auth, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE atendimentos_pdv
+       SET status='descartado', atualizado_em=NOW()
+       WHERE id=$1`,
+      [req.params.id]
+    );
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 

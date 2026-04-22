@@ -5750,6 +5750,7 @@ let _pdvTelas = [];
 let _pdvTelaAtualId = '';
 let _pdvInicializado = false;
 let _pdvAplicandoEstado = false;
+let _pdvSyncTimer = null;
 
 function criarEstadoPDVVazio(nome = '') {
   return {
@@ -5825,6 +5826,50 @@ function salvarTelaAtualPDV() {
   _pdvTelas[idx] = { ..._pdvTelas[idx], ...capturarEstadoPDV() };
 }
 
+async function carregarTelasServidorPDV() {
+  try {
+    const rows = await api('GET', '/api/pdv/atendimentos');
+    return (rows || [])
+      .map(row => ({ ...(row.estado || {}), id: row.id, nome: row.estado?.nome || row.nome || 'Atendimento' }))
+      .filter(telaPDVTemConteudo);
+  } catch(e) {
+    console.warn('Não foi possível carregar atendimentos do servidor:', e);
+    return [];
+  }
+}
+
+async function sincronizarAtendimentoServidorPDV(tela) {
+  if (!tela?.id) return;
+  try {
+    if (!telaPDVTemConteudo(tela)) {
+      await api('DELETE', '/api/pdv/atendimentos/' + tela.id);
+      return;
+    }
+    await api('PUT', '/api/pdv/atendimentos/' + tela.id, { estado: tela });
+  } catch(e) {
+    console.warn('Não foi possível sincronizar atendimento do PDV:', e);
+  }
+}
+
+function agendarSincronizacaoPDV() {
+  if (_pdvAplicandoEstado || !_pdvTelaAtualId) return;
+  clearTimeout(_pdvSyncTimer);
+  _pdvSyncTimer = setTimeout(() => {
+    const tela = _pdvTelas.find(t => t.id === _pdvTelaAtualId);
+    sincronizarAtendimentoServidorPDV(tela);
+  }, 700);
+}
+
+async function removerAtendimentoServidorPDV(id) {
+  clearTimeout(_pdvSyncTimer);
+  if (!id) return;
+  try {
+    await api('DELETE', '/api/pdv/atendimentos/' + id);
+  } catch(e) {
+    console.warn('Não foi possível remover atendimento do servidor:', e);
+  }
+}
+
 function persistirTelasPDV() {
   if (_pdvAplicandoEstado) return;
   try {
@@ -5841,9 +5886,16 @@ function salvarTelaAtualEPersistirPDV() {
   salvarTelaAtualPDV();
   persistirTelasPDV();
   renderAbasPDV();
+  agendarSincronizacaoPDV();
 }
 
-function carregarTelasSalvasPDV() {
+async function carregarTelasSalvasPDV() {
+  const telasServidor = await carregarTelasServidorPDV();
+  if (telasServidor.length && confirm('Existem atendimentos abertos salvos no sistema. Deseja restaurar?')) {
+    _pdvTelas = telasServidor;
+    _pdvTelaAtualId = telasServidor[0].id;
+    return true;
+  }
   try {
     const salvo = JSON.parse(localStorage.getItem(PDV_TELAS_STORAGE_KEY) || '{}');
     const telas = Array.isArray(salvo.telas) ? salvo.telas.filter(telaPDVTemConteudo) : [];
@@ -5954,6 +6006,8 @@ async function aplicarEstadoPDV(tela) {
 async function trocarTelaPDV(id) {
   if (id === _pdvTelaAtualId) return;
   salvarTelaAtualPDV();
+  const telaAnterior = _pdvTelas.find(t => t.id === _pdvTelaAtualId);
+  sincronizarAtendimentoServidorPDV(telaAnterior);
   _pdvTelaAtualId = id;
   const tela = _pdvTelas.find(t => t.id === id);
   if (tela) await aplicarEstadoPDV(tela);
@@ -5973,6 +6027,7 @@ async function fecharTelaPDV(id) {
   salvarTelaAtualPDV();
   const tela = _pdvTelas.find(t => t.id === id);
   if (tela && telaPDVTemConteudo(tela) && !confirm('Fechar esta tela e descartar o atendimento aberto?')) return;
+  await removerAtendimentoServidorPDV(id);
   _pdvTelas = _pdvTelas.filter(t => t.id !== id);
   if (!_pdvTelas.length) _pdvTelas = [criarEstadoPDVVazio('Tela 1')];
   if (_pdvTelaAtualId === id) _pdvTelaAtualId = _pdvTelas[0].id;
@@ -6001,7 +6056,7 @@ async function initPDV() {
   // Desconto padrão
   await carregarDescontosGlobal();
   if (!_pdvInicializado) {
-    carregarTelasSalvasPDV();
+    await carregarTelasSalvasPDV();
     _pdvInicializado = true;
   }
   const telaAtual = _pdvTelas.find(t => t.id === _pdvTelaAtualId) || _pdvTelas[0] || criarEstadoPDVVazio('Tela 1');
@@ -6521,6 +6576,7 @@ async function finalizarVenda() {
     todosProds = await api('GET', '/api/produtos?status=ativo&limit=500').catch(() => todosProds);
     _creditoGeradoAtual = creditoGerado;
     await abrirRomaneio(venda, cliNome);
+    await removerAtendimentoServidorPDV(_pdvTelaAtualId);
     setTimeout(() => emitirNotaAutomaticaCartao(venda).catch(e => {
       console.error('Erro na emissão automática:', e);
       toast('Erro na emissão automática: ' + e.message, 'error');
