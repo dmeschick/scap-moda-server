@@ -5824,15 +5824,29 @@ function criarEstadoPDVVazio(nome = '') {
   };
 }
 
+function _textoPDVSignificativo(valor) {
+  return String(valor || '').trim();
+}
+
+function _numeroPDVPositivo(valor) {
+  return Number(valor) > 0;
+}
+
+function _itensPDVComConteudo(itens) {
+  return Array.isArray(itens) && itens.some(item => _numeroPDVPositivo(item?.qty));
+}
+
+function _pgtoPDVComConteudo(itens) {
+  return Array.isArray(itens) && itens.some(item => _numeroPDVPositivo(item?.valor));
+}
+
 function telaPDVTemConteudo(tela) {
   return !!(
-    tela?.carrinho?.length ||
-    tela?.carrinhoTroca?.length ||
-    tela?.pgtoItens?.length ||
-    tela?.clienteId ||
-    tela?.clienteBusca ||
-    tela?.obs ||
-    tela?.descontoManual ||
+    _itensPDVComConteudo(tela?.carrinho) ||
+    _itensPDVComConteudo(tela?.carrinhoTroca) ||
+    _pgtoPDVComConteudo(tela?.pgtoItens) ||
+    _textoPDVSignificativo(tela?.obs) ||
+    _numeroPDVPositivo(tela?.descontoManual) ||
     tela?.orcamentoEmVendaId
   );
 }
@@ -5874,9 +5888,14 @@ function salvarTelaAtualPDV() {
 async function carregarTelasServidorPDV() {
   try {
     const rows = await api('GET', '/api/pdv/atendimentos');
-    return (rows || [])
-      .map(row => ({ ...(row.estado || {}), id: row.id, nome: row.estado?.nome || row.nome || 'Atendimento' }))
-      .filter(telaPDVTemConteudo);
+    const telas = (rows || []).map(row => ({ ...(row.estado || {}), id: row.id, nome: row.estado?.nome || row.nome || 'Atendimento' }));
+    const telasComConteudo = telas.filter(telaPDVTemConteudo);
+    const telasVazias = telas.filter(tela => !telaPDVTemConteudo(tela));
+    if (telasVazias.length) {
+      Promise.allSettled(telasVazias.map(tela => api('DELETE', '/api/pdv/atendimentos/' + tela.id)))
+        .catch(() => {});
+    }
+    return telasComConteudo;
   } catch(e) {
     console.warn('Não foi possível carregar atendimentos do servidor:', e);
     return [];
@@ -5949,9 +5968,10 @@ async function carregarTelasSalvasPDV() {
       _pdvTelaAtualId = telas.some(t => t.id === salvo.telaAtualId) ? salvo.telaAtualId : telas[0].id;
       return true;
     }
-    if (telas.length) localStorage.removeItem(PDV_TELAS_STORAGE_KEY);
+    localStorage.removeItem(PDV_TELAS_STORAGE_KEY);
   } catch(e) {
     console.warn('Não foi possível restaurar telas do PDV:', e);
+    localStorage.removeItem(PDV_TELAS_STORAGE_KEY);
   }
   _pdvTelas = [criarEstadoPDVVazio('Tela 1')];
   _pdvTelaAtualId = _pdvTelas[0].id;
