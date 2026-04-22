@@ -892,7 +892,7 @@ app.get('/api/produtos/codigos-existentes', auth, async (req, res) => {
     if (!codigos.length) return res.json([]);
     const unicos = [...new Set(codigos)].slice(0, 500);
     const r = await pool.query(
-      'SELECT cod FROM produtos WHERE cod = ANY($1::text[])',
+      "SELECT cod FROM produtos WHERE status = 'ativo' AND cod = ANY($1::text[])",
       [unicos]
     );
     res.json(r.rows.map(row => row.cod));
