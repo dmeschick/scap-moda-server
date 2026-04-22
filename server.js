@@ -883,6 +883,22 @@ app.get('/api/produtos', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
+app.get('/api/produtos/codigos-existentes', auth, async (req, res) => {
+  try {
+    const codigos = String(req.query.codigos || '')
+      .split(',')
+      .map(c => c.trim())
+      .filter(Boolean);
+    if (!codigos.length) return res.json([]);
+    const unicos = [...new Set(codigos)].slice(0, 500);
+    const r = await pool.query(
+      'SELECT cod FROM produtos WHERE cod = ANY($1::text[])',
+      [unicos]
+    );
+    res.json(r.rows.map(row => row.cod));
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
 app.get('/api/relatorios/entradas-produtos', auth, async (req, res) => {
   try {
     const { inicio, fim } = req.query;

@@ -3108,20 +3108,37 @@ async function importarProdutosPorFoto() {
     renderTabelaImportacaoFoto();
     return;
   }
-  const existentes = await api('GET', '/api/produtos?limit=2000').catch(() => []);
-  const codigosExistentes = new Set((existentes || []).map(p => p.cod));
+  const codigosLote = [...new Set(_importFotoRows.map(r => r.codigo).filter(Boolean))];
+  const existentes = codigosLote.length
+    ? await api('GET', '/api/produtos/codigos-existentes?codigos=' + encodeURIComponent(codigosLote.join(','))).catch(() => [])
+    : [];
+  const codigosExistentes = new Set(existentes || []);
+  const codigosNoLote = new Set();
+  const ignorados = [];
+  const rowsParaImportar = [];
+  _importFotoRows.forEach(row => {
+    if (codigosExistentes.has(row.codigo)) {
+      ignorados.push(row.codigo);
+      return;
+    }
+    if (codigosNoLote.has(row.codigo)) {
+      ignorados.push(row.codigo);
+      return;
+    }
+    codigosNoLote.add(row.codigo);
+    rowsParaImportar.push(row);
+  });
+  if (!rowsParaImportar.length) {
+    toast('Todos os produtos montados já existem no cadastro. Nada foi importado.', 'warn', 6000);
+    return;
+  }
   const fornecedores = await api('GET', '/api/fornecedores').catch(() => []);
   const fornecedoresPorNome = new Map((fornecedores || []).map(f => [normalizarTextoBase(f.nome), f]));
   const fornecedoresCriados = [];
-  const duplicados = _importFotoRows.filter(r => codigosExistentes.has(r.codigo)).map(r => r.codigo);
-  if (duplicados.length) {
-    toast('Já existe produto com código: ' + duplicados.join(', '), 'warn', 5000);
-    return;
-  }
   const btn = event?.target || document.querySelector('[onclick="importarProdutosPorFoto()"]');
   try {
     if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
-    for (const row of _importFotoRows) {
+    for (const row of rowsParaImportar) {
       let fornecedorId = fornecedor;
       const nomeFornecedorLinha = (row.fornecedor || '').trim();
       if (nomeFornecedorLinha) {
@@ -3177,7 +3194,8 @@ async function importarProdutosPorFoto() {
       await api('POST', '/api/produtos', prod);
     }
     await salvarCorrecoesImportacaoFoto(true);
-    toast(_importFotoRows.length + ' produto(s) importado(s) com sucesso!' + (fornecedoresCriados.length ? ' Fornecedor(es) cadastrado(s): ' + fornecedoresCriados.join(', ') : ''));
+    const msgIgnorados = ignorados.length ? ' ' + ignorados.length + ' já existente(s) ignorado(s): ' + ignorados.join(', ') + '.' : '';
+    toast(rowsParaImportar.length + ' produto(s) importado(s) com sucesso!' + msgIgnorados + (fornecedoresCriados.length ? ' Fornecedor(es) cadastrado(s): ' + fornecedoresCriados.join(', ') : ''), ignorados.length ? 'warn' : 'success', 8000);
     fecharModal('modal-importar-produtos-foto');
     carregarProdutos();
     limparImportacaoFoto(true);
