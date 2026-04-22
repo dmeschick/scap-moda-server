@@ -147,7 +147,10 @@ tr:hover td{background:var(--bg)}
 /* ===== PDV ===== */
 .pdv-grid{display:grid;grid-template-columns:minmax(380px,1.35fr) minmax(340px,.95fr) minmax(340px,.95fr);gap:16px;align-items:start}
 .pdv-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
-.pdv-search-panel,.pdv-cart-panel,.pdv-pgto-panel{position:sticky;top:12px;max-height:calc(100dvh - 132px);overflow-y:auto;scrollbar-width:thin}
+.pdv-search-panel,.pdv-pgto-panel{position:sticky;top:12px;max-height:calc(100dvh - 132px);overflow-y:auto;scrollbar-width:thin}
+.pdv-cart-panel{position:sticky;top:12px;max-height:calc(100dvh - 132px);display:flex;flex-direction:column;overflow:hidden}
+.pdv-cart-head,.pdv-cart-totals{flex-shrink:0;background:var(--bg2)}
+.pdv-cart-scroll{flex:1;min-height:130px;overflow-y:auto;scrollbar-width:thin;padding-right:4px;margin-right:-4px}
 .pdv-abas{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .pdv-aba{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;box-shadow:var(--shadow)}
 .pdv-aba.active{background:var(--pink);border-color:var(--pink);color:#fff}
@@ -211,6 +214,8 @@ tr:hover td{background:var(--bg)}
   .pdv-grid{grid-template-columns:1fr;gap:10px}
   .pdv-panel{padding:10px}
   .pdv-search-panel,.pdv-cart-panel,.pdv-pgto-panel{position:static;max-height:none;overflow:visible}
+  .pdv-cart-panel{display:block}
+  .pdv-cart-scroll{min-height:0;overflow:visible;padding-right:0;margin-right:0}
   .pdv-search-panel{padding-bottom:0}
 
   /* ---- BOTÕES ---- */
@@ -479,30 +484,34 @@ tr:hover td{background:var(--bg)}
           </div>
           <!-- Coluna 2 — Carrinho -->
           <div class="pdv-panel pdv-cart-panel">
-            <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
-              🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
-            </div>
-            <div style="position:relative;margin-bottom:6px;display:flex;gap:6px;align-items:center">
-              <div style="position:relative;flex:1">
-                <input type="text" id="pdv-cliente-busca" placeholder="Buscar cliente por nome ou CPF..."
-                  style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
-                  oninput="buscarClientePDV(this.value)"
-                  onblur="setTimeout(()=>fecharSugestoes(),200)">
-                <input type="hidden" id="pdv-cliente" value="">
-                <div id="pdv-cliente-sugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+            <div class="pdv-cart-head">
+              <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
+                🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
               </div>
-              <button class="btn btn-sm" onclick="abrirModalCliente()" title="Cadastrar novo cliente" style="white-space:nowrap;flex-shrink:0">+ Novo</button>
+              <div style="position:relative;margin-bottom:6px;display:flex;gap:6px;align-items:center">
+                <div style="position:relative;flex:1">
+                  <input type="text" id="pdv-cliente-busca" placeholder="Buscar cliente por nome ou CPF..."
+                    style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"
+                    oninput="buscarClientePDV(this.value)"
+                    onblur="setTimeout(()=>fecharSugestoes(),200)">
+                  <input type="hidden" id="pdv-cliente" value="">
+                  <div id="pdv-cliente-sugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+                </div>
+                <button class="btn btn-sm" onclick="abrirModalCliente()" title="Cadastrar novo cliente" style="white-space:nowrap;flex-shrink:0">+ Novo</button>
+              </div>
+              <div id="pdv-endereco-row" style="display:none;margin-top:-2px;margin-bottom:6px;font-size:11px;color:var(--text2);display:none;align-items:center;gap:4px;flex-wrap:wrap">
+                <span id="pdv-endereco-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                <button class="btn btn-sm" onclick="trocarEnderecoPDV()" title="Trocar endereço" style="padding:2px 6px;font-size:11px;flex-shrink:0">✏️</button>
+                <select id="pdv-endereco-select" style="display:none;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)" onchange="confirmarEnderecoPDV()"></select>
+              </div>
+              <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
             </div>
-            <div id="pdv-endereco-row" style="display:none;margin-top:-2px;margin-bottom:6px;font-size:11px;color:var(--text2);display:none;align-items:center;gap:4px;flex-wrap:wrap">
-              <span id="pdv-endereco-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-              <button class="btn btn-sm" onclick="trocarEnderecoPDV()" title="Trocar endereço" style="padding:2px 6px;font-size:11px;flex-shrink:0">✏️</button>
-              <select id="pdv-endereco-select" style="display:none;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)" onchange="confirmarEnderecoPDV()"></select>
+            <div class="pdv-cart-scroll" id="pdv-cart-scroll">
+              <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
+              <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             </div>
-            <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
-            <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
-            <div id="troca-itens" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
             <!-- Totais -->
-            <div id="cart-totais" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
+            <div id="cart-totais" class="pdv-cart-totals" style="display:none;border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
               <div style="display:flex;gap:6px;align-items:center;margin:0 0 8px;flex-wrap:wrap" id="desc-btns"></div>
               <div id="credito-cliente-info" style="display:none;background:var(--green-light);border:1px solid var(--green);border-radius:var(--radius);padding:8px 10px;margin:0 0 8px;font-size:12px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
@@ -5790,7 +5799,8 @@ let todosProds = [];
 let _finalizandoVenda = false;
 let _orcamentosCache = [];
 let _orcamentoEmVendaId = null;
-const PDV_TELAS_STORAGE_KEY = 'scap_pdv_telas_v1';
+const PDV_TELAS_STORAGE_KEY_ANTIGO = 'scap_pdv_telas_v1';
+const PDV_TELAS_STORAGE_KEY = 'scap_pdv_telas_v2';
 let _pdvTelas = [];
 let _pdvTelaAtualId = '';
 let _pdvInicializado = false;
@@ -5953,7 +5963,16 @@ function salvarTelaAtualEPersistirPDV() {
   agendarSincronizacaoPDV();
 }
 
+function limparCacheAntigoPDV() {
+  try {
+    localStorage.removeItem(PDV_TELAS_STORAGE_KEY_ANTIGO);
+  } catch(e) {
+    console.warn('Não foi possível limpar cache antigo do PDV:', e);
+  }
+}
+
 async function carregarTelasSalvasPDV() {
+  limparCacheAntigoPDV();
   const telasServidor = await carregarTelasServidorPDV();
   if (telasServidor.length) {
     if (confirm('Existem atendimentos abertos salvos no sistema. Deseja restaurar?')) {
@@ -5962,6 +5981,7 @@ async function carregarTelasSalvasPDV() {
       return true;
     }
     await Promise.allSettled(telasServidor.map(tela => removerAtendimentoServidorPDV(tela.id)));
+    localStorage.removeItem(PDV_TELAS_STORAGE_KEY);
   }
   try {
     const salvo = JSON.parse(localStorage.getItem(PDV_TELAS_STORAGE_KEY) || '{}');
@@ -6278,6 +6298,7 @@ function renderCarrinho() {
   if (!carrinho.length && !carrinhoTroca.length) {
     items.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
     totais.style.display = 'none';
+    rolarCarrinhoParaBaixo();
     filtrarPDV();
     salvarTelaAtualEPersistirPDV();
     return;
@@ -6334,7 +6355,16 @@ function renderCarrinho() {
   renderPgtoLista({ persistir: false });
   if (document.getElementById('pgto-tipo')?.value) mostrarCampoPgto();
   filtrarPDV();
+  rolarCarrinhoParaBaixo();
   salvarTelaAtualEPersistirPDV();
+}
+
+function rolarCarrinhoParaBaixo() {
+  const scroller = document.getElementById('pdv-cart-scroll');
+  if (!scroller) return;
+  requestAnimationFrame(() => {
+    scroller.scrollTop = scroller.scrollHeight;
+  });
 }
 
 function alterarQty(idx, delta) {
