@@ -6738,6 +6738,9 @@ async function abrirRomaneio(v, cliNome) {
   const totBase = sub - desc - descManual; // total após descontos, antes das devoluções
   const aPagar = Math.max(0, totBase - totalDev);
   const creditoGerado = Math.max(0, totalDev - totBase);
+  const creditoGeradoSalvo = Number(v.creditoGerado || v.credito_gerado || 0);
+  const temCreditoGerado = Math.max(creditoGerado, creditoGeradoSalvo) > 0.01;
+  if (!ehOrcamento) _creditoGeradoAtual = Math.max(creditoGerado, creditoGeradoSalvo);
 
   // Monta seção de cheques — um por linha com número e data de compensação
   let secaoCheques = '';
@@ -6783,8 +6786,8 @@ async function abrirRomaneio(v, cliNome) {
   const btnNfe = document.getElementById('btn-nfe');
   const btnNfce = document.getElementById('btn-nfce');
   const btnWhats = document.querySelector('#modal-romaneio button[onclick="enviarWhatsApp()"]');
-  if (btnNfe) btnNfe.style.display = ehOrcamento ? 'none' : '';
-  if (btnNfce) btnNfce.style.display = ehOrcamento ? 'none' : '';
+  if (btnNfe) btnNfe.style.display = (ehOrcamento || temCreditoGerado) ? 'none' : '';
+  if (btnNfce) btnNfce.style.display = (ehOrcamento || temCreditoGerado) ? 'none' : '';
   if (btnWhats) btnWhats.style.display = ehOrcamento ? 'none' : '';
 
   document.getElementById('romaneio-body').innerHTML =
@@ -6834,7 +6837,7 @@ async function abrirRomaneio(v, cliNome) {
 
   const btnNotinha = document.getElementById('btn-imprimir-notinha-credito');
   if (btnNotinha) {
-    btnNotinha.style.display = _creditoGeradoAtual > 0.01 ? '' : 'none';
+    btnNotinha.style.display = temCreditoGerado ? '' : 'none';
     btnNotinha.onclick = () => imprimirNotinhaCredito(cliNome, _creditoGeradoAtual);
   }
   abrirModal('modal-romaneio');
