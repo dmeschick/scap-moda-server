@@ -6307,6 +6307,8 @@ function renderCarrinho() {
       '<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--pink-dark)">' + fmtMoeda(aPagar) + '</span></div>';
   }
   document.getElementById('cart-totais-valores').innerHTML = totaisHTML;
+  renderPgtoLista({ persistir: false });
+  if (document.getElementById('pgto-tipo')?.value) mostrarCampoPgto();
   filtrarPDV();
   salvarTelaAtualEPersistirPDV();
 }
@@ -6467,11 +6469,14 @@ function adicionarPgto() {
   renderPgtoLista();
 }
 
-function renderPgtoLista() {
+function renderPgtoLista(opcoes = {}) {
+  const persistir = opcoes.persistir !== false;
   const { aPagar: totFinal } = calcularTotaisPDV();
   const pago = pgtoItens.reduce((a,p) => a+p.valor, 0);
   const restante = totFinal - pago;
-  document.getElementById('pgto-lista').innerHTML = pgtoItens.map((p,i) =>
+  const listaEl = document.getElementById('pgto-lista');
+  if (!listaEl) return;
+  listaEl.innerHTML = pgtoItens.map((p,i) =>
     `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border-radius:var(--radius);padding:6px 10px;font-size:12px">
       <span>${p.label}${p.detalhe?' — '+p.detalhe:''}</span>
       <div style="display:flex;align-items:center;gap:6px">
@@ -6480,7 +6485,7 @@ function renderPgtoLista() {
       </div>
     </div>`
   ).join('') + (restante > 0.01 ? `<div style="font-size:12px;color:var(--red);text-align:right;padding:4px 0">Restante: ${fmtMoeda(restante)}</div>` : '');
-  salvarTelaAtualEPersistirPDV();
+  if (persistir) salvarTelaAtualEPersistirPDV();
 }
 
 async function finalizarVenda() {
