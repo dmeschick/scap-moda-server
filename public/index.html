@@ -4140,6 +4140,26 @@ function calcularHorasPonto(registros) {
 }
 
 // ===== VENDAS =====
+function extrairSituacaoNotaFiscalLocal(nota = {}) {
+  const candidatos = [nota.situacao, nota.status, nota.descricaoSituacao, nota.situacaoNota];
+  for (const candidato of candidatos) {
+    if (!candidato) continue;
+    if (typeof candidato === 'object') {
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.id;
+      if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
+      continue;
+    }
+    if (String(candidato).trim()) return String(candidato).trim();
+  }
+  return '';
+}
+
+function notaFiscalAutorizada(venda, tipo = 'nfe') {
+  if (!venda?.[tipo + '_id']) return false;
+  const situacao = normalizarTextoBase(venda?.[tipo + '_situacao']);
+  return situacao.includes('autoriz');
+}
+
 async function carregarVendas() {
   popularVendedoresFiltro('venda-vendedor');
   const de = document.getElementById('venda-de')?.value || '';
@@ -4161,15 +4181,18 @@ async function carregarVendas() {
       const totalCell = _cred > 0
         ? `<span style="color:var(--green);font-weight:700">Crédito: ${fmtMoeda(_cred)}</span>`
         : `<strong>${fmtMoeda(v.tot)}</strong>`;
+      const nfeAutorizada = notaFiscalAutorizada(v, 'nfe');
       const nfOnlineStatus = v.canal === 'online'
-        ? (v.nfe_id
+        ? (nfeAutorizada
             ? `<span class="badge badge-green" title="NF-e autorizada no Bling">NF-e ${v.nfe_numero || 'autorizada'}</span>`
-            : `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`)
+            : (v.nfe_id
+                ? `<span class="badge badge-amber" title="A NF-e existe, mas ainda não consta como autorizada no sistema">NF-e pendente</span>`
+                : `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`))
         : '';
       const botaoDanfe = v.canal === 'online'
-        ? (v.nfe_id
+        ? (nfeAutorizada
             ? `<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda('${v.id}')" title="Imprimir DANFE simplificado 10x15">DANFE 10x15</button>`
-            : `<button class="btn btn-sm" disabled title="Emita a NF-e antes de imprimir o DANFE simplificado">DANFE 10x15</button>`)
+            : '')
         : '';
       return `<tr>
       <td><strong>${v.num}</strong></td>
@@ -4648,6 +4671,10 @@ async function imprimirDanfeSimplificadoVenda(id) {
       toast('Emita a NF-e antes de imprimir o DANFE simplificado.', 'warn');
       return;
     }
+    if (!notaFiscalAutorizada(v, 'nfe')) {
+      toast('Aguarde a NF-e constar como autorizada no sistema antes de imprimir o DANFE 10x15.', 'warn');
+      return;
+    }
     const r = await api('GET', `/api/bling/nfe/${encodeURIComponent(v.nfe_id)}/danfe-simplificado`);
     const html = montarHtmlDanfeSimplificado(r.danfe);
     if (await tentarImpressaoQZ('nfe', html, { pageWidth: 3.94 })) return;
@@ -5085,6 +5112,7 @@ async function emitirNFe(vendaId) {
     if (_vendaAtual && _vendaAtual.id === vendaId) {
       _vendaAtual.nfe_id = r.nfe?.id ? String(r.nfe.id) : _vendaAtual.nfe_id;
       _vendaAtual.nfe_numero = r.nfe?.numero || _vendaAtual.nfe_numero;
+      _vendaAtual.nfe_situacao = extrairSituacaoNotaFiscalLocal(r.nfe) || _vendaAtual.nfe_situacao;
     }
     const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
     const numero = r.nfe?.numero || '';
@@ -7045,14 +7073,17 @@ function renderMobileCardsVendas(vendas) {
       ? '<span style="color:var(--green)">Crédito: ' + fmtMoeda(_cred) + '</span>'
       : fmtMoeda(v.tot);
     const nfOnlineStatus = v.canal === 'online'
-      ? (v.nfe_id
+      ? (notaFiscalAutorizada(v, 'nfe')
           ? '<span class="badge badge-green">NF-e ' + (v.nfe_numero || 'autorizada') + '</span>'
-          : '<span class="badge badge-amber">Aguardando NF-e</span>')
+          : (v.nfe_id
+              ? '<span class="badge badge-amber">NF-e pendente</span>'
+              : '<span class="badge badge-amber">Aguardando NF-e</span>'))
       : '';
+    const nfeAutorizada = notaFiscalAutorizada(v, 'nfe');
     const botaoDanfe = v.canal === 'online'
-      ? (v.nfe_id
+      ? (nfeAutorizada
           ? '<button class="btn btn-sm" onclick="imprimirDanfeSimplificadoVenda(\'' + v.id + '\')">DANFE 10x15</button>'
-          : '<button class="btn btn-sm" disabled>DANFE 10x15</button>')
+          : '')
       : '';
     return '<div class="m-card">' +
       '<div class="m-card-header"><div>' +

@@ -596,8 +596,10 @@ async function initDB() {
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS desconto_manual NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_id TEXT`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_numero TEXT`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfe_situacao TEXT`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_id TEXT`);
   await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_numero TEXT`);
+  await pool.query(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS nfce_situacao TEXT`);
   await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS detalhes JSONB DEFAULT '{}'`);
   await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS fechado_por TEXT`);
   await pool.query(`ALTER TABLE caixa ADD COLUMN IF NOT EXISTS fechado_em TIMESTAMP`);
@@ -3622,6 +3624,27 @@ function normalizarTextoBling(texto) {
     .trim();
 }
 
+function extrairSituacaoNotaFiscal(nota = {}) {
+  const candidatos = [
+    nota.situacao,
+    nota.status,
+    nota.descricaoSituacao,
+    nota.situacaoNota
+  ];
+
+  for (const candidato of candidatos) {
+    if (!candidato) continue;
+    if (typeof candidato === 'object') {
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.id;
+      if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
+      continue;
+    }
+    if (String(candidato).trim()) return String(candidato).trim();
+  }
+
+  return '';
+}
+
 async function listarFormasPagamentoBling(token) {
   const caminhos = [
     'formas-pagamentos?limite=100',
@@ -3908,8 +3931,8 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE vendas SET nfe_id=$1, nfe_numero=$2 WHERE id=$3',
-      [String(nfeId), criacao.data?.data?.numero || '', vendaId]
+      'UPDATE vendas SET nfe_id=$1, nfe_numero=$2, nfe_situacao=$3 WHERE id=$4',
+      [String(nfeId), criacao.data?.data?.numero || '', extrairSituacaoNotaFiscal(criacao.data?.data), vendaId]
     );
 
     const envio = await requisicaoBling(`nfe/${nfeId}/enviar`, token, {
@@ -3927,9 +3950,13 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     try {
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
-        if (consulta.data.data.numero) {
-          await pool.query('UPDATE vendas SET nfe_numero=$1 WHERE id=$2', [consulta.data.data.numero, vendaId]);
-        }
+        await pool.query(
+          `UPDATE vendas
+           SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),
+               nfe_situacao=COALESCE(NULLIF($2,''), nfe_situacao)
+           WHERE id=$3`,
+          [consulta.data.data.numero || '', extrairSituacaoNotaFiscal(consulta.data.data), vendaId]
+        );
         return res.json({ ok: true, nfe: consulta.data.data });
       }
     } catch (errConsulta) {
@@ -4124,12 +4151,19 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
 
     if (nfceId) {
       await pool.query(
-        `UPDATE vendas SET nfce_id=$1, nfce_numero=$2 WHERE id=$3`,
-        [String(nfceId), criacao.data?.data?.numero || '', vendaId]
+        `UPDATE vendas SET nfce_id=$1, nfce_numero=$2, nfce_situacao=$3 WHERE id=$4`,
+        [String(nfceId), criacao.data?.data?.numero || '', extrairSituacaoNotaFiscal(criacao.data?.data), vendaId]
       );
       try {
         const consulta = await consultarBlingPorId(`nfce/${nfceId}`, token);
         if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
+          await pool.query(
+            `UPDATE vendas
+             SET nfce_numero=COALESCE(NULLIF($1,''), nfce_numero),
+                 nfce_situacao=COALESCE(NULLIF($2,''), nfce_situacao)
+             WHERE id=$3`,
+            [consulta.data.data.numero || '', extrairSituacaoNotaFiscal(consulta.data.data), vendaId]
+          );
           return res.json({ ok: true, nfce: consulta.data.data });
         }
       } catch (errConsulta) {
