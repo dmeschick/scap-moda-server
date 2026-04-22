@@ -147,6 +147,12 @@ tr:hover td{background:var(--bg)}
 /* ===== PDV ===== */
 .pdv-grid{display:grid;grid-template-columns:minmax(380px,1.35fr) minmax(340px,.95fr) minmax(340px,.95fr);gap:16px;align-items:start}
 .pdv-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+.pdv-abas{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.pdv-aba{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;box-shadow:var(--shadow)}
+.pdv-aba.active{background:var(--pink);border-color:var(--pink);color:#fff}
+.pdv-aba .mini{font-size:10px;opacity:.85;font-weight:600}
+.pdv-aba-close{border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;padding:0 0 0 2px}
+.pdv-aba-add{border-style:dashed;color:var(--pink-dark)}
 .cart-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .cart-item:last-child{border-bottom:none}
 .cart-item .info{flex:1;min-width:0}
@@ -457,7 +463,7 @@ tr:hover td{background:var(--bg)}
 
       <!-- PDV -->
       <div class="page" id="page-pdv">
-        <div id="pdv-abas" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
+        <div id="pdv-abas" class="pdv-abas"></div>
         <div class="pdv-grid">
           <!-- Coluna 1 — Pesquisa de produtos -->
           <div class="pdv-panel pdv-search-panel">
@@ -538,7 +544,7 @@ tr:hover td{background:var(--bg)}
               <input type="number" id="pdv-desconto-manual" placeholder="0,00" min="0" step="0.01" oninput="atualizarDescontoManual()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)">
               <div style="font-size:11px;color:var(--text3);margin-top:4px">Desconto avulso no total, sem alterar tabela.</div>
             </div>
-            <input type="text" id="pdv-obs" placeholder="Observação (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:12px">
+            <input type="text" id="pdv-obs" placeholder="Observação (opcional)" oninput="salvarTelaAtualEPersistirPDV()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);margin-top:12px">
             <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:12px;font-size:14px;font-weight:700;justify-content:center" onclick="finalizarVenda()">✓ Finalizar Venda</button>
             <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center;border-color:var(--pink);color:var(--pink-dark);font-weight:700" onclick="abrirModalOrcamento()">Salvar orçamento</button>
             <button class="btn" style="width:100%;margin-top:6px;font-size:12px;justify-content:center" onclick="limparCarrinho()">Limpar carrinho</button>
@@ -4377,6 +4383,9 @@ async function abrirOrcamentoNoPDV(id) {
   document.querySelector(".nav-item[onclick*=\"'pdv'\"]")?.classList.add('active');
   document.getElementById('page-title').textContent = 'PDV';
   await initPDV();
+  if (telaPDVTemConteudo(capturarEstadoPDV())) {
+    await novaTelaPDV();
+  }
   _orcamentoEmVendaId = id;
   const itens = o.itens || [];
   carrinho = itens.filter(i => (i.tipo || 'novo') !== 'devolvido').map(i => ({
@@ -4400,11 +4409,14 @@ async function abrirOrcamentoNoPDV(id) {
   document.getElementById('pdv-cliente-busca').value = o.cliente_nome || '';
   if (o.vendedor_id) document.getElementById('pdv-vendedor').value = o.vendedor_id;
   document.getElementById('pdv-obs').value = [o.obs, 'Orçamento ' + o.num].filter(Boolean).join('\n');
+  const idxTela = _pdvTelas.findIndex(t => t.id === _pdvTelaAtualId);
+  if (idxTela >= 0) _pdvTelas[idxTela].nome = 'Orçamento ' + o.num;
   setCanal(canal);
   renderBotoesDesconto();
   renderTroca();
   renderCarrinho();
   renderPgtoLista();
+  salvarTelaAtualEPersistirPDV();
   toast('Orçamento carregado no PDV.');
 }
 
@@ -5733,13 +5745,242 @@ let todosProds = [];
 let _finalizandoVenda = false;
 let _orcamentosCache = [];
 let _orcamentoEmVendaId = null;
+const PDV_TELAS_STORAGE_KEY = 'scap_pdv_telas_v1';
+let _pdvTelas = [];
+let _pdvTelaAtualId = '';
+let _pdvInicializado = false;
+let _pdvAplicandoEstado = false;
+
+function criarEstadoPDVVazio(nome = '') {
+  return {
+    id: uid(),
+    nome: nome || 'Tela 1',
+    criadoEm: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+    carrinho: [],
+    carrinhoTroca: [],
+    pgtoItens: [],
+    canal: 'presencial',
+    descPct: descontos.length ? descontos[0].pct : 0,
+    descontoManual: 0,
+    modoTroca: false,
+    clienteId: '',
+    clienteBusca: '',
+    vendedorId: usuarioLogado?.id || '',
+    obs: '',
+    enderecoId: null,
+    endereco: null,
+    usarCredito: false,
+    creditoClienteId: null,
+    creditoDisponivel: 0,
+    creditosIds: [],
+    orcamentoEmVendaId: null
+  };
+}
+
+function telaPDVTemConteudo(tela) {
+  return !!(
+    tela?.carrinho?.length ||
+    tela?.carrinhoTroca?.length ||
+    tela?.pgtoItens?.length ||
+    tela?.clienteId ||
+    tela?.clienteBusca ||
+    tela?.obs ||
+    tela?.descontoManual ||
+    tela?.orcamentoEmVendaId
+  );
+}
+
+function capturarEstadoPDV() {
+  return {
+    id: _pdvTelaAtualId || uid(),
+    nome: _pdvTelas.find(t => t.id === _pdvTelaAtualId)?.nome || 'Tela 1',
+    criadoEm: _pdvTelas.find(t => t.id === _pdvTelaAtualId)?.criadoEm || new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+    carrinho: carrinho.map(i => ({ ...i })),
+    carrinhoTroca: carrinhoTroca.map(i => ({ ...i })),
+    pgtoItens: pgtoItens.map(i => ({ ...i })),
+    canal,
+    descPct,
+    descontoManual,
+    modoTroca,
+    clienteId: document.getElementById('pdv-cliente')?.value || '',
+    clienteBusca: document.getElementById('pdv-cliente-busca')?.value || '',
+    vendedorId: document.getElementById('pdv-vendedor')?.value || '',
+    obs: document.getElementById('pdv-obs')?.value || '',
+    enderecoId: _pdvEnderecoSelecionado?.id || null,
+    endereco: _pdvEnderecoSelecionado ? { ..._pdvEnderecoSelecionado } : null,
+    usarCredito,
+    creditoClienteId,
+    creditoDisponivel,
+    creditosIds: [...creditosIds],
+    orcamentoEmVendaId: _orcamentoEmVendaId
+  };
+}
+
+function salvarTelaAtualPDV() {
+  if (!_pdvTelaAtualId || _pdvAplicandoEstado) return;
+  const idx = _pdvTelas.findIndex(t => t.id === _pdvTelaAtualId);
+  if (idx < 0) return;
+  _pdvTelas[idx] = { ..._pdvTelas[idx], ...capturarEstadoPDV() };
+}
+
+function persistirTelasPDV() {
+  if (_pdvAplicandoEstado) return;
+  try {
+    localStorage.setItem(PDV_TELAS_STORAGE_KEY, JSON.stringify({
+      telaAtualId: _pdvTelaAtualId,
+      telas: _pdvTelas
+    }));
+  } catch(e) {
+    console.warn('Não foi possível salvar telas do PDV:', e);
+  }
+}
+
+function salvarTelaAtualEPersistirPDV() {
+  salvarTelaAtualPDV();
+  persistirTelasPDV();
+  renderAbasPDV();
+}
+
+function carregarTelasSalvasPDV() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(PDV_TELAS_STORAGE_KEY) || '{}');
+    const telas = Array.isArray(salvo.telas) ? salvo.telas.filter(telaPDVTemConteudo) : [];
+    if (telas.length && confirm('Existem atendimentos abertos salvos neste computador. Deseja restaurar?')) {
+      _pdvTelas = telas;
+      _pdvTelaAtualId = telas.some(t => t.id === salvo.telaAtualId) ? salvo.telaAtualId : telas[0].id;
+      return true;
+    }
+    if (telas.length) localStorage.removeItem(PDV_TELAS_STORAGE_KEY);
+  } catch(e) {
+    console.warn('Não foi possível restaurar telas do PDV:', e);
+  }
+  _pdvTelas = [criarEstadoPDVVazio('Tela 1')];
+  _pdvTelaAtualId = _pdvTelas[0].id;
+  return false;
+}
+
+function renderAbasPDV() {
+  const el = document.getElementById('pdv-abas');
+  if (!el) return;
+  el.innerHTML = _pdvTelas.map((t, idx) => {
+    const qtd = (t.carrinho || []).reduce((a, i) => a + (Number(i.qty) || 0), 0) +
+      (t.carrinhoTroca || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
+    const cliente = (t.clienteBusca || '').trim();
+    const mini = cliente ? cliente.split(' ').slice(0, 2).join(' ') : (qtd ? qtd + ' peça' + (qtd > 1 ? 's' : '') : 'vazio');
+    return '<button class="pdv-aba ' + (t.id === _pdvTelaAtualId ? 'active' : '') + '" onclick="trocarTelaPDV(\'' + t.id + '\')">' +
+      '<span>' + escaparHtml(t.nome || ('Tela ' + (idx + 1))) + '</span>' +
+      '<span class="mini">' + escaparHtml(mini) + '</span>' +
+      (_pdvTelas.length > 1 ? '<span class="pdv-aba-close" onclick="event.stopPropagation();fecharTelaPDV(\'' + t.id + '\')">×</span>' : '') +
+    '</button>';
+  }).join('') + '<button class="pdv-aba pdv-aba-add" onclick="novaTelaPDV()">+ Nova tela</button>';
+}
+
+async function aplicarEstadoPDV(tela) {
+  _pdvAplicandoEstado = true;
+  carrinho = (tela.carrinho || []).map(i => ({ ...i }));
+  carrinhoTroca = (tela.carrinhoTroca || []).map(i => ({ ...i }));
+  pgtoItens = (tela.pgtoItens || []).map(i => ({ ...i }));
+  canal = tela.canal || 'presencial';
+  descPct = Number(tela.descPct || 0);
+  descontoManual = dinheiro2(tela.descontoManual || 0);
+  modoTroca = !!tela.modoTroca;
+  usarCredito = !!tela.usarCredito;
+  creditoClienteId = tela.creditoClienteId || null;
+  creditoDisponivel = Number(tela.creditoDisponivel || 0);
+  creditosIds = Array.isArray(tela.creditosIds) ? [...tela.creditosIds] : [];
+  _orcamentoEmVendaId = tela.orcamentoEmVendaId || null;
+  _pdvEnderecoSelecionado = tela.endereco ? { ...tela.endereco } : null;
+
+  document.getElementById('pdv-search').value = '';
+  document.getElementById('pdv-cliente').value = tela.clienteId || '';
+  document.getElementById('pdv-cliente-busca').value = tela.clienteBusca || '';
+  document.getElementById('pdv-obs').value = tela.obs || '';
+  document.getElementById('pdv-desconto-manual').value = descontoManual ? descontoManual.toFixed(2) : '';
+  document.getElementById('pgto-tipo').value = '';
+  document.getElementById('pgto-campo').innerHTML = '';
+  if (tela.vendedorId) document.getElementById('pdv-vendedor').value = tela.vendedorId;
+
+  const btnDev = document.getElementById('btn-modo-dev');
+  const search = document.getElementById('pdv-search');
+  if (btnDev) {
+    btnDev.style.background = modoTroca ? 'var(--red)' : '';
+    btnDev.style.color = modoTroca ? '#fff' : 'var(--red)';
+  }
+  if (search) {
+    search.style.borderColor = modoTroca ? 'var(--red)' : '';
+    search.placeholder = modoTroca ? '🔄 Código ou nome — modo DEVOLUÇÃO' : '🔍 Código ou nome do produto...';
+  }
+
+  renderBotoesDesconto();
+  setCanal(canal);
+  renderTroca();
+  renderCarrinho();
+  renderPgtoLista();
+
+  if (tela.clienteId) {
+    await verificarCreditoCliente(tela.clienteId);
+    carregarEnderecosPDV(tela.clienteId);
+    if (tela.enderecoId) {
+      const sel = document.getElementById('pdv-endereco-select');
+      if (sel && Array.from(sel.options).some(o => o.value === tela.enderecoId)) {
+        sel.value = tela.enderecoId;
+        confirmarEnderecoPDV();
+      } else if (tela.endereco) {
+        _pdvEnderecoSelecionado = { ...tela.endereco };
+        const row = document.getElementById('pdv-endereco-row');
+        const label = document.getElementById('pdv-endereco-label');
+        if (row && label) {
+          label.textContent = _fmtEnderecoLabel(_pdvEnderecoSelecionado);
+          row.style.display = 'flex';
+        }
+      }
+    }
+    usarCredito = !!tela.usarCredito;
+    const checkEl = document.getElementById('usar-credito');
+    if (checkEl) checkEl.checked = usarCredito;
+    renderCarrinho();
+  } else {
+    const infoEl = document.getElementById('credito-cliente-info');
+    if (infoEl) infoEl.style.display = 'none';
+    const row = document.getElementById('pdv-endereco-row');
+    if (row) row.style.display = 'none';
+  }
+  _pdvAplicandoEstado = false;
+  salvarTelaAtualEPersistirPDV();
+}
+
+async function trocarTelaPDV(id) {
+  if (id === _pdvTelaAtualId) return;
+  salvarTelaAtualPDV();
+  _pdvTelaAtualId = id;
+  const tela = _pdvTelas.find(t => t.id === id);
+  if (tela) await aplicarEstadoPDV(tela);
+  document.getElementById('pdv-search')?.focus();
+}
+
+async function novaTelaPDV() {
+  salvarTelaAtualPDV();
+  const tela = criarEstadoPDVVazio('Tela ' + (_pdvTelas.length + 1));
+  _pdvTelas.push(tela);
+  _pdvTelaAtualId = tela.id;
+  await aplicarEstadoPDV(tela);
+  toast('Nova tela aberta');
+}
+
+async function fecharTelaPDV(id) {
+  salvarTelaAtualPDV();
+  const tela = _pdvTelas.find(t => t.id === id);
+  if (tela && telaPDVTemConteudo(tela) && !confirm('Fechar esta tela e descartar o atendimento aberto?')) return;
+  _pdvTelas = _pdvTelas.filter(t => t.id !== id);
+  if (!_pdvTelas.length) _pdvTelas = [criarEstadoPDVVazio('Tela 1')];
+  if (_pdvTelaAtualId === id) _pdvTelaAtualId = _pdvTelas[0].id;
+  await aplicarEstadoPDV(_pdvTelas.find(t => t.id === _pdvTelaAtualId));
+}
 
 async function initPDV() {
-  carrinho = []; pgtoItens = []; canal = 'presencial'; descPct = 0; descontoManual = 0;
-  carrinhoTroca = []; modoTroca = false;
-  _orcamentoEmVendaId = null;
-  const descManualEl = document.getElementById('pdv-desconto-manual');
-  if (descManualEl) descManualEl.value = '';
+  if (_pdvInicializado) salvarTelaAtualPDV();
   await carregarCategoriasGlobal();
   // Pré-carrega clientes no cache para autocomplete do PDV
   try {
@@ -5759,11 +6000,14 @@ async function initPDV() {
   } catch(e) {}
   // Desconto padrão
   await carregarDescontosGlobal();
-  if (descontos.length) { descPct = descontos[0].pct; }
-  renderBotoesDesconto();
-  filtrarPDV();
-  renderCarrinho();
-  setCanal('presencial');
+  if (!_pdvInicializado) {
+    carregarTelasSalvasPDV();
+    _pdvInicializado = true;
+  }
+  const telaAtual = _pdvTelas.find(t => t.id === _pdvTelaAtualId) || _pdvTelas[0] || criarEstadoPDVVazio('Tela 1');
+  if (!_pdvTelas.length) _pdvTelas = [telaAtual];
+  _pdvTelaAtualId = telaAtual.id;
+  await aplicarEstadoPDV(telaAtual);
   document.getElementById('pdv-search').focus();
 }
 
@@ -5912,6 +6156,7 @@ function renderCarrinho() {
     items.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div>';
     totais.style.display = 'none';
     filtrarPDV();
+    salvarTelaAtualEPersistirPDV();
     return;
   }
   if (!carrinho.length && carrinhoTroca.length) {
@@ -5964,6 +6209,7 @@ function renderCarrinho() {
   }
   document.getElementById('cart-totais-valores').innerHTML = totaisHTML;
   filtrarPDV();
+  salvarTelaAtualEPersistirPDV();
 }
 
 function alterarQty(idx, delta) {
@@ -6013,6 +6259,7 @@ function setCanal(c) {
   canal = c;
   document.getElementById('btn-presencial').className = 'btn' + (c==='presencial'?' btn-primary':'');
   document.getElementById('btn-online').className = 'btn' + (c==='online'?' btn-primary':'');
+  salvarTelaAtualEPersistirPDV();
 }
 
 function renderNumsCheque() {
@@ -6134,6 +6381,7 @@ function renderPgtoLista() {
       </div>
     </div>`
   ).join('') + (restante > 0.01 ? `<div style="font-size:12px;color:var(--red);text-align:right;padding:4px 0">Restante: ${fmtMoeda(restante)}</div>` : '');
+  salvarTelaAtualEPersistirPDV();
 }
 
 async function finalizarVenda() {
@@ -7185,6 +7433,7 @@ function toggleModoTroca() {
     search.style.borderColor = '';
     search.placeholder = '🔍 Código ou nome do produto...';
   }
+  salvarTelaAtualEPersistirPDV();
 }
 
 function adicionarAoCarrinhoOuTroca(id) {
@@ -7276,6 +7525,7 @@ function selecionarClientePDV(id, nome) {
   document.getElementById('pdv-cliente-sugestoes').style.display = 'none';
   verificarCreditoCliente(id);
   carregarEnderecosPDV(id);
+  salvarTelaAtualEPersistirPDV();
 }
 
 function _fmtEnderecoLabel(e) {
@@ -7310,6 +7560,7 @@ function carregarEnderecosPDV(cliId) {
     sel.value = ordenados[0].id;
     row.style.display = 'flex';
   }
+  salvarTelaAtualEPersistirPDV();
 }
 
 function trocarEnderecoPDV() {
@@ -7328,6 +7579,7 @@ function confirmarEnderecoPDV() {
     document.getElementById('pdv-endereco-label').textContent = _fmtEnderecoLabel(end);
   }
   sel.style.display = 'none';
+  salvarTelaAtualEPersistirPDV();
 }
 
 function fecharSugestoes() {
@@ -7362,6 +7614,7 @@ function toggleUsarCredito() {
   usarCredito = document.getElementById('usar-credito').checked;
   atualizarSaldoTroca();
   renderCarrinho();
+  salvarTelaAtualEPersistirPDV();
 }
 
 const _limparCarrinhoOriginal = limparCarrinho;
@@ -7385,6 +7638,11 @@ limparCarrinho = function() {
   _limparCarrinhoOriginal();
   renderTroca();
 };
+
+window.addEventListener('beforeunload', () => {
+  salvarTelaAtualPDV();
+  persistirTelasPDV();
+});
 
 // ===== RELATÓRIO DIÁRIO =====
 function tabRel(btn, id) {
