@@ -1315,11 +1315,19 @@ app.post('/api/produtos', auth, async (req, res) => {
     if (!ncm) {
       return res.status(400).json({ erro: 'NCM inválido. Informe exatamente 8 dígitos.' });
     }
+    const conflitoCod = await pool.query(
+      'SELECT id, status FROM produtos WHERE cod=$1 AND id<>$2 LIMIT 1',
+      [p.cod, p.id]
+    );
+    if (conflitoCod.rows.length && conflitoCod.rows[0].status !== 'inativo') {
+      return res.status(409).json({ erro: `Já existe um produto ativo com o código ${p.cod}.` });
+    }
+    const produtoId = conflitoCod.rows.length ? conflitoCod.rows[0].id : p.id;
     await pool.query(`INSERT INTO produtos (id,cod,nome,cat,cor,tam,colecao,data_entrada,custo,venda,est,estmin,descricao,foto,forn,ncm,cest,cfop,csosn,origem,unidade,cst_pis,cst_cofins,status,atualizado_em)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW())
       ON CONFLICT (id) DO UPDATE SET cod=$2,nome=$3,cat=$4,cor=$5,tam=$6,colecao=$7,data_entrada=$8,custo=$9,venda=$10,est=$11,estmin=$12,descricao=$13,foto=$14,forn=$15,ncm=$16,cest=$17,cfop=$18,csosn=$19,origem=$20,unidade=$21,cst_pis=$22,cst_cofins=$23,status=$24,atualizado_em=NOW()`,
-      [p.id,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.dataEntrada||null,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
-    res.json({ ok: true });
+      [produtoId,p.cod,p.nome,p.cat,p.cor,p.tam,p.colecao,p.dataEntrada||null,p.custo||0,p.venda||0,p.est||0,p.estmin||5,p.descricao||p.desc,p.foto,p.forn,ncm,p.cest,p.cfop||'5102',p.csosn||'400',p.origem||'0',p.unidade||'UN',p.cstPis||'07',p.cstCofins||'07',p.status||'ativo']);
+    res.json({ ok: true, reativado: produtoId !== p.id });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.delete('/api/produtos/:id', auth, async (req, res) => {
