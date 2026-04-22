@@ -5955,10 +5955,13 @@ function salvarTelaAtualEPersistirPDV() {
 
 async function carregarTelasSalvasPDV() {
   const telasServidor = await carregarTelasServidorPDV();
-  if (telasServidor.length && confirm('Existem atendimentos abertos salvos no sistema. Deseja restaurar?')) {
-    _pdvTelas = telasServidor;
-    _pdvTelaAtualId = telasServidor[0].id;
-    return true;
+  if (telasServidor.length) {
+    if (confirm('Existem atendimentos abertos salvos no sistema. Deseja restaurar?')) {
+      _pdvTelas = telasServidor;
+      _pdvTelaAtualId = telasServidor[0].id;
+      return true;
+    }
+    await Promise.allSettled(telasServidor.map(tela => removerAtendimentoServidorPDV(tela.id)));
   }
   try {
     const salvo = JSON.parse(localStorage.getItem(PDV_TELAS_STORAGE_KEY) || '{}');
