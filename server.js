@@ -499,6 +499,33 @@ async function initDB() {
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS mes_desconto TEXT;
     ALTER TABLE vales_funcionarios ADD COLUMN IF NOT EXISTS parcelas_pagas INTEGER DEFAULT 0;
   `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM configuracoes WHERE chave = 'migration_acessorios_20260226'
+      ) THEN
+        UPDATE produtos
+        SET data_entrada = '2026-02-26'
+        WHERE cat IN ('Acessórios', 'Acessorios')
+          AND data_entrada IS NULL;
+
+        UPDATE produtos
+        SET colecao = 'Outono-Inverno 2026',
+            atualizado_em = NOW()
+        WHERE cat IN ('Acessórios', 'Acessorios');
+
+        INSERT INTO configuracoes (chave, valor, atualizado_em)
+        VALUES (
+          'migration_acessorios_20260226',
+          '{"descricao":"Define data e colecao dos acessorios existentes em 2026-04-21"}'::jsonb,
+          NOW()
+        );
+      END IF;
+    END $$;
+  `);
+
   // Popula mes_desconto nos vales antigos que não têm o campo preenchido
   await pool.query(`
     UPDATE vales_funcionarios
