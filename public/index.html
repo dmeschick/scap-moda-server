@@ -7433,11 +7433,15 @@ async function imprimirNotinhaCredito(cliNome, valor) {
     if (cfg.valor) textoCredito = cfg.valor;
   } catch(e) {}
 
-  const html = `<!DOCTYPE html><html><head><title>Crédito</title><style>
-    @page { size: 80mm auto; margin: 3mm 4mm; }
-    body { margin:0;padding:0;width:72mm;font-family:'Courier New',monospace;font-size:10px;line-height:1.4; }
+  const html = `<!DOCTYPE html><html><head>
+    <title>Crédito</title>
+    <meta name="viewport" content="width=302px">
+    <style>
+    @page { size: 80mm auto; margin: 2mm; }
+    html { width: 76mm; }
+    body { margin:0;padding:2mm;width:76mm;font-family:'Courier New', Courier, monospace;font-size:10px;line-height:1.4;color:#000; }
     * { box-sizing:border-box;font-size:10px !important; }
-    @media print { body { margin:0;padding:0; } }
+    @media print { html, body { width:76mm;margin:0;padding:2mm; } }
   </style></head><body>
     <div style="text-align:center;margin-bottom:6px">
       <div style="font-weight:bold;font-size:12px !important">SCAP MODA FEMININA</div>
@@ -7455,7 +7459,9 @@ async function imprimirNotinhaCredito(cliNome, valor) {
       ${textoCredito}
     </div>
   </body></html>`;
-  if (await tentarImpressaoQZ('credito', html)) return;
+  const ajustesQZ = obterAjustesRomaneioQZ();
+  const htmlQZ = montarHtmlQZComMargemInferior(html, ajustesQZ);
+  if (await tentarImpressaoQZ('credito', htmlQZ, { scaleContent: ajustesQZ.scale, pageWidth: ajustesQZ.pageWidth })) return;
 
   const j = window.open('', '_blank', 'width=302,height=400');
   if (!j) return;
