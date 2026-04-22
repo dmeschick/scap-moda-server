@@ -1317,10 +1317,10 @@ tr:hover td{background:var(--bg)}
 
 <div class="modal-backdrop" id="modal-importar-produtos-foto">
   <div class="modal" style="max-width:min(1595px, calc(100vw - 32px))">
-    <div class="modal-header"><h3>Importar Produtos por Foto</h3><button class="modal-close" onclick="fecharModal('modal-importar-produtos-foto')">×</button></div>
+    <div class="modal-header"><h3>Importar Produtos</h3><button class="modal-close" onclick="fecharModal('modal-importar-produtos-foto')">×</button></div>
     <div class="modal-body">
       <div style="background:var(--blue-light);border:1px solid #b3d0ef;border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);line-height:1.5">
-        Envie a foto da folha, revise os dados reconhecidos e confirme a importação. O código interno será gerado automaticamente a partir da referência do papel, categoria e sufixo configurado.
+        Envie a foto da folha ou dite/cole as informações dos produtos, revise os dados reconhecidos e confirme a importação. O código interno será gerado automaticamente a partir da referência do papel, categoria e sufixo configurado.
       </div>
       <div class="form-grid" style="margin-bottom:16px">
         <div class="form-group">
@@ -1348,6 +1348,17 @@ tr:hover td{background:var(--bg)}
               <button class="btn btn-primary" onclick="executarOCRImportacaoFoto()">Ler foto</button>
               <button class="btn" onclick="montarLinhasImportacaoFoto()">Montar linhas</button>
               <button class="btn" onclick="limparImportacaoFoto()">Limpar</button>
+            </div>
+          </div>
+          <div class="card" style="padding:12px;margin-top:16px">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px">Texto / Ditado</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.45;margin-bottom:8px">
+              Dite ou cole uma lista de produtos. Ex: "categoria bolsas, coleção inverno, código 11097, bolsa pequena, PC 44,90, PV 159,90, quantidade 6".
+            </div>
+            <textarea id="import-foto-ditado" placeholder="Digite, cole ou use o ditado do computador aqui..." style="width:100%;min-height:150px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font);line-height:1.45"></textarea>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-primary" onclick="executarDitadoImportacaoFoto()">Montar com IA</button>
+              <button class="btn" onclick="document.getElementById('import-foto-ditado').value=''">Limpar texto</button>
             </div>
           </div>
         </div>
@@ -2630,6 +2641,26 @@ function parseLinhaImportacaoFoto(linha, categoria) {
   };
 }
 
+function criarLinhaImportacaoIA(item, resultado, categoriaFallback) {
+  const categoriaLinha = resultado?.categoria || categoriaFallback || '';
+  const linha = {
+    refInt: String(item?.ref_papel || '').replace(/\D/g, ''),
+    refExt: item?.ref_ext || '',
+    fornecedor: item?.fornecedor || resultado?.fornecedor || '',
+    data: item?.data || '',
+    nome: item?.descricao || '',
+    custo: normalizarValorImportacao(item?.pc),
+    venda: normalizarPVImportacao(item?.pv),
+    qtd: normalizarValorImportacao(item?.qtd, true),
+    confianca: item?.confianca || {},
+    observacoes: item?.observacoes || '',
+    categoria: categoriaLinha,
+    codigo: normalizarCodigoImportacao(item?.ref_papel, categoriaLinha)
+  };
+  linha._original = clonarLinhaImportacaoFoto(linha);
+  return linha;
+}
+
 function validarLinhaImportacaoFoto(linha) {
   const erros = [];
   const avisos = [];
@@ -2796,6 +2827,7 @@ function limparImportacaoFoto(manterAbertura = false) {
   document.getElementById('import-foto-estmin').value = '3';
   document.getElementById('import-foto-arquivo').value = '';
   document.getElementById('import-foto-texto').value = '';
+  document.getElementById('import-foto-ditado').value = '';
   document.getElementById('import-foto-status').textContent = 'Aguardando fotos';
   document.getElementById('import-foto-preview-grid').style.display = 'none';
   document.getElementById('import-foto-preview-grid').innerHTML = '';
@@ -2906,24 +2938,7 @@ async function executarOCRImportacaoFoto() {
       if (resultado.observacoesIA) {
         observacoes.push('[' + file.name + ']\n' + resultado.observacoesIA);
       }
-      rows.push(...(resultado.itens || []).map(item => {
-        const linha = {
-          refInt: String(item.ref_papel || '').replace(/\D/g, ''),
-          refExt: item.ref_ext || '',
-          fornecedor: item.fornecedor || resultado.fornecedor || '',
-          data: item.data || '',
-          nome: item.descricao || '',
-          custo: normalizarValorImportacao(item.pc),
-          venda: normalizarPVImportacao(item.pv),
-          qtd: normalizarValorImportacao(item.qtd, true),
-          confianca: item.confianca || {},
-          observacoes: item.observacoes || '',
-          categoria: categoriaDetectada || categoriaAtual,
-          codigo: normalizarCodigoImportacao(item.ref_papel, categoriaDetectada || categoriaAtual)
-        };
-        linha._original = clonarLinhaImportacaoFoto(linha);
-        return linha;
-      }));
+      rows.push(...(resultado.itens || []).map(item => criarLinhaImportacaoIA(item, resultado, categoriaDetectada || categoriaAtual)));
     }
     if (categoriaDetectada) {
       document.getElementById('import-foto-categoria').value = categoriaDetectada;
@@ -2949,6 +2964,51 @@ async function executarOCRImportacaoFoto() {
     toast('Erro na análise com IA: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Ler foto'; }
+  }
+}
+
+async function executarDitadoImportacaoFoto() {
+  const texto = document.getElementById('import-foto-ditado').value.trim();
+  if (!texto) { toast('Digite ou dite as informações dos produtos primeiro', 'warn'); return; }
+  const status = document.getElementById('import-foto-status');
+  const btn = event?.target;
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Montando...'; }
+    status.textContent = 'Analisando texto/ditado com IA...';
+    const categoriaAtual = document.getElementById('import-foto-categoria').value;
+    const colecaoAtual = document.getElementById('import-foto-colecao').value.trim();
+    const resultado = await api('POST', '/api/produtos/importar-foto/analisar-texto', {
+      texto,
+      categoria: categoriaAtual,
+      colecao: colecaoAtual
+    });
+    if (resultado.categoria) {
+      document.getElementById('import-foto-categoria').value = resultado.categoria;
+    }
+    if (resultado.colecao && !document.getElementById('import-foto-colecao').value.trim()) {
+      document.getElementById('import-foto-colecao').value = resultado.colecao;
+    }
+    if (resultado.fornecedor) {
+      const fornSel = document.getElementById('import-foto-fornecedor');
+      const fornecedorNormalizado = normalizarTextoBase(resultado.fornecedor);
+      const op = Array.from(fornSel.options).find(o => normalizarTextoBase(o.textContent) === fornecedorNormalizado);
+      if (op) fornSel.value = op.value;
+    }
+    const categoriaFinal = resultado.categoria || categoriaAtual;
+    _importFotoRows = (resultado.itens || [])
+      .map(item => criarLinhaImportacaoIA(item, resultado, categoriaFinal))
+      .filter(item => item.refInt || item.nome);
+    document.getElementById('import-foto-texto').value = resultado.observacoesIA || texto;
+    aplicarRegrasImportacaoFoto();
+    status.textContent = _importFotoRows.length
+      ? _importFotoRows.length + ' linha(s) montada(s) a partir do texto/ditado. Revise antes de importar.'
+      : 'A IA não conseguiu montar linhas úteis a partir do texto. Ajuste o ditado e tente novamente.';
+    toast('Texto/ditado analisado com IA');
+  } catch(e) {
+    status.textContent = 'Erro ao analisar texto/ditado: ' + e.message;
+    toast('Erro ao analisar texto/ditado: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Montar com IA'; }
   }
 }
 

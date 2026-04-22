@@ -951,6 +951,62 @@ function formatarCorrecoesParaPrompt(correcoes = []) {
   }).join('\n');
 }
 
+function schemaImportacaoProdutosIA() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      categoria: { type: 'string' },
+      colecao: { type: 'string' },
+      fornecedor_geral: { type: 'string' },
+      observacoes_ia: { type: 'string' },
+      itens: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ref_papel: { type: 'string' },
+            ref_ext: { type: 'string' },
+            descricao: { type: 'string' },
+            fornecedor: { type: 'string' },
+            data: { type: 'string' },
+            pc: { type: 'number' },
+            pv: { type: 'number' },
+            qtd: { type: 'integer' },
+            confianca: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                ref_papel: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                ref_ext: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                descricao: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                fornecedor: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                data: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                pc: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                pv: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+                qtd: { type: 'string', enum: ['alta', 'media', 'baixa'] }
+              },
+              required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd']
+            },
+            observacoes: { type: 'string' }
+          },
+          required: ['ref_papel', 'ref_ext', 'descricao', 'fornecedor', 'data', 'pc', 'pv', 'qtd', 'confianca', 'observacoes']
+        }
+      }
+    },
+    required: ['categoria', 'colecao', 'fornecedor_geral', 'observacoes_ia', 'itens']
+  };
+}
+
+function extrairJsonRespostaOpenAI(data) {
+  if (typeof data.output_text === 'string' && data.output_text.trim()) {
+    return JSON.parse(data.output_text);
+  }
+  const txt = data.output?.flatMap(item => item.content || []).find(c => c.type === 'output_text')?.text;
+  return txt ? JSON.parse(txt) : null;
+}
+
 app.post('/api/produtos/importar-foto/correcoes', auth, async (req, res) => {
   try {
     const { categoria, colecao, linhas } = req.body || {};
@@ -1112,6 +1168,92 @@ app.post('/api/produtos/importar-foto/analisar', auth, async (req, res) => {
       const txt = data.output?.flatMap(item => item.content || []).find(c => c.type === 'output_text')?.text;
       if (txt) parsed = JSON.parse(txt);
     }
+    if (!parsed) return res.status(500).json({ erro: 'IA não retornou estrutura utilizável' });
+
+    res.json({
+      categoria: parsed.categoria || categoria || detectarCategoriaImportacao(parsed.observacoes_ia || ''),
+      colecao: parsed.colecao || colecao || '',
+      fornecedor: parsed.fornecedor_geral || '',
+      observacoesIA: parsed.observacoes_ia || '',
+      itens: Array.isArray(parsed.itens) ? parsed.itens : []
+    });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+
+app.post('/api/produtos/importar-foto/analisar-texto', auth, async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ erro: 'OPENAI_API_KEY não configurada no servidor' });
+    }
+    const { texto, categoria, colecao } = req.body || {};
+    if (!String(texto || '').trim()) return res.status(400).json({ erro: 'Texto ou ditado não enviado' });
+
+    const categoriasTexto = Object.values(IMPORT_PRODUTO_CONFIG)
+      .map(cfg => `${cfg.categoria} => sufixo ${cfg.sufixo}, NCM ${cfg.ncm}`)
+      .join('; ');
+    const exemplosCorrecoes = await buscarCorrecoesImportacaoFoto(categoria, 12);
+    const exemplosCorrecoesTexto = formatarCorrecoesParaPrompt(exemplosCorrecoes);
+
+    const systemPrompt = [
+      'Você transforma texto ditado ou digitado em linhas de cadastro de produtos de moda feminina.',
+      'Devolva APENAS JSON válido no schema solicitado.',
+      'Regras importantes:',
+      '- O texto pode ser informal, com pontuação ruim, quebras de linha soltas ou frases como "próximo produto".',
+      '- Cada produto deve virar uma linha em itens.',
+      '- A referência interna do papel deve ir em ref_papel. Preserve apenas o número/código dito para a referência interna.',
+      '- Se o usuário disser código, referência, ref ou papel, normalmente isso é ref_papel.',
+      '- Se houver referência externa, coloque em ref_ext.',
+      '- Os campos pc, pv e qtd devem ser números.',
+      '- Preço de venda normalmente termina com centavos 90. Se o usuário disser apenas 159, considere 159.90.',
+      '- Preço de custo pode ter centavos variados e deve ser lido exatamente como informado.',
+      '- Quantidade é sempre número inteiro.',
+      '- Se houver fornecedor geral, repita nos itens quando fizer sentido.',
+      '- Se houver coleção geral, use em colecao. Caso contrário, use a coleção enviada pelo usuário se existir.',
+      '- Extraia a data de cada linha no formato DD-MM ou DD/MM/AAAA quando informada.',
+      '- Para texto digitado/ditado claro, use confiança alta. Se houver ambiguidade, use media ou baixa e explique em observacoes.',
+      '- Categorias válidas: ' + categoriasTexto,
+      exemplosCorrecoesTexto
+        ? 'Exemplos reais de correções anteriores desta loja. Use como referência para abreviações, nomes de produtos e padrões de preço:\n' + exemplosCorrecoesTexto
+        : ''
+    ].join('\n');
+
+    const userPrompt = [
+      'Monte a importação de produtos a partir deste texto/ditado.',
+      categoria ? `Categoria informada pelo usuário: ${categoria}` : 'Categoria informada pelo usuário: não informada',
+      colecao ? `Coleção informada pelo usuário: ${colecao}` : 'Coleção informada pelo usuário: não informada',
+      'Texto/ditado:',
+      String(texto).trim()
+    ].join('\n');
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_VISION_MODEL,
+        input: [
+          { role: 'system', content: [{ type: 'input_text', text: systemPrompt }] },
+          { role: 'user', content: [{ type: 'input_text', text: userPrompt }] }
+        ],
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'produto_importacao_texto',
+            strict: true,
+            schema: schemaImportacaoProdutosIA()
+          }
+        }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ erro: data?.error?.message || 'Erro ao analisar texto com IA' });
+    }
+
+    const parsed = extrairJsonRespostaOpenAI(data);
     if (!parsed) return res.status(500).json({ erro: 'IA não retornou estrutura utilizável' });
 
     res.json({
