@@ -1064,9 +1064,13 @@ tr:hover td{background:var(--bg)}
               <label>Relatórios</label>
               <select id="printer-relatorio"></select>
             </div>
-            <div class="form-group full">
-              <label>NFC-e / DANFE</label>
-              <select id="printer-danfe"></select>
+            <div class="form-group">
+              <label>NF-e</label>
+              <select id="printer-nfe"></select>
+            </div>
+            <div class="form-group">
+              <label>NFC-e</label>
+              <select id="printer-nfce"></select>
             </div>
           </div>
           <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
@@ -4646,7 +4650,7 @@ async function imprimirDanfeSimplificadoVenda(id) {
     }
     const r = await api('GET', `/api/bling/nfe/${encodeURIComponent(v.nfe_id)}/danfe-simplificado`);
     const html = montarHtmlDanfeSimplificado(r.danfe);
-    if (await tentarImpressaoQZ('danfe', html, { pageWidth: 3.94 })) return;
+    if (await tentarImpressaoQZ('nfe', html, { pageWidth: 3.94 })) return;
     const w = window.open('', '_blank', 'width=430,height=720');
     if (!w) { toast('Permita popups para imprimir o DANFE simplificado.', 'warn'); return; }
     w.document.write(html);
@@ -5293,7 +5297,7 @@ async function salvarTextoRomaneio() {
 
 const QZ_PRINTER_CONFIG_KEY = 'scap_printer_config_v1';
 const QZ_STATION_KEY = 'scap_qz_station_name';
-const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'danfe'];
+const QZ_TIPOS_IMPRESSAO = ['romaneio', 'etiquetas', 'credito', 'relatorio', 'nfe', 'nfce'];
 let _qzSegurancaVerificada = false;
 let _qzSegurancaConfigurada = false;
 const QZ_ROMANEIO_PADRAO = {
@@ -5338,6 +5342,15 @@ function obterAjustesRomaneioQZ() {
   return { ...QZ_ROMANEIO_PADRAO, ...(cfg.romaneioAjustes || {}) };
 }
 
+function normalizarConfigImpressorasQZ(cfg = {}) {
+  const normalizada = { ...(cfg || {}) };
+  if (normalizada.danfe) {
+    if (!normalizada.nfe) normalizada.nfe = normalizada.danfe;
+    if (!normalizada.nfce) normalizada.nfce = normalizada.danfe;
+  }
+  return normalizada;
+}
+
 function numeroInput(id, fallback) {
   const el = document.getElementById(id);
   const valor = el ? parseFloat(String(el.value).replace(',', '.')) : NaN;
@@ -5357,7 +5370,7 @@ function preencherSelectsImpressoras(nomes) {
   QZ_TIPOS_IMPRESSAO.forEach(tipo => {
     const el = document.getElementById('printer-' + tipo);
     if (!el) return;
-    const atual = salvas[tipo] || el.value || '';
+    const atual = salvas[tipo] || ((tipo === 'nfe' || tipo === 'nfce') ? salvas.danfe : '') || el.value || '';
     el.innerHTML = '<option value="">Usar janela do navegador</option>' +
       nomes.map(nome => `<option value="${nome.replace(/"/g, '&quot;')}">${nome}</option>`).join('');
     if (atual && nomes.includes(atual)) el.value = atual;
@@ -5365,8 +5378,9 @@ function preencherSelectsImpressoras(nomes) {
 }
 
 function aplicarConfigImpressorasQZ(cfg = obterConfigImpressorasLocal()) {
-  localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfg || {}));
-  const impressorasSalvas = QZ_TIPOS_IMPRESSAO.map(tipo => cfg?.[tipo]).filter(Boolean);
+  const cfgNormalizada = normalizarConfigImpressorasQZ(cfg);
+  localStorage.setItem(QZ_PRINTER_CONFIG_KEY, JSON.stringify(cfgNormalizada));
+  const impressorasSalvas = QZ_TIPOS_IMPRESSAO.map(tipo => cfgNormalizada?.[tipo]).filter(Boolean);
   preencherSelectsImpressoras(impressorasSalvas);
   const ajustes = obterAjustesRomaneioQZ();
   const campos = {
@@ -5522,7 +5536,9 @@ async function salvarImpressorasQZ() {
 }
 
 function obterImpressoraQZ(tipo) {
-  return obterConfigImpressorasLocal()[tipo] || '';
+  const cfg = obterConfigImpressorasLocal();
+  if ((tipo === 'nfe' || tipo === 'nfce') && !cfg[tipo] && cfg.danfe) return cfg.danfe;
+  return cfg[tipo] || '';
 }
 
 async function imprimirHtmlQZ(tipo, html, opcoes = {}) {
