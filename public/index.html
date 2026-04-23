@@ -7054,15 +7054,51 @@ async function imprimirRomaneio() {
 
 // ===== ATALHOS DE TECLADO =====
 document.addEventListener('keydown', e => {
+  const modalProd = document.getElementById('modal-produto');
+  const modalOrc = document.getElementById('modal-orcamento');
+  const pdvAtivo = document.getElementById('page-pdv')?.classList.contains('active');
+  const modaisAbertos = [...document.querySelectorAll('.modal-backdrop.open')];
+
+  if (e.key === 'F4') {
+    if (modalOrc?.classList.contains('open')) {
+      e.preventDefault();
+      salvarOrcamento();
+      return;
+    }
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      abrirModalOrcamento();
+      return;
+    }
+  }
   if (e.key === 'F6') {
     e.preventDefault();
-    const modalProd = document.getElementById('modal-produto');
-    if (modalProd.classList.contains('open')) salvarProduto();
+    if (modalProd?.classList.contains('open')) {
+      salvarProduto();
+      return;
+    }
+    if (pdvAtivo && !modaisAbertos.length) {
+      finalizarVenda();
+      return;
+    }
+  }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't') {
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      toggleModoTroca();
+      return;
+    }
+  }
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      novaTelaPDV();
+      return;
+    }
   }
   if (e.key === 'Escape') {
     // Fecha o modal mais recente aberto
-    const abertos = [...document.querySelectorAll('.modal-backdrop.open')];
-    if (abertos.length) fecharModal(abertos[abertos.length-1].id);
+    if (modaisAbertos.length) fecharModal(modaisAbertos[modaisAbertos.length-1].id);
   }
 });
 function mascaraCPF(el){let v=el.value.replace(/\D/g,'').slice(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');el.value=v}
