@@ -378,6 +378,7 @@ async function initDB() {
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS idx_atendimentos_pdv_status ON atendimentos_pdv(status, atualizado_em DESC);
+    CREATE INDEX IF NOT EXISTS idx_atendimentos_pdv_status_criado ON atendimentos_pdv(status, criado_em ASC, id ASC);
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave VARCHAR(100) PRIMARY KEY,
       valor JSONB,

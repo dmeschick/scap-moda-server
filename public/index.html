@@ -5825,26 +5825,23 @@ function _pdvProximaOrdem() {
 
 function normalizarOrdemTelasPDV(telas) {
   return (Array.isArray(telas) ? [...telas] : [])
-    .map((tela, idx) => ({ ...tela, _idxOriginalPDV: idx }))
+    .map((tela, idxOriginal) => ({ tela, idxOriginal }))
     .sort((a, b) => {
-      const ordemA = _pdvNumeroFinito(a.ordem);
-      const ordemB = _pdvNumeroFinito(b.ordem);
+      const ordemA = _pdvNumeroFinito(a.tela.ordem);
+      const ordemB = _pdvNumeroFinito(b.tela.ordem);
       if (ordemA !== null && ordemB !== null && ordemA !== ordemB) return ordemA - ordemB;
 
-      const criadoA = _pdvTimestamp(a.criadoEm);
-      const criadoB = _pdvTimestamp(b.criadoEm);
+      const criadoA = _pdvTimestamp(a.tela.criadoEm);
+      const criadoB = _pdvTimestamp(b.tela.criadoEm);
       if (criadoA !== null && criadoB !== null && criadoA !== criadoB) return criadoA - criadoB;
       if (criadoA !== null && criadoB === null) return -1;
       if (criadoA === null && criadoB !== null) return 1;
 
       if (ordemA !== null && ordemB === null) return -1;
       if (ordemA === null && ordemB !== null) return 1;
-      return a._idxOriginalPDV - b._idxOriginalPDV;
+      return a.idxOriginal - b.idxOriginal;
     })
-    .map((tela, idx) => {
-      const { _idxOriginalPDV, ...limpa } = tela;
-      return { ...limpa, ordem: idx };
-    });
+    .map(({ tela }, idx) => ({ ...tela, ordem: idx }));
 }
 
 function criarEstadoPDVVazio(nome = '') {
@@ -6473,7 +6470,7 @@ function setCanal(c) {
 }
 
 function renderNumsCheque() {
-  const n = parseInt(document.getElementById('pgto-parc')?.value)||1;
+  const n = parseInt(document.getElementById('pgto-parc-cheque')?.value)||1;
   const container = document.getElementById('pgto-cheque-nums');
   if (!container) return;
   const hoje = new Date();
@@ -6509,7 +6506,7 @@ function mostrarCampoPgto() {
   } else if (tipo === 'credito') {
     html = '<div style="display:flex;gap:6px;margin-top:6px">' +
       inputVal +
-      '<select id="pgto-parc" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+      '<select id="pgto-parc-credito" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
         [1,2,3,4,5,6,8,10,12].map(n => '<option value="' + n + '">' + n + 'x</option>').join('') +
       '</select>' +
       btnAdd +
@@ -6518,7 +6515,7 @@ function mostrarCampoPgto() {
   } else if (tipo === 'cheque_pre') {
     html = '<div style="display:flex;gap:6px;margin-top:6px">' +
       inputVal +
-      '<select id="pgto-parc" onchange="renderNumsCheque()" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
+      '<select id="pgto-parc-cheque" onchange="renderNumsCheque()" style="padding:7px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">' +
         Array.from({length:20},(_,i)=>i+1).map(n => '<option value="' + n + '">' + n + (n===1?' cheque':' cheques') + '</option>').join('') +
       '</select>' +
     '</div>' +
@@ -6549,11 +6546,11 @@ function adicionarPgto() {
     troco = Math.max(0, recebido - val);
     det = troco > 0 ? `Troco: ${fmtMoeda(troco)}` : '';
   } else if (tipo === 'credito') {
-    parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
+    parcelas = parseInt(document.getElementById('pgto-parc-credito')?.value)||1;
     vlParcela = val/parcelas;
     det = parcelas > 1 ? parcelas + 'x de ' + fmtMoeda(vlParcela) : 'À vista';
   } else if (tipo === 'cheque_pre') {
-    parcelas = parseInt(document.getElementById('pgto-parc')?.value)||1;
+    parcelas = parseInt(document.getElementById('pgto-parc-cheque')?.value)||1;
     vlParcela = val/parcelas;
     const cheques = [];
     for (let i = 1; i <= parcelas; i++) {
