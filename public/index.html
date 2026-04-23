@@ -6840,7 +6840,7 @@ async function abrirRomaneio(v, cliNome) {
   let nomeDesconto = '';
   if (pct > 0) {
     const d = descontos.find(x => x.pct === pct);
-    nomeDesconto = d ? d.nome + ' (' + pct + '%)' : pct + '%';
+    nomeDesconto = d ? d.nome : 'Desconto';
   }
 
   // Cheques pré-datados
@@ -6984,7 +6984,7 @@ async function abrirRomaneio(v, cliNome) {
     '<div style="font-family:monospace;font-size:11px;border-top:1px solid #000;padding-top:4px;margin-top:4px">' +
       (itensDevolvidos.length
         ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Compras:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>' + nomeDesconto + ':</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           (descManual > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto manual:</span><span>-' + fmtMoeda(descManual) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Devoluções:</span><span>-' + fmtMoeda(totalDev) + '</span></div>' +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px">' +
@@ -6992,7 +6992,7 @@ async function abrirRomaneio(v, cliNome) {
             '<span>' + fmtMoeda(creditoGerado > 0 ? creditoGerado : aPagar) + '</span>' +
           '</div>'
         : '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Subtotal:</span><span>' + fmtMoeda(sub) + '</span></div>' +
-          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto (' + pct + '%):</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
+          (desc > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>' + nomeDesconto + ':</span><span>-' + fmtMoeda(desc) + '</span></div>' : '') +
           (descManual > 0 ? '<div style="display:flex;justify-content:space-between;' + estiloNegritoRomaneio + '"><span>Desconto manual:</span><span>-' + fmtMoeda(descManual) + '</span></div>' : '') +
           '<div style="display:flex;justify-content:space-between;font-weight:bold;border-top:1px solid #000;margin-top:2px;padding-top:2px"><span>TOTAL:</span><span>' + fmtMoeda(tot) + '</span></div>'
       ) +
