@@ -157,6 +157,9 @@ tr:hover td{background:var(--bg)}
 .pdv-aba .mini{font-size:10px;opacity:.85;font-weight:600}
 .pdv-aba-close{border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;padding:0 0 0 2px}
 .pdv-aba-add{border-style:dashed;color:var(--pink-dark)}
+.pdv-atalhos{display:flex;gap:8px;flex-wrap:wrap;margin:-2px 0 12px}
+.pdv-atalho{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg);font-size:11px;color:var(--text2);line-height:1.2}
+.pdv-atalho kbd{display:inline-flex;align-items:center;justify-content:center;min-width:26px;padding:3px 6px;border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;background:var(--bg2);font-size:10px;font-family:var(--font);font-weight:700;color:var(--text1);box-shadow:0 1px 0 rgba(0,0,0,.03)}
 .cart-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .cart-item:last-child{border-bottom:none}
 .cart-item .info{flex:1;min-width:0}
@@ -477,6 +480,12 @@ tr:hover td{background:var(--bg)}
               <input type="text" id="pdv-search" placeholder="🔍 Código ou nome do produto..." style="flex:1;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font)" oninput="filtrarPDV()" onkeydown="pdvKeyDown(event)">
               <select id="pdv-cat" onchange="filtrarPDV()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas categorias</option></select>
               <button id="btn-modo-dev" class="btn btn-sm" onclick="toggleModoTroca()" style="white-space:nowrap;border-color:var(--red);color:var(--red)">🔄 Devolução</button>
+            </div>
+            <div class="pdv-atalhos">
+              <span class="pdv-atalho"><kbd>F4</kbd><span>Orçamento</span></span>
+              <span class="pdv-atalho"><kbd>F6</kbd><span>Finalizar</span></span>
+              <span class="pdv-atalho"><kbd>Ctrl</kbd><kbd>T</kbd><span>Devolução</span></span>
+              <span class="pdv-atalho"><kbd>Ctrl</kbd><kbd>N</kbd><span>Nova tela</span></span>
             </div>
             <div id="pdv-produto-info" style="display:none;background:var(--bg2);border:2px solid var(--pink);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px"></div>
             <div id="pdv-prod-grid" class="prod-grid"></div>
