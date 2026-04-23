@@ -5807,10 +5807,51 @@ let _pdvInicializado = false;
 let _pdvAplicandoEstado = false;
 let _pdvSyncTimer = null;
 
+function _pdvNumeroFinito(valor) {
+  const n = Number(valor);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _pdvTimestamp(valor) {
+  const t = Date.parse(valor || '');
+  return Number.isFinite(t) ? t : null;
+}
+
+function _pdvProximaOrdem() {
+  const ordens = _pdvTelas.map(t => _pdvNumeroFinito(t?.ordem)).filter(n => n !== null);
+  if (!ordens.length) return _pdvTelas.length;
+  return Math.max(...ordens) + 1;
+}
+
+function normalizarOrdemTelasPDV(telas) {
+  return (Array.isArray(telas) ? [...telas] : [])
+    .map((tela, idx) => ({ ...tela, _idxOriginalPDV: idx }))
+    .sort((a, b) => {
+      const ordemA = _pdvNumeroFinito(a.ordem);
+      const ordemB = _pdvNumeroFinito(b.ordem);
+      if (ordemA !== null && ordemB !== null && ordemA !== ordemB) return ordemA - ordemB;
+
+      const criadoA = _pdvTimestamp(a.criadoEm);
+      const criadoB = _pdvTimestamp(b.criadoEm);
+      if (criadoA !== null && criadoB !== null && criadoA !== criadoB) return criadoA - criadoB;
+      if (criadoA !== null && criadoB === null) return -1;
+      if (criadoA === null && criadoB !== null) return 1;
+
+      if (ordemA !== null && ordemB === null) return -1;
+      if (ordemA === null && ordemB !== null) return 1;
+      return a._idxOriginalPDV - b._idxOriginalPDV;
+    })
+    .map((tela, idx) => {
+      const { _idxOriginalPDV, ...limpa } = tela;
+      return { ...limpa, ordem: idx };
+    });
+}
+
 function criarEstadoPDVVazio(nome = '') {
   return {
     id: uid(),
     nome: nome || 'Tela 1',
+    ordem: _pdvProximaOrdem(),
     criadoEm: new Date().toISOString(),
     atualizadoEm: new Date().toISOString(),
     carrinho: [],
@@ -5862,10 +5903,12 @@ function telaPDVTemConteudo(tela) {
 }
 
 function capturarEstadoPDV() {
+  const telaAtual = _pdvTelas.find(t => t.id === _pdvTelaAtualId);
   return {
     id: _pdvTelaAtualId || uid(),
-    nome: _pdvTelas.find(t => t.id === _pdvTelaAtualId)?.nome || 'Tela 1',
-    criadoEm: _pdvTelas.find(t => t.id === _pdvTelaAtualId)?.criadoEm || new Date().toISOString(),
+    nome: telaAtual?.nome || 'Tela 1',
+    ordem: _pdvNumeroFinito(telaAtual?.ordem) ?? _pdvProximaOrdem(),
+    criadoEm: telaAtual?.criadoEm || new Date().toISOString(),
     atualizadoEm: new Date().toISOString(),
     carrinho: carrinho.map(i => ({ ...i })),
     carrinhoTroca: carrinhoTroca.map(i => ({ ...i })),
@@ -5898,14 +5941,23 @@ function salvarTelaAtualPDV() {
 async function carregarTelasServidorPDV() {
   try {
     const rows = await api('GET', '/api/pdv/atendimentos');
-    const telas = (rows || []).map(row => ({ ...(row.estado || {}), id: row.id, nome: row.estado?.nome || row.nome || 'Atendimento' }));
+    const telas = (rows || []).map(row => {
+      const estado = row.estado || {};
+      return {
+        ...estado,
+        id: row.id,
+        nome: estado.nome || row.nome || 'Atendimento',
+        criadoEm: estado.criadoEm || row.criado_em || new Date().toISOString(),
+        atualizadoEm: estado.atualizadoEm || row.atualizado_em || row.criado_em || new Date().toISOString()
+      };
+    });
     const telasComConteudo = telas.filter(telaPDVTemConteudo);
     const telasVazias = telas.filter(tela => !telaPDVTemConteudo(tela));
     if (telasVazias.length) {
       Promise.allSettled(telasVazias.map(tela => api('DELETE', '/api/pdv/atendimentos/' + tela.id)))
         .catch(() => {});
     }
-    return telasComConteudo;
+    return normalizarOrdemTelasPDV(telasComConteudo);
   } catch(e) {
     console.warn('Não foi possível carregar atendimentos do servidor:', e);
     return [];
@@ -5947,6 +5999,7 @@ async function removerAtendimentoServidorPDV(id) {
 function persistirTelasPDV() {
   if (_pdvAplicandoEstado) return;
   try {
+    _pdvTelas = normalizarOrdemTelasPDV(_pdvTelas);
     localStorage.setItem(PDV_TELAS_STORAGE_KEY, JSON.stringify({
       telaAtualId: _pdvTelaAtualId,
       telas: _pdvTelas
@@ -5976,8 +6029,8 @@ async function carregarTelasSalvasPDV() {
   const telasServidor = await carregarTelasServidorPDV();
   if (telasServidor.length) {
     if (confirm('Existem atendimentos abertos salvos no sistema. Deseja restaurar?')) {
-      _pdvTelas = telasServidor;
-      _pdvTelaAtualId = telasServidor[0].id;
+      _pdvTelas = normalizarOrdemTelasPDV(telasServidor);
+      _pdvTelaAtualId = _pdvTelas[0].id;
       return true;
     }
     await Promise.allSettled(telasServidor.map(tela => removerAtendimentoServidorPDV(tela.id)));
@@ -5987,7 +6040,7 @@ async function carregarTelasSalvasPDV() {
     const salvo = JSON.parse(localStorage.getItem(PDV_TELAS_STORAGE_KEY) || '{}');
     const telas = Array.isArray(salvo.telas) ? salvo.telas.filter(telaPDVTemConteudo) : [];
     if (telas.length && confirm('Existem atendimentos abertos salvos neste computador. Deseja restaurar?')) {
-      _pdvTelas = telas;
+      _pdvTelas = normalizarOrdemTelasPDV(telas);
       _pdvTelaAtualId = telas.some(t => t.id === salvo.telaAtualId) ? salvo.telaAtualId : telas[0].id;
       return true;
     }
@@ -6004,6 +6057,7 @@ async function carregarTelasSalvasPDV() {
 function renderAbasPDV() {
   const el = document.getElementById('pdv-abas');
   if (!el) return;
+  _pdvTelas = normalizarOrdemTelasPDV(_pdvTelas);
   el.innerHTML = _pdvTelas.map((t, idx) => {
     const qtd = (t.carrinho || []).reduce((a, i) => a + (Number(i.qty) || 0), 0) +
       (t.carrinhoTroca || []).reduce((a, i) => a + (Number(i.qty) || 0), 0);
@@ -6104,6 +6158,7 @@ async function trocarTelaPDV(id) {
 
 async function novaTelaPDV() {
   salvarTelaAtualPDV();
+  _pdvTelas = normalizarOrdemTelasPDV(_pdvTelas);
   const tela = criarEstadoPDVVazio('Tela ' + (_pdvTelas.length + 1));
   _pdvTelas.push(tela);
   _pdvTelaAtualId = tela.id;
@@ -6116,7 +6171,7 @@ async function fecharTelaPDV(id) {
   const tela = _pdvTelas.find(t => t.id === id);
   if (tela && telaPDVTemConteudo(tela) && !confirm('Fechar esta tela e descartar o atendimento aberto?')) return;
   await removerAtendimentoServidorPDV(id);
-  _pdvTelas = _pdvTelas.filter(t => t.id !== id);
+  _pdvTelas = normalizarOrdemTelasPDV(_pdvTelas.filter(t => t.id !== id));
   if (!_pdvTelas.length) _pdvTelas = [criarEstadoPDVVazio('Tela 1')];
   if (_pdvTelaAtualId === id) _pdvTelaAtualId = _pdvTelas[0].id;
   await aplicarEstadoPDV(_pdvTelas.find(t => t.id === _pdvTelaAtualId));

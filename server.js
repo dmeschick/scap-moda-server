@@ -3164,7 +3164,7 @@ app.get('/api/pdv/atendimentos', auth, async (req, res) => {
       `SELECT id,nome,usuario_id,usuario_nome,cliente_id,cliente_nome,vendedor_id,vendedor_nome,total,qtd_pecas,estado,status,criado_em,atualizado_em
        FROM atendimentos_pdv
        WHERE status='aberto'
-       ORDER BY atualizado_em DESC
+       ORDER BY criado_em ASC, id ASC
        LIMIT 100`
     );
     res.json(r.rows);
