@@ -34,6 +34,7 @@ input,select,textarea{font-family:var(--font)}
 .topbar h2{font-size:16px;font-weight:600;flex:1}
 .content{flex:1;overflow-y:auto;padding:20px}
 .page{display:none}.page.active{display:block}
+#page-pdv.active{display:flex;flex-direction:column;min-height:calc(100vh - 132px)}
 
 /* ===== SIDEBAR ===== */
 .sidebar-logo{padding:16px 16px 12px;border-bottom:1px solid var(--border);text-align:center}
@@ -157,7 +158,7 @@ tr:hover td{background:var(--bg)}
 .pdv-aba .mini{font-size:10px;opacity:.85;font-weight:600}
 .pdv-aba-close{border:none;background:transparent;color:inherit;font-size:14px;line-height:1;cursor:pointer;padding:0 0 0 2px}
 .pdv-aba-add{border-style:dashed;color:var(--pink-dark)}
-.pdv-atalhos{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 10px;font-size:11px;color:var(--text3)}
+.pdv-atalhos{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:20px;font-size:11px;color:var(--text3)}
 .pdv-atalhos-label{font-weight:600;color:var(--text2)}
 .pdv-atalhos kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:1px 5px;border:1px solid var(--border);border-radius:5px;background:transparent;font-size:10px;font-family:var(--font);font-weight:700;color:var(--text2);box-shadow:none}
 .cart-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -220,6 +221,8 @@ tr:hover td{background:var(--bg)}
   .pdv-cart-panel{display:block}
   .pdv-cart-scroll{min-height:0;overflow:visible;padding-right:0;margin-right:0}
   .pdv-search-panel{padding-bottom:0}
+  #page-pdv.active{display:block;min-height:auto}
+  .pdv-atalhos{margin-top:12px;padding-top:0}
 
   /* ---- BOTÕES ---- */
   .btn{font-size:12px;padding:7px 10px}
