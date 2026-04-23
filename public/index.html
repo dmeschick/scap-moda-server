@@ -481,6 +481,9 @@ tr:hover td{background:var(--bg)}
               <select id="pdv-cat" onchange="filtrarPDV()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)"><option value="">Todas categorias</option></select>
               <button id="btn-modo-dev" class="btn btn-sm" onclick="toggleModoTroca()" style="white-space:nowrap;border-color:var(--red);color:var(--red)">🔄 Devolução</button>
             </div>
+            <div id="pdv-produto-info" style="display:none;background:var(--bg2);border:2px solid var(--pink);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px"></div>
+            <div id="pdv-prod-grid" class="prod-grid"></div>
+            <div id="pdv-empty" class="empty-state" style="display:none"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>
             <div class="pdv-atalhos">
               <span class="pdv-atalhos-label">Atalhos:</span>
               <span><kbd>F4</kbd> orçamento</span>
@@ -488,9 +491,6 @@ tr:hover td{background:var(--bg)}
               <span><kbd>Ctrl</kbd>+<kbd>T</kbd> devolução</span>
               <span><kbd>Ctrl</kbd>+<kbd>N</kbd> nova tela</span>
             </div>
-            <div id="pdv-produto-info" style="display:none;background:var(--bg2);border:2px solid var(--pink);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px"></div>
-            <div id="pdv-prod-grid" class="prod-grid"></div>
-            <div id="pdv-empty" class="empty-state" style="display:none"><div class="icon">📦</div><p>Nenhum produto encontrado</p></div>
           </div>
           <!-- Coluna 2 — Carrinho -->
           <div class="pdv-panel pdv-cart-panel">
