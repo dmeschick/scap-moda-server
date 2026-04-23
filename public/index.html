@@ -6382,7 +6382,7 @@ function renderCarrinho() {
       const precoDesc = descPct > 0 ? Math.round(item.preco*(1-descPct/100)*100)/100 : item.preco;
       return `<div class="cart-item">
         <div class="info">
-          <div class="n">${item.nome}</div>
+          <div class="n">${item.cod ? `<code>${item.cod}</code> - ` : ''}${item.nome}</div>
           <div class="p">${descPct>0?`<span style="text-decoration:line-through;color:var(--text3)">${fmtMoeda(item.preco)}</span> `:''}${fmtMoeda(precoDesc)} × ${item.qty} = ${fmtMoeda(precoDesc*item.qty)}</div>
         </div>
         <div class="qty-ctrl">
