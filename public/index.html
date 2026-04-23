@@ -7072,6 +7072,16 @@ document.addEventListener('keydown', e => {
   const pdvAtivo = document.getElementById('page-pdv')?.classList.contains('active');
   const modaisAbertos = [...document.querySelectorAll('.modal-backdrop.open')];
 
+  if (e.key === 'F2') {
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      const campoValor = document.getElementById('pgto-val');
+      const campoTipo = document.getElementById('pgto-tipo');
+      (campoValor || campoTipo)?.focus();
+      if ((campoValor || campoTipo)?.select) (campoValor || campoTipo).select();
+      return;
+    }
+  }
   if (e.key === 'F4') {
     if (modalOrc?.classList.contains('open')) {
       e.preventDefault();
@@ -7092,6 +7102,15 @@ document.addEventListener('keydown', e => {
     }
     if (pdvAtivo && !modaisAbertos.length) {
       finalizarVenda();
+      return;
+    }
+  }
+  if (e.key === 'F7') {
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      const campoCliente = document.getElementById('pdv-cliente-busca');
+      campoCliente?.focus();
+      campoCliente?.select?.();
       return;
     }
   }
@@ -7704,6 +7723,8 @@ function toggleModoTroca() {
     btn.style.color = 'var(--red)';
     search.style.borderColor = '';
     search.placeholder = '🔍 Código ou nome do produto...';
+    search.focus();
+    search.select?.();
   }
   salvarTelaAtualEPersistirPDV();
 }
