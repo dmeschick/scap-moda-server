@@ -6646,6 +6646,15 @@ function confirmarPagamentoComEnter() {
     return true;
   }
   if (campoPgto?.contains(ativo)) {
+    const campos = [...campoPgto.querySelectorAll('input, select')]
+      .filter(el => !el.disabled && el.offsetParent !== null);
+    const idx = campos.indexOf(ativo);
+    if (idx > -1 && idx < campos.length - 1) {
+      const proximo = campos[idx + 1];
+      proximo?.focus();
+      proximo?.select?.();
+      return true;
+    }
     adicionarPgto();
     return true;
   }
