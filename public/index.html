@@ -4243,7 +4243,20 @@ function situacaoNotaFiscalTem(situacao = '', trecho = '') {
 
 function notaFiscalAutorizada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
-  return situacaoNotaFiscalTem(venda?.[tipo + '_situacao'], 'autoriz');
+  const situacao = normalizarTextoBase(venda?.[tipo + '_situacao']);
+  if (!situacao) return false;
+  if (
+    situacao.includes('rejeit') ||
+    situacao.includes('deneg') ||
+    situacao.includes('cancel') ||
+    situacao.includes('nao autoriz') ||
+    situacao.includes('não autoriz') ||
+    situacao.includes('pendente') ||
+    situacao.includes('aguard')
+  ) {
+    return false;
+  }
+  return situacao.includes('autorizada') || situacao.includes('autorizado');
 }
 
 function notaFiscalRejeitada(venda, tipo = 'nfe') {
