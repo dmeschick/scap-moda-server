@@ -4224,15 +4224,15 @@ function calcularHorasPonto(registros) {
 
 // ===== VENDAS =====
 function extrairSituacaoNotaFiscalLocal(nota = {}) {
-  const candidatos = [nota.situacao, nota.status, nota.descricaoSituacao, nota.situacaoNota];
+  const candidatos = [nota.status, nota.situacao, nota.descricaoSituacao, nota.situacaoNota, nota.statusNota];
   for (const candidato of candidatos) {
     if (!candidato) continue;
     if (typeof candidato === 'object') {
-      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label;
-      if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.codigo || candidato.id;
+      if (valor !== undefined && valor !== null && String(valor).trim()) return normalizarSituacaoNFeBling(String(valor).trim());
       continue;
     }
-    if (String(candidato).trim()) return String(candidato).trim();
+    if (String(candidato).trim()) return normalizarSituacaoNFeBling(String(candidato).trim());
   }
   return '';
 }
@@ -4267,8 +4267,17 @@ function resumirDetalhesBlingLocal(detalhes, fallback = '') {
 }
 
 const BLING_STATUS_NFE_MAP = {
+  '1': 'pendente',
+  '2': 'cancelada',
+  '3': 'aguardando recibo',
   '4': 'rejeitada',
-  '5': 'autorizada'
+  '5': 'autorizada',
+  '6': 'emitida danfe',
+  '7': 'registrada',
+  '8': 'aguardando protocolo',
+  '9': 'denegada',
+  '10': 'consulta situacao',
+  '11': 'bloqueada'
 };
 
 function normalizarSituacaoNFeBling(valor = '') {

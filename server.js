@@ -1590,7 +1590,8 @@ app.get('/api/vendas', auth, async (req, res) => {
       GROUP BY v.id ORDER BY v.data DESC
       LIMIT ${parseInt(limit)||200} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
-    res.json(r.rows);
+    const vendas = await sincronizarSituacaoNFeDasVendas(r.rows);
+    res.json(vendas);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/vendas', auth, async (req, res) => {
@@ -3671,25 +3672,142 @@ function normalizarTextoBling(texto) {
     .trim();
 }
 
+const BLING_STATUS_NFE_MAP = {
+  '1': 'pendente',
+  '2': 'cancelada',
+  '3': 'aguardando recibo',
+  '4': 'rejeitada',
+  '5': 'autorizada',
+  '6': 'emitida danfe',
+  '7': 'registrada',
+  '8': 'aguardando protocolo',
+  '9': 'denegada',
+  '10': 'consulta situacao',
+  '11': 'bloqueada'
+};
+
+function normalizarSituacaoNotaFiscalBling(valor = '') {
+  const texto = String(valor || '').trim();
+  if (!texto) return '';
+  return BLING_STATUS_NFE_MAP[texto] || texto;
+}
+
 function extrairSituacaoNotaFiscal(nota = {}) {
   const candidatos = [
-    nota.situacao,
     nota.status,
+    nota.situacao,
     nota.descricaoSituacao,
-    nota.situacaoNota
+    nota.situacaoNota,
+    nota.statusNota
   ];
 
   for (const candidato of candidatos) {
     if (!candidato) continue;
     if (typeof candidato === 'object') {
-      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label;
-      if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.codigo || candidato.id;
+      if (valor !== undefined && valor !== null && String(valor).trim()) return normalizarSituacaoNotaFiscalBling(String(valor).trim());
       continue;
     }
-    if (String(candidato).trim()) return String(candidato).trim();
+    if (String(candidato).trim()) return normalizarSituacaoNotaFiscalBling(String(candidato).trim());
   }
 
   return '';
+}
+
+async function listarNotasFiscaisRecentesBling(token) {
+  const consulta = await consultarBlingPorId('nfe?limite=100', token);
+  if (consulta.status < 200 || consulta.status >= 300) return [];
+  return Array.isArray(consulta.data?.data) ? consulta.data.data : [];
+}
+
+function encontrarNotaNaListagemBling(notas = [], { id = '', numero = '' } = {}) {
+  const idAlvo = String(id || '').trim();
+  const numeroAlvo = String(numero || '').trim().replace(/\D/g, '');
+  return notas.find(nota => {
+    const idNota = String(nota?.id || '').trim();
+    const numeroNota = String(nota?.numero || '').trim().replace(/\D/g, '');
+    return (idAlvo && idNota === idAlvo) || (numeroAlvo && numeroNota === numeroAlvo);
+  }) || null;
+}
+
+async function enriquecerSituacaoNotaFiscalBling(nota = {}, token, cache = null) {
+  if (!nota || typeof nota !== 'object') return nota;
+  const situacaoAtual = extrairSituacaoNotaFiscal(nota);
+  const situacaoNormalizada = normalizarTextoBling(situacaoAtual);
+  const precisaSincronizar = !situacaoNormalizada
+    || situacaoNormalizada === 'pendente'
+    || situacaoNormalizada === 'aguardando recibo'
+    || situacaoNormalizada === 'aguardando protocolo'
+    || situacaoNormalizada === 'consulta situacao';
+
+  if (!precisaSincronizar) return nota;
+
+  if (!cache) cache = {};
+  if (!cache.notasRecentes) {
+    cache.notasRecentes = await listarNotasFiscaisRecentesBling(token).catch(err => {
+      console.warn('Falha ao listar NF-es recentes no Bling:', err.message);
+      return [];
+    });
+  }
+
+  const notaDaLista = encontrarNotaNaListagemBling(cache.notasRecentes, {
+    id: nota.id,
+    numero: nota.numero
+  });
+
+  if (!notaDaLista) return nota;
+
+  const situacaoLista = extrairSituacaoNotaFiscal(notaDaLista);
+  if (!situacaoLista) return nota;
+
+  return {
+    ...nota,
+    status: situacaoLista,
+    situacaoBlingLista: situacaoLista
+  };
+}
+
+async function sincronizarSituacaoNFeDasVendas(vendas = []) {
+  const candidatas = vendas.filter(venda => {
+    if (!venda?.nfe_id) return false;
+    const situacao = normalizarTextoBling(venda.nfe_situacao || '');
+    return !situacao
+      || situacao === 'pendente'
+      || situacao === 'aguardando recibo'
+      || situacao === 'aguardando protocolo'
+      || situacao === 'consulta situacao';
+  });
+
+  if (!candidatas.length) return vendas;
+
+  try {
+    const token = await getBlingToken();
+    const notasRecentes = await listarNotasFiscaisRecentesBling(token);
+    if (!notasRecentes.length) return vendas;
+
+    for (const venda of candidatas) {
+      const notaDaLista = encontrarNotaNaListagemBling(notasRecentes, {
+        id: venda.nfe_id,
+        numero: venda.nfe_numero
+      });
+      if (!notaDaLista) continue;
+      const situacaoLista = extrairSituacaoNotaFiscal(notaDaLista);
+      if (!situacaoLista || situacaoLista === venda.nfe_situacao) continue;
+      venda.nfe_situacao = situacaoLista;
+      if (!venda.nfe_numero && notaDaLista.numero) venda.nfe_numero = String(notaDaLista.numero);
+      await pool.query(
+        `UPDATE vendas
+         SET nfe_situacao=$1,
+             nfe_numero=COALESCE(NULLIF($2,''), nfe_numero)
+         WHERE id=$3`,
+        [situacaoLista, notaDaLista.numero || '', venda.id]
+      );
+    }
+  } catch (err) {
+    console.error('Falha ao sincronizar situações de NF-e no histórico:', err);
+  }
+
+  return vendas;
 }
 
 function valorParaCentavos(valor) {
@@ -3762,7 +3880,8 @@ app.get('/api/bling/nfe/:id', auth, async (req, res) => {
         detalhes: consulta.data || consulta.texto
       });
     }
-    res.json({ ok: true, nfe: consulta.data?.data });
+    const nota = await enriquecerSituacaoNotaFiscalBling(consulta.data?.data || {}, token);
+    res.json({ ok: true, nfe: nota });
   } catch (err) {
     console.error('Erro ao consultar NF-e:', err);
     res.status(500).json({ erro: err.message });
@@ -4004,28 +4123,28 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     }
 
     try {
+      const cacheBling = {};
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
-            const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
-            const situacaoDetalhada = extrairMotivoBling(consulta.data, situacaoAtual || '');
-            const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
-              ? (situacaoDetalhada || situacaoAtual)
-              : (situacaoAtual || situacaoDetalhada || '');
+        const notaConsultada = await enriquecerSituacaoNotaFiscalBling(consulta.data.data, token, cacheBling);
+        const situacaoAtual = extrairSituacaoNotaFiscal(notaConsultada);
+        const situacaoDetalhada = extrairMotivoBling(consulta.data, situacaoAtual || '');
+        const situacaoSalvar = situacaoAtual || situacaoDetalhada || '';
         await pool.query(
           `UPDATE vendas
            SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),
                nfe_situacao=COALESCE(NULLIF($2,''), nfe_situacao)
            WHERE id=$3`,
-          [consulta.data.data.numero || '', situacaoSalvar, vendaId]
+          [notaConsultada.numero || '', situacaoSalvar, vendaId]
         );
         if (normalizarTextoBling(situacaoSalvar || situacaoAtual).includes('rejeit')) {
           return res.status(400).json({
             erro: `NF-e rejeitada no Bling${situacaoSalvar || situacaoAtual ? `: ${situacaoSalvar || situacaoAtual}` : '.'}`,
             detalhes: consulta.data,
-            nfe: consulta.data.data
+            nfe: notaConsultada
           });
         }
-        return res.json({ ok: true, nfe: consulta.data.data });
+        return res.json({ ok: true, nfe: notaConsultada });
       }
     } catch (errConsulta) {
       console.error('Erro ao consultar NF-e criada no Bling:', errConsulta);
