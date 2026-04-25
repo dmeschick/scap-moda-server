@@ -1591,11 +1591,29 @@ app.get('/api/vendas', auth, async (req, res) => {
       LIMIT ${parseInt(limit)||200} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
     const vendas = r.rows;
-    const comStatusNumerico = vendas.filter(v => v.nfe_id && /^\d+$/.test(String(v.nfe_situacao || '').trim()));
-    if (comStatusNumerico.length) {
+    const precisaSincronizarStatus = venda => {
+      if (!venda?.nfe_id) return false;
+      const situacao = String(venda.nfe_situacao || '').trim();
+      if (!situacao) return true;
+      if (/^\d+$/.test(situacao)) return true;
+      if (situacao.includes('|')) return true;
+      if (/^NF-e\s+\d+/i.test(situacao)) return true;
+      const normalizada = normalizarTextoBling(situacao);
+      return !(
+        normalizada.includes('rejeit') ||
+        normalizada.includes('autoriz') ||
+        normalizada.includes('pendente') ||
+        normalizada.includes('aguard') ||
+        normalizada.includes('cancel') ||
+        normalizada.includes('deneg')
+      );
+    };
+
+    const comStatusInconsistente = vendas.filter(precisaSincronizarStatus);
+    if (comStatusInconsistente.length) {
       try {
         const token = await getBlingToken();
-        for (const venda of comStatusNumerico.slice(0, 20)) {
+        for (const venda of comStatusInconsistente.slice(0, 20)) {
           try {
             const consulta = await consultarBlingPorId(`nfe/${encodeURIComponent(venda.nfe_id)}`, token);
             if (consulta.status < 200 || consulta.status >= 300 || !consulta.data?.data) continue;
