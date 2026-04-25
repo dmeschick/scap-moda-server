@@ -1590,7 +1590,39 @@ app.get('/api/vendas', auth, async (req, res) => {
       GROUP BY v.id ORDER BY v.data DESC
       LIMIT ${parseInt(limit)||200} OFFSET ${parseInt(offset)||0}`;
     const r = await pool.query(sql, params);
-    res.json(r.rows);
+    const vendas = r.rows;
+    const comStatusNumerico = vendas.filter(v => v.nfe_id && /^\d+$/.test(String(v.nfe_situacao || '').trim()));
+    if (comStatusNumerico.length) {
+      try {
+        const token = await getBlingToken();
+        for (const venda of comStatusNumerico.slice(0, 20)) {
+          try {
+            const consulta = await consultarBlingPorId(`nfe/${encodeURIComponent(venda.nfe_id)}`, token);
+            if (consulta.status < 200 || consulta.status >= 300 || !consulta.data?.data) continue;
+            const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
+            const situacaoDetalhada = resumirErroBling(consulta.data, situacaoAtual || '');
+            const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
+              ? (situacaoDetalhada || situacaoAtual)
+              : (situacaoAtual || situacaoDetalhada || '');
+            if (!situacaoSalvar) continue;
+            await pool.query(
+              `UPDATE vendas
+               SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),
+                   nfe_situacao=$2
+               WHERE id=$3`,
+              [consulta.data.data.numero || '', situacaoSalvar, venda.id]
+            );
+            venda.nfe_numero = consulta.data.data.numero || venda.nfe_numero;
+            venda.nfe_situacao = situacaoSalvar;
+          } catch (errConsulta) {
+            console.warn('Falha ao atualizar status numérico da NF-e no histórico:', venda.id, errConsulta.message);
+          }
+        }
+      } catch (errBling) {
+        console.warn('Falha ao sincronizar status numéricos da NF-e no histórico:', errBling.message);
+      }
+    }
+    res.json(vendas);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 app.post('/api/vendas', auth, async (req, res) => {
