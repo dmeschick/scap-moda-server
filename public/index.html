@@ -575,6 +575,7 @@ tr:hover td{background:var(--bg)}
         <div class="pdv-atalhos">
           <span class="pdv-atalhos-label">Atalhos:</span>
           <span><kbd>F2</kbd> pagamento</span>
+          <span><kbd>Enter</kbd> confirma pgto</span>
           <span><kbd>1</kbd> dinheiro</span>
           <span><kbd>2</kbd> pix</span>
           <span><kbd>3</kbd> débito</span>
@@ -6631,6 +6632,26 @@ function selecionarFormaPagamentoAtalho(atalho) {
   return true;
 }
 
+function confirmarPagamentoComEnter() {
+  const campoTipo = document.getElementById('pgto-tipo');
+  const campoPgto = document.getElementById('pgto-campo');
+  const ativo = document.activeElement;
+  if (!campoTipo || !ativo) return false;
+  if (ativo === campoTipo) {
+    if (!campoTipo.value) return false;
+    mostrarCampoPgto();
+    const campoValor = document.getElementById('pgto-val');
+    campoValor?.focus();
+    campoValor?.select?.();
+    return true;
+  }
+  if (campoPgto?.contains(ativo)) {
+    adicionarPgto();
+    return true;
+  }
+  return false;
+}
+
 function adicionarPgto() {
   const tipo = document.getElementById('pgto-tipo').value;
   const val = parseFloat(document.getElementById('pgto-val')?.value)||0;
@@ -7158,6 +7179,10 @@ document.addEventListener('keydown', e => {
   const campoTipoPagamentoFocado = document.activeElement?.id === 'pgto-tipo';
 
   if (pdvAtivo && !modaisAbertos.length && campoTipoPagamentoFocado && selecionarFormaPagamentoAtalho(e.key)) {
+    e.preventDefault();
+    return;
+  }
+  if (pdvAtivo && !modaisAbertos.length && e.key === 'Enter' && confirmarPagamentoComEnter()) {
     e.preventDefault();
     return;
   }
