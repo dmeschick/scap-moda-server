@@ -3964,13 +3964,21 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     try {
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
+        const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
         await pool.query(
           `UPDATE vendas
            SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),
                nfe_situacao=COALESCE(NULLIF($2,''), nfe_situacao)
            WHERE id=$3`,
-          [consulta.data.data.numero || '', extrairSituacaoNotaFiscal(consulta.data.data), vendaId]
+          [consulta.data.data.numero || '', situacaoAtual, vendaId]
         );
+        if (normalizarTextoBling(situacaoAtual).includes('rejeit')) {
+          return res.status(400).json({
+            erro: `NF-e rejeitada no Bling${situacaoAtual ? `: ${situacaoAtual}` : '.'}`,
+            detalhes: consulta.data,
+            nfe: consulta.data.data
+          });
+        }
         return res.json({ ok: true, nfe: consulta.data.data });
       }
     } catch (errConsulta) {

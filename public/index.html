@@ -1905,7 +1905,12 @@ async function api(method, path, body) {
         limparSessaoLocal(err.erro || 'Sessão expirada. Faça login novamente.');
       }
     }
-    throw new Error(err.erro || 'Erro na requisição');
+    const erro = new Error(err.erro || 'Erro na requisição');
+    erro.status = r.status;
+    erro.detalhes = err.detalhes;
+    erro.nfe = err.nfe;
+    erro.nfce = err.nfce;
+    throw erro;
   }
   return r.json();
 }
@@ -4232,10 +4237,18 @@ function extrairSituacaoNotaFiscalLocal(nota = {}) {
   return '';
 }
 
+function situacaoNotaFiscalTem(situacao = '', trecho = '') {
+  return normalizarTextoBase(situacao).includes(normalizarTextoBase(trecho));
+}
+
 function notaFiscalAutorizada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
-  const situacao = normalizarTextoBase(venda?.[tipo + '_situacao']);
-  return situacao.includes('autoriz');
+  return situacaoNotaFiscalTem(venda?.[tipo + '_situacao'], 'autoriz');
+}
+
+function notaFiscalRejeitada(venda, tipo = 'nfe') {
+  if (!venda?.[tipo + '_id']) return false;
+  return situacaoNotaFiscalTem(venda?.[tipo + '_situacao'], 'rejeit');
 }
 
 async function carregarVendas() {
@@ -4260,12 +4273,15 @@ async function carregarVendas() {
         ? `<span style="color:var(--green);font-weight:700">Crédito: ${fmtMoeda(_cred)}</span>`
         : `<strong>${fmtMoeda(v.tot)}</strong>`;
       const nfeAutorizada = notaFiscalAutorizada(v, 'nfe');
+      const nfeRejeitada = notaFiscalRejeitada(v, 'nfe');
       const nfOnlineStatus = v.canal === 'online'
         ? (nfeAutorizada
             ? `<span class="badge badge-green" title="NF-e autorizada no Bling">NF-e ${v.nfe_numero || 'autorizada'}</span>`
-            : (v.nfe_id
-                ? `<span class="badge badge-amber" title="A NF-e existe, mas ainda não consta como autorizada no sistema">NF-e pendente</span>`
-                : `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`))
+            : (nfeRejeitada
+                ? `<span class="badge badge-red" title="${textoSeguro(v.nfe_situacao || 'NF-e rejeitada no Bling')}">NF-e rejeitada</span>`
+                : (v.nfe_id
+                    ? `<span class="badge badge-amber" title="A NF-e existe, mas ainda não consta como autorizada no sistema">NF-e pendente</span>`
+                    : `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`)))
         : '';
       const botaoDanfe = v.canal === 'online'
         ? (nfeAutorizada
@@ -5027,6 +5043,8 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   const notaVisualizacao = { ...nota, _tipoNotaBling: tipo };
   const link = obterLinkNotaBling(notaVisualizacao, tipo);
   if (!link) return false;
+  const situacao = extrairSituacaoNotaFiscalLocal(notaVisualizacao);
+  const autorizada = situacaoNotaFiscalTem(situacao, 'autoriz');
 
   window._notaBlingAtualVisualizacao = notaVisualizacao;
 
@@ -5041,13 +5059,15 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   if (aviso) {
     aviso.style.display = 'block';
     aviso.textContent = tipo === 'nfe'
-      ? 'Carregando o DANFE da NF-e pelo sistema para evitar o download automático do Bling. Use o botão de imprimir do visualizador, se a janela de impressão não abrir.'
+      ? (autorizada
+          ? 'Carregando o DANFE da NF-e pelo sistema para evitar o download automático do Bling. Use o botão de imprimir do visualizador, se a janela de impressão não abrir.'
+          : `A NF-e ainda não está autorizada${situacao ? ` (${situacao})` : ''}. A visualização foi aberta sem impressão automática.`)
       : 'Se a visualização não carregar dentro do sistema, use "Abrir em nova aba" ou "Abrir no Bling".';
   }
   if (frame) {
     frame.onload = null;
     frame.src = 'about:blank';
-    if (tipo === 'nfe') {
+    if (tipo === 'nfe' && autorizada) {
       frame.onload = () => {
         frame.onload = null;
         setTimeout(() => {
@@ -5175,13 +5195,25 @@ async function emitirNFe(vendaId) {
         console.warn('Falha ao consultar NF-e existente:', err);
         return null;
       });
-      const abriuNoSistema = abrirNotaBlingNoSistema('nfe', notaConsultada || notaExistente);
+      const notaAtual = notaConsultada || notaExistente;
+      const situacaoAtual = extrairSituacaoNotaFiscalLocal(notaAtual);
+      const autorizada = situacaoNotaFiscalTem(situacaoAtual, 'autoriz');
+      if (_vendaAtual && _vendaAtual.id === vendaId) {
+        _vendaAtual.nfe_numero = notaAtual?.numero || _vendaAtual.nfe_numero;
+        _vendaAtual.nfe_situacao = situacaoAtual || _vendaAtual.nfe_situacao;
+      }
       const numeroLabel = notaExistente.numero ? `Nº ${notaExistente.numero}` : 'nota existente';
       const numeroCopiado = notaExistente.numero ? await copiarTexto(notaExistente.numero) : false;
-      if (abriuNoSistema) {
-        toast('NF-e já emitida. Abrindo para impressão — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+      if (situacaoNotaFiscalTem(situacaoAtual, 'rejeit')) {
+        abrirPopupBlingNota('nfe', notaAtual);
+        toast('NF-e rejeitada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Confira o motivo no Bling.', 'warn', 7000);
       } else {
-        toast('NF-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Não encontrei o link de impressão no retorno do Bling.', 'warn');
+        const abriuNoSistema = abrirNotaBlingNoSistema('nfe', notaAtual);
+        if (abriuNoSistema) {
+          toast((autorizada ? 'NF-e já emitida. Abrindo para impressão — ' : 'NF-e localizada. Abrindo para consulta — ') + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+        } else {
+          toast('NF-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Não encontrei o link de impressão no retorno do Bling.', 'warn');
+        }
       }
       return;
     }
@@ -5193,14 +5225,20 @@ async function emitirNFe(vendaId) {
       _vendaAtual.nfe_situacao = extrairSituacaoNotaFiscalLocal(r.nfe) || _vendaAtual.nfe_situacao;
     }
     const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
+    const autorizada = situacaoNotaFiscalTem(extrairSituacaoNotaFiscalLocal(r.nfe), 'autoriz');
     const numero = r.nfe?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (abriuNoSistema) {
-      toast('NF-e emitida com sucesso! Nota aberta para impressão' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+      toast((autorizada ? 'NF-e emitida com sucesso! Nota aberta para impressão' : 'NF-e criada. Nota aberta para consulta') + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
     } else {
       toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não encontrei o link de impressão no retorno do Bling.', 'warn');
     }
   } catch(e) {
+    if (_vendaAtual && _vendaAtual.id === vendaId && e.nfe) {
+      _vendaAtual.nfe_id = e.nfe?.id ? String(e.nfe.id) : _vendaAtual.nfe_id;
+      _vendaAtual.nfe_numero = e.nfe?.numero || _vendaAtual.nfe_numero;
+      _vendaAtual.nfe_situacao = extrairSituacaoNotaFiscalLocal(e.nfe) || _vendaAtual.nfe_situacao;
+    }
     console.error('Erro NF-e:', e);
     toast('Erro ao emitir NF-e: ' + e.message, 'error');
   }
@@ -7411,12 +7449,15 @@ function renderMobileCardsVendas(vendas) {
     const totalStr = _cred > 0
       ? '<span style="color:var(--green)">Crédito: ' + fmtMoeda(_cred) + '</span>'
       : fmtMoeda(v.tot);
+    const nfeRejeitada = notaFiscalRejeitada(v, 'nfe');
     const nfOnlineStatus = v.canal === 'online'
       ? (notaFiscalAutorizada(v, 'nfe')
           ? '<span class="badge badge-green">NF-e ' + (v.nfe_numero || 'autorizada') + '</span>'
-          : (v.nfe_id
-              ? '<span class="badge badge-amber">NF-e pendente</span>'
-              : '<span class="badge badge-amber">Aguardando NF-e</span>'))
+          : (nfeRejeitada
+              ? '<span class="badge badge-red" title="' + textoSeguro(v.nfe_situacao || 'NF-e rejeitada no Bling') + '">NF-e rejeitada</span>'
+              : (v.nfe_id
+                  ? '<span class="badge badge-amber">NF-e pendente</span>'
+                  : '<span class="badge badge-amber">Aguardando NF-e</span>')))
       : '';
     const nfeAutorizada = notaFiscalAutorizada(v, 'nfe');
     const botaoDanfe = v.canal === 'online'
