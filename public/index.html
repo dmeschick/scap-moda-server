@@ -25,6 +25,13 @@
 body{font-family:var(--font);background:var(--bg);color:var(--text1);min-height:100vh;font-size:14px}
 button{font-family:var(--font);cursor:pointer}
 input,select,textarea{font-family:var(--font)}
+body.modo-ponto-standalone .sidebar{display:none}
+body.modo-ponto-standalone .main{width:100%}
+body.modo-ponto-standalone .topbar{height:60px;padding:0 24px}
+body.modo-ponto-standalone .content{padding:24px;max-width:1120px;width:100%;margin:0 auto}
+body.modo-ponto-standalone .hamburger{display:none!important}
+body.modo-ponto-standalone #page-funcionarios .tabs{display:none}
+body.modo-ponto-standalone #page-funcionarios{display:block!important;width:100%}
 
 /* ===== LAYOUT ===== */
 .app{display:flex;height:100vh;overflow:hidden}
@@ -668,6 +675,7 @@ tr:hover td{background:var(--bg)}
             <input type="date" id="ponto-de">
             <input type="date" id="ponto-ate">
             <button class="btn btn-primary" onclick="carregarPonto()">Ver ponto</button>
+            <button class="btn" id="btn-janela-ponto" onclick="abrirJanelaPonto()">↗ Janela separada</button>
           </div>
           <!-- Botões de registro rápido -->
           <div id="ponto-registro" style="display:none" class="card" style="margin-bottom:16px">
@@ -1841,6 +1849,8 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 const fmtMoeda = v => 'R$ ' + (parseFloat(v)||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const parseNumero = v => parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+const PARAMS_URL = new URLSearchParams(window.location.search);
+const MODO_PONTO_STANDALONE = PARAMS_URL.get('modo') === 'ponto';
 const diaDoMes = d => {
   if (!d) return '—';
   const data = new Date(d.toString().slice(0, 10) + 'T12:00:00');
@@ -1964,6 +1974,42 @@ function nav(id, el) {
   if (id === 'financeiro') finTab('contas');
 }
 
+function abrirJanelaPonto() {
+  const url = window.location.origin + window.location.pathname + '?modo=ponto';
+  window.open(url, '_blank', 'noopener');
+}
+
+function irParaPonto() {
+  const navFuncionarios = document.querySelector(".nav-item[onclick*=\"'funcionarios'\"]");
+  nav('funcionarios', navFuncionarios);
+  const tabPonto = [...document.querySelectorAll('#page-funcionarios .tab')]
+    .find(tab => tab.textContent.includes('Ponto'));
+  if (tabPonto) tabFunc(tabPonto, 'tab-func-ponto');
+  if (MODO_PONTO_STANDALONE) {
+    const titulo = document.getElementById('page-title');
+    if (titulo) titulo.textContent = 'Ponto de Funcionários';
+  }
+}
+
+function aplicarModoPontoStandalone() {
+  if (!MODO_PONTO_STANDALONE) return;
+  document.body.classList.add('modo-ponto-standalone');
+  document.title = 'Ponto | Scap Moda Feminina';
+  const titulo = document.getElementById('page-title');
+  if (titulo) titulo.textContent = 'Ponto de Funcionários';
+  const btnJanela = document.getElementById('btn-janela-ponto');
+  if (btnJanela) btnJanela.style.display = 'none';
+}
+
+function abrirTelaInicialAposLogin() {
+  aplicarModoPontoStandalone();
+  if (MODO_PONTO_STANDALONE || CARGOS_BASICOS.includes(CARGO_ATUAL)) {
+    irParaPonto();
+    return;
+  }
+  carregarDashboard();
+}
+
 function irParaFechamento() {
   nav('caixa', document.querySelector(".nav-item[onclick*=\"'caixa'\"]"));
   caixaTab('fechamento');
@@ -2006,7 +2052,7 @@ async function fazerLogin() {
     // Carrega categorias e descontos globais
     await Promise.all([carregarCategoriasGlobal(), carregarDescontosGlobal()]);
     aplicarPermissoesMenu();
-    carregarDashboard();
+    abrirTelaInicialAposLogin();
   } catch(e) {
     erroEl.textContent = e.message;
     erroEl.style.display = 'block';
@@ -8153,11 +8199,10 @@ const ACOES_CRITICAS_ADMIN = [
 function aplicarPermissoesMenu() {
   if (CARGOS_BASICOS.includes(CARGO_ATUAL)) {
     document.querySelectorAll('.nav-item').forEach(item => {
-      if (!item.textContent.includes('Ponto')) {
+      if (!item.textContent.includes('Funcionários')) {
         item.style.display = 'none';
       }
     });
-    navegarPara('ponto');
   }
 }
 
@@ -8937,6 +8982,7 @@ function limparFiltrosHistorico() {
 
 // ===== INIT =====
 ajustarMobile();
+aplicarModoPontoStandalone();
 
 // Tenta restaurar sessão salva
 (async () => {
@@ -8955,7 +9001,7 @@ ajustarMobile();
       document.getElementById('user-nome').textContent = usuarioLogado.nome;
       await Promise.all([carregarCategoriasGlobal(), carregarDescontosGlobal()]);
       aplicarPermissoesMenu();
-      carregarDashboard();
+      abrirTelaInicialAposLogin();
       return;
     } catch(e) {
       // Token expirou — limpa e mostra login
