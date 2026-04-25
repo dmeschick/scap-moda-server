@@ -6867,7 +6867,7 @@ async function abrirRomaneio(v, cliNome) {
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
     const totalItem = precoDesc * i.qty;
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
-      '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
+      '<div style="font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
       '<div style="display:flex;margin-top:2px">' +
         '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
@@ -6884,7 +6884,7 @@ async function abrirRomaneio(v, cliNome) {
     const precoDesc = pct > 0 ? Math.round(precoUnit * (1 - pct/100) * 100) / 100 : precoUnit;
     const totalItem = precoDesc * i.qty;
     return '<div style="border-bottom:1px dashed #ccc;padding:2px 0">' +
-      '<div style="font-weight:bold">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
+      '<div style="font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (i.cod||'') + ' ' + (i.nome||'') + '</div>' +
       '<div style="display:flex;margin-top:2px">' +
         '<span style="width:30px;' + estiloNegritoRomaneio + '">' + i.qty + '</span>' +
         '<span style="flex:1">' + fmtMoeda(precoUnit) + '</span>' +
