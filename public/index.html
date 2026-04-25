@@ -587,7 +587,7 @@ tr:hover td{background:var(--bg)}
           <span><kbd>F6</kbd> finalizar</span>
           <span><kbd>F7</kbd> cliente</span>
           <span><kbd>F8</kbd> devolução</span>
-          <span><kbd>Ctrl</kbd>+<kbd>N</kbd> nova tela</span>
+          <span><kbd>F10</kbd> nova tela</span>
         </div>
       </div>
 
@@ -7281,7 +7281,7 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+  if (e.key === 'F10') {
     if (pdvAtivo && !modaisAbertos.length) {
       e.preventDefault();
       novaTelaPDV();
