@@ -4266,11 +4266,20 @@ function resumirDetalhesBlingLocal(detalhes, fallback = '') {
   return mensagens[0] || fallback;
 }
 
+const BLING_STATUS_NFE_MAP = {
+  '4': 'rejeitada',
+  '5': 'autorizada'
+};
+
+function normalizarSituacaoNFeBling(valor = '') {
+  const texto = String(valor || '').trim();
+  if (!texto) return '';
+  return BLING_STATUS_NFE_MAP[texto] || texto;
+}
+
 function notaFiscalAutorizada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
-  const numero = String(venda?.[tipo + '_numero'] || '').trim().padStart(6, '0');
-  if (numero === '000034') return true;
-  const situacao = normalizarTextoBase(venda?.[tipo + '_situacao']);
+  const situacao = normalizarTextoBase(normalizarSituacaoNFeBling(venda?.[tipo + '_situacao']));
   if (!situacao) return false;
   if (
     situacao.includes('rejeit') ||
@@ -4288,12 +4297,8 @@ function notaFiscalAutorizada(venda, tipo = 'nfe') {
 
 function notaFiscalRejeitada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
-  const situacao = String(venda?.[tipo + '_situacao'] || '').trim();
-  const numero = String(venda?.[tipo + '_numero'] || '').trim().padStart(6, '0');
-  if (['000032', '000033', '000035', '000036', '000037', '000038'].includes(numero)) return true;
-  return ['4', '5'].includes(situacao)
-    || situacaoNotaFiscalTem(situacao, 'rejeit')
-    || (normalizarTextoBase(situacao) === 'pendente' && !!venda?.[tipo + '_numero']);
+  const situacao = normalizarSituacaoNFeBling(venda?.[tipo + '_situacao']);
+  return situacaoNotaFiscalTem(situacao, 'rejeit');
 }
 
 function notaObjetoAutorizada(nota = {}) {
@@ -4314,13 +4319,7 @@ function notaObjetoAutorizada(nota = {}) {
 }
 
 function obterSituacaoNFeVenda(venda) {
-  const situacao = String(venda?.nfe_situacao || '').trim();
-  const numero = String(venda?.nfe_numero || '').trim().padStart(6, '0');
-  if (numero === '000034') return 'autorizada';
-  if (['000032', '000033', '000035', '000036', '000037', '000038'].includes(numero)) return 'rejeitada';
-  if (['4', '5'].includes(situacao)) return 'rejeitada';
-  if (normalizarTextoBase(situacao) === 'pendente' && venda?.nfe_numero) return 'rejeitada';
-  return situacao;
+  return normalizarSituacaoNFeBling(venda?.nfe_situacao);
 }
 
 function renderStatusNFeVenda(venda) {
