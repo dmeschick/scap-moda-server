@@ -4228,7 +4228,7 @@ function extrairSituacaoNotaFiscalLocal(nota = {}) {
   for (const candidato of candidatos) {
     if (!candidato) continue;
     if (typeof candidato === 'object') {
-      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.id;
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label;
       if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
       continue;
     }
@@ -4286,7 +4286,8 @@ function notaFiscalAutorizada(venda, tipo = 'nfe') {
 
 function notaFiscalRejeitada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
-  return situacaoNotaFiscalTem(venda?.[tipo + '_situacao'], 'rejeit');
+  const situacao = String(venda?.[tipo + '_situacao'] || '').trim();
+  return situacao === '4' || situacaoNotaFiscalTem(situacao, 'rejeit');
 }
 
 function notaObjetoAutorizada(nota = {}) {
@@ -4307,7 +4308,9 @@ function notaObjetoAutorizada(nota = {}) {
 }
 
 function obterSituacaoNFeVenda(venda) {
-  return String(venda?.nfe_situacao || '').trim();
+  const situacao = String(venda?.nfe_situacao || '').trim();
+  if (situacao === '4') return 'rejeitada';
+  return situacao;
 }
 
 function renderStatusNFeVenda(venda) {

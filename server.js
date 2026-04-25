@@ -3640,7 +3640,7 @@ function extrairSituacaoNotaFiscal(nota = {}) {
   for (const candidato of candidatos) {
     if (!candidato) continue;
     if (typeof candidato === 'object') {
-      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label || candidato.id;
+      const valor = candidato.descricao || candidato.nome || candidato.valor || candidato.label;
       if (valor !== undefined && valor !== null && String(valor).trim()) return String(valor).trim();
       continue;
     }
@@ -3965,16 +3965,20 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
         const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
+        const situacaoDetalhada = resumirErroBling(consulta.data, situacaoAtual || '');
+        const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
+          ? (situacaoDetalhada || situacaoAtual)
+          : (situacaoAtual || situacaoDetalhada || '');
         await pool.query(
           `UPDATE vendas
            SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),
                nfe_situacao=COALESCE(NULLIF($2,''), nfe_situacao)
            WHERE id=$3`,
-          [consulta.data.data.numero || '', situacaoAtual, vendaId]
+          [consulta.data.data.numero || '', situacaoSalvar, vendaId]
         );
-        if (normalizarTextoBling(situacaoAtual).includes('rejeit')) {
+        if (normalizarTextoBling(situacaoSalvar || situacaoAtual).includes('rejeit')) {
           return res.status(400).json({
-            erro: `NF-e rejeitada no Bling${situacaoAtual ? `: ${situacaoAtual}` : '.'}`,
+            erro: `NF-e rejeitada no Bling${situacaoSalvar || situacaoAtual ? `: ${situacaoSalvar || situacaoAtual}` : '.'}`,
             detalhes: consulta.data,
             nfe: consulta.data.data
           });
