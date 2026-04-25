@@ -1599,10 +1599,10 @@ app.get('/api/vendas', auth, async (req, res) => {
       if (situacao.includes('|')) return true;
       if (/^NF-e\s+\d+/i.test(situacao)) return true;
       const normalizada = normalizarTextoBling(situacao);
+      if (normalizada === 'pendente') return true;
       return !(
         normalizada.includes('rejeit') ||
         normalizada.includes('autoriz') ||
-        normalizada.includes('pendente') ||
         normalizada.includes('aguard') ||
         normalizada.includes('cancel') ||
         normalizada.includes('deneg')
@@ -3444,7 +3444,26 @@ function coletarMotivosBling(obj, acc = []) {
 
 function extrairMotivoBling(data, fallback = '') {
   const mensagens = [...new Set(coletarMotivosBling(data).filter(Boolean))];
-  return mensagens[0] || fallback;
+  if (!mensagens.length) return fallback;
+  const candidatasFortes = mensagens.filter(msg => {
+    const normalizada = normalizarTextoBling(msg);
+    return (
+      normalizada.includes('rejei') ||
+      normalizada.includes('erro') ||
+      normalizada.includes('deneg') ||
+      normalizada.includes('duplicidade') ||
+      normalizada.includes('sefaz') ||
+      normalizada.includes('schema') ||
+      normalizada.includes('chave') ||
+      normalizada.includes('campo') ||
+      normalizada.includes('cnpj') ||
+      normalizada.includes('cpf') ||
+      normalizada.includes('ie') ||
+      normalizada.includes('inscr') ||
+      /\b\d{3}\b/.test(normalizada)
+    );
+  });
+  return candidatasFortes[0] || mensagens[0] || fallback;
 }
 
 function esperar(ms) {
