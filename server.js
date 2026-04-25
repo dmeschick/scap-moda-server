@@ -3780,8 +3780,8 @@ function extrairSituacaoNotaFiscal(nota = {}) {
   return '';
 }
 
-async function listarNotasFiscaisRecentesBling(token) {
-  const consulta = await consultarBlingPorId('nfe?limite=100', token);
+async function listarNotasFiscaisRecentesBling(token, tipoNota = 'nfe') {
+  const consulta = await consultarBlingPorId(`${tipoNota}?limite=100`, token);
   if (consulta.status < 200 || consulta.status >= 300) return [];
   return Array.isArray(consulta.data?.data) ? consulta.data.data : [];
 }
@@ -3796,7 +3796,7 @@ function encontrarNotaNaListagemBling(notas = [], { id = '', numero = '' } = {})
   }) || null;
 }
 
-async function enriquecerSituacaoNotaFiscalBling(nota = {}, token, cache = null) {
+async function enriquecerSituacaoNotaFiscalBling(nota = {}, token, cache = null, tipoNota = 'nfe') {
   if (!nota || typeof nota !== 'object') return nota;
   const situacaoAtual = extrairSituacaoNotaFiscal(nota);
   const situacaoNormalizada = normalizarTextoBling(situacaoAtual);
@@ -3809,14 +3809,15 @@ async function enriquecerSituacaoNotaFiscalBling(nota = {}, token, cache = null)
   if (!precisaSincronizar) return nota;
 
   if (!cache) cache = {};
-  if (!cache.notasRecentes) {
-    cache.notasRecentes = await listarNotasFiscaisRecentesBling(token).catch(err => {
-      console.warn('Falha ao listar NF-es recentes no Bling:', err.message);
+  const chaveCache = `notasRecentes_${tipoNota}`;
+  if (!cache[chaveCache]) {
+    cache[chaveCache] = await listarNotasFiscaisRecentesBling(token, tipoNota).catch(err => {
+      console.warn(`Falha ao listar ${tipoNota.toUpperCase()}s recentes no Bling:`, err.message);
       return [];
     });
   }
 
-  const notaDaLista = encontrarNotaNaListagemBling(cache.notasRecentes, {
+  const notaDaLista = encontrarNotaNaListagemBling(cache[chaveCache], {
     id: nota.id,
     numero: nota.numero
   });
@@ -4021,6 +4022,24 @@ app.get('/api/bling/nfe/:id', auth, async (req, res) => {
     res.json({ ok: true, nfe: nota });
   } catch (err) {
     console.error('Erro ao consultar NF-e:', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+app.get('/api/bling/nfce/:id', auth, async (req, res) => {
+  try {
+    const token = await getBlingToken();
+    const consulta = await consultarBlingPorId(`nfce/${req.params.id}`, token);
+    if (consulta.status < 200 || consulta.status >= 300) {
+      return res.status(400).json({
+        erro: resumirErroBling(consulta.data, 'Erro ao consultar NFC-e no Bling'),
+        detalhes: consulta.data || consulta.texto
+      });
+    }
+    const nota = await enriquecerSituacaoNotaFiscalBling(consulta.data?.data || {}, token, null, 'nfce');
+    res.json({ ok: true, nfce: nota });
+  } catch (err) {
+    console.error('Erro ao consultar NFC-e:', err);
     res.status(500).json({ erro: err.message });
   }
 });
@@ -4491,16 +4510,28 @@ app.post('/api/bling/nfce', auth, async (req, res) => {
         [String(nfceId), criacao.data?.data?.numero || '', extrairSituacaoNotaFiscal(criacao.data?.data), vendaId]
       );
       try {
+        const cacheBling = {};
         const consulta = await consultarBlingPorId(`nfce/${nfceId}`, token);
         if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
+          const notaConsultada = await enriquecerSituacaoNotaFiscalBling(consulta.data.data, token, cacheBling, 'nfce');
+          const situacaoAtual = extrairSituacaoNotaFiscal(notaConsultada);
+          const situacaoDetalhada = extrairMotivoBling(consulta.data, situacaoAtual || '');
+          const situacaoSalvar = situacaoAtual || situacaoDetalhada || '';
           await pool.query(
             `UPDATE vendas
              SET nfce_numero=COALESCE(NULLIF($1,''), nfce_numero),
                  nfce_situacao=COALESCE(NULLIF($2,''), nfce_situacao)
              WHERE id=$3`,
-            [consulta.data.data.numero || '', extrairSituacaoNotaFiscal(consulta.data.data), vendaId]
+            [notaConsultada.numero || '', situacaoSalvar, vendaId]
           );
-          return res.json({ ok: true, nfce: consulta.data.data });
+          if (normalizarTextoBling(situacaoSalvar || situacaoAtual).includes('rejeit')) {
+            return res.status(400).json({
+              erro: `NFC-e rejeitada no Bling${situacaoSalvar || situacaoAtual ? `: ${situacaoSalvar || situacaoAtual}` : '.'}`,
+              detalhes: consulta.data,
+              nfce: notaConsultada
+            });
+          }
+          return res.json({ ok: true, nfce: notaConsultada });
         }
       } catch (errConsulta) {
         console.error('Erro ao consultar NFC-e criada no Bling:', errConsulta);

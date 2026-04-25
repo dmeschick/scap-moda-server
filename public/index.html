@@ -5135,7 +5135,8 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   const link = obterLinkNotaBling(notaVisualizacao, tipo);
   if (!link) return false;
   const situacao = extrairSituacaoNotaFiscalLocal(notaVisualizacao);
-  const autorizada = tipo === 'nfe' ? notaObjetoAutorizada(notaVisualizacao) : true;
+  const autorizada = notaObjetoAutorizada(notaVisualizacao);
+  const prefixo = tipo === 'nfe' ? 'NF-e' : 'NFC-e';
 
   window._notaBlingAtualVisualizacao = notaVisualizacao;
 
@@ -5144,21 +5145,18 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   const aviso = document.getElementById('modal-nota-bling-aviso');
 
   if (titulo) {
-    const prefixo = tipo === 'nfe' ? 'NF-e' : 'NFC-e';
     titulo.textContent = `${prefixo} ${nota?.numero ? `Nº ${nota.numero}` : ''}`.trim();
   }
   if (aviso) {
     aviso.style.display = 'block';
-    aviso.textContent = tipo === 'nfe'
-      ? (autorizada
-          ? 'Carregando o DANFE da NF-e pelo sistema para evitar o download automático do Bling. Use o botão de imprimir do visualizador, se a janela de impressão não abrir.'
-          : `A NF-e ainda não está autorizada${situacao ? ` (${situacao})` : ''}. A visualização foi aberta sem impressão automática.`)
-      : 'Se a visualização não carregar dentro do sistema, use "Abrir em nova aba" ou "Abrir no Bling".';
+    aviso.textContent = autorizada
+      ? `Carregando o ${prefixo === 'NF-e' ? 'DANFE da NF-e' : 'DANFE da NFC-e'} pelo sistema para evitar o download automático do Bling. Use o botão de imprimir do visualizador, se a janela de impressão não abrir.`
+      : `A ${prefixo} ainda não está autorizada${situacao ? ` (${situacao})` : ''}. A visualização foi aberta sem impressão automática.`;
   }
   if (frame) {
     frame.onload = null;
     frame.src = 'about:blank';
-    if (tipo === 'nfe' && autorizada) {
+    if (autorizada) {
       frame.onload = () => {
         frame.onload = null;
         setTimeout(() => {
@@ -5166,7 +5164,7 @@ function abrirNotaBlingNoSistema(tipo, nota) {
             frame.contentWindow?.focus();
             frame.contentWindow?.print();
           } catch (err) {
-            console.warn('Não foi possível abrir impressão automática da NF-e:', err);
+            console.warn(`Não foi possível abrir impressão automática da ${prefixo}:`, err);
           }
         }, 800);
       };
@@ -5268,10 +5266,12 @@ async function consultarNotaBlingExistente(tipo, notaExistente) {
   if (!notaExistente?.id) return null;
   const rota = tipo === 'nfe'
     ? `/api/bling/nfe/${encodeURIComponent(notaExistente.id)}`
-    : null;
+    : (tipo === 'nfce'
+        ? `/api/bling/nfce/${encodeURIComponent(notaExistente.id)}`
+        : null);
   if (!rota) return null;
   const r = await api('GET', rota);
-  const nota = tipo === 'nfe' ? r.nfe : null;
+  const nota = tipo === 'nfe' ? r.nfe : (tipo === 'nfce' ? r.nfce : null);
   return nota ? { ...nota, id: nota.id || notaExistente.id, numero: nota.numero || notaExistente.numero } : null;
 }
 
@@ -5353,13 +5353,34 @@ async function emitirNFCe(vendaId) {
   try {
     const notaExistente = obterNotaExistenteVenda(_vendaAtual, 'nfce');
     if (notaExistente) {
-      popup = abrirPopupBlingNota('nfce', notaExistente);
+      const notaConsultada = await consultarNotaBlingExistente('nfce', notaExistente).catch(err => {
+        console.warn('Falha ao consultar NFC-e existente:', err);
+        return null;
+      });
+      const notaAtual = notaConsultada || notaExistente;
+      const situacaoAtual = extrairSituacaoNotaFiscalLocal(notaAtual);
+      const autorizada = notaObjetoAutorizada(notaAtual);
+      if (_vendaAtual && _vendaAtual.id === vendaId) {
+        _vendaAtual.nfce_numero = notaAtual?.numero || _vendaAtual.nfce_numero;
+        _vendaAtual.nfce_situacao = situacaoAtual || _vendaAtual.nfce_situacao;
+      }
       const numeroLabel = notaExistente.numero ? `Nº ${notaExistente.numero}` : 'nota existente';
       const numeroCopiado = notaExistente.numero ? await copiarTexto(notaExistente.numero) : false;
-      if (popup) {
-        toast('NFC-e já emitida. Reabrindo no Bling — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+      if (situacaoNotaFiscalTem(situacaoAtual, 'rejeit')) {
+        abrirPopupBlingNota('nfce', notaAtual);
+        toast('NFC-e rejeitada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') , 'warn', 8000);
+      } else if (!autorizada) {
+        toast('A NFC-e existe, mas ainda não está autorizada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Não vou abrir impressão automática.', 'warn', 7000);
       } else {
-        toast('NFC-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Permita popups para abrir a nota no Bling.', 'warn');
+        const abriuNoSistema = abrirNotaBlingNoSistema('nfce', notaAtual);
+        if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', notaAtual);
+        if (abriuNoSistema) {
+          toast('NFC-e já emitida. Abrindo para impressão — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+        } else if (popup) {
+          toast('NFC-e já emitida. Abrindo no Bling — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
+        } else {
+          toast('NFC-e já emitida — ' + numeroLabel + (numeroCopiado ? ' copiado.' : '.') + ' Permita popups para abrir a nota no Bling.', 'warn');
+        }
       }
       return;
     }
@@ -5368,19 +5389,35 @@ async function emitirNFCe(vendaId) {
     if (_vendaAtual && _vendaAtual.id === vendaId) {
       _vendaAtual.nfce_id = r.nfce?.id ? String(r.nfce.id) : _vendaAtual.nfce_id;
       _vendaAtual.nfce_numero = r.nfce?.numero || _vendaAtual.nfce_numero;
+      _vendaAtual.nfce_situacao = extrairSituacaoNotaFiscalLocal(r.nfce) || _vendaAtual.nfce_situacao;
     }
-    const abriuNoSistema = abrirNotaBlingNoSistema('nfce', r.nfce);
-    if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', r.nfce);
+    const autorizada = notaObjetoAutorizada(r.nfce);
+    const situacaoAtual = extrairSituacaoNotaFiscalLocal(r.nfce);
     const numero = r.nfce?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
-    if (abriuNoSistema) {
-      toast('NFC-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
-    } else if (popup) {
-      toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+    if (autorizada) {
+      const abriuNoSistema = abrirNotaBlingNoSistema('nfce', r.nfce);
+      if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', r.nfce);
+      if (abriuNoSistema) {
+        toast('NFC-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+      } else if (popup) {
+        toast('NFC-e emitida com sucesso! Nota aberta no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+      } else {
+        toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      }
     } else {
-      toast('NFC-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Permita popups para abrir a nota no Bling.', 'warn');
+      toast('NFC-e criada, mas ainda não autorizada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '') + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não vou abrir impressão automática.', 'warn', 8000);
     }
-  } catch(e) { toast('Erro ao emitir NFC-e: ' + e.message, 'error'); }
+  } catch(e) {
+    if (_vendaAtual && _vendaAtual.id === vendaId && e.nfce) {
+      _vendaAtual.nfce_id = e.nfce?.id ? String(e.nfce.id) : _vendaAtual.nfce_id;
+      _vendaAtual.nfce_numero = e.nfce?.numero || _vendaAtual.nfce_numero;
+      _vendaAtual.nfce_situacao = extrairSituacaoNotaFiscalLocal(e.nfce) || _vendaAtual.nfce_situacao;
+    }
+    const detalheBling = resumirDetalhesBlingLocal(e.detalhes, extrairSituacaoNotaFiscalLocal(e.nfce));
+    const complemento = detalheBling && !String(e.message || '').includes(detalheBling) ? ` | ${detalheBling}` : '';
+    toast('Erro ao emitir NFC-e: ' + e.message + complemento, 'error', 9000);
+  }
   finally { if (btn) { btn.disabled = false; btn.textContent = '🧾 NFC-e'; } }
 }
 
