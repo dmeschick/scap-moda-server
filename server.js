@@ -795,7 +795,11 @@ app.get('/api/funcionarios', async (req, res) => {
     const { todos, login } = req.query;
     let sql;
     if (login) {
-      sql = "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE cargo IN ('Administrador','Gerente') AND status='ativo' ORDER BY nome";
+      sql = `SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto
+             FROM funcionarios
+             WHERE status='ativo'
+               AND cargo IN ('Administrador', 'Gerente', 'Proprietária', 'Proprietaria')
+             ORDER BY nome`;
     } else if (todos) {
       sql = 'SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios ORDER BY nome';
     } else {
