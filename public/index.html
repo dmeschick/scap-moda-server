@@ -4287,7 +4287,9 @@ function notaFiscalAutorizada(venda, tipo = 'nfe') {
 function notaFiscalRejeitada(venda, tipo = 'nfe') {
   if (!venda?.[tipo + '_id']) return false;
   const situacao = String(venda?.[tipo + '_situacao'] || '').trim();
-  return situacao === '4' || situacaoNotaFiscalTem(situacao, 'rejeit');
+  return ['4', '5'].includes(situacao)
+    || situacaoNotaFiscalTem(situacao, 'rejeit')
+    || (normalizarTextoBase(situacao) === 'pendente' && !!venda?.[tipo + '_numero']);
 }
 
 function notaObjetoAutorizada(nota = {}) {
@@ -4309,7 +4311,8 @@ function notaObjetoAutorizada(nota = {}) {
 
 function obterSituacaoNFeVenda(venda) {
   const situacao = String(venda?.nfe_situacao || '').trim();
-  if (situacao === '4') return 'rejeitada';
+  if (['4', '5'].includes(situacao)) return 'rejeitada';
+  if (normalizarTextoBase(situacao) === 'pendente' && venda?.nfe_numero) return 'rejeitada';
   return situacao;
 }
 
