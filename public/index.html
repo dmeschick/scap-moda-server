@@ -6354,9 +6354,12 @@ function mostrarInfoProduto(p, modoDevolvido) {
 }
 
 function renderCarrinho() {
-  const count = carrinho.reduce((a, i) => a + i.qty, 0) +
-    carrinhoTroca.reduce((a, i) => a + i.qty, 0);
-  document.getElementById('cart-count').textContent = count ? `(${count} item${count>1?'s':''})` : '';
+  const comprasCount = carrinho.reduce((a, i) => a + i.qty, 0);
+  const devolvidosCount = carrinhoTroca.reduce((a, i) => a + i.qty, 0);
+  const resumoItens = [];
+  if (comprasCount) resumoItens.push(`${comprasCount} compra${comprasCount > 1 ? 's' : ''}`);
+  if (devolvidosCount) resumoItens.push(`${devolvidosCount} devolvido${devolvidosCount > 1 ? 's' : ''}`);
+  document.getElementById('cart-count').textContent = resumoItens.length ? `(${resumoItens.join(' • ')})` : '';
   const totaisPDV = calcularTotaisPDV();
   const sub = totaisPDV.sub;
   const desc = totaisPDV.descTabela;
