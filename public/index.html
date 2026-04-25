@@ -4327,26 +4327,35 @@ function notaObjetoAutorizada(nota = {}) {
   return situacao.includes('autorizada') || situacao.includes('autorizado');
 }
 
-function obterSituacaoNFeVenda(venda) {
-  return normalizarSituacaoNFeBling(venda?.nfe_situacao);
+function obterSituacaoNotaVenda(venda, tipo = 'nfe') {
+  return normalizarSituacaoNFeBling(venda?.[tipo + '_situacao']);
+}
+
+function renderBadgeStatusNota(venda, tipo = 'nfe') {
+  const situacao = obterSituacaoNotaVenda(venda, tipo);
+  const prefixo = tipo === 'nfce' ? 'NFC-e' : 'NF-e';
+  const titulo = textoSeguro(situacao || `Status da ${prefixo} no Bling`);
+  if (notaFiscalAutorizada(venda, tipo)) {
+    return `<span class="badge badge-green" title="${titulo}">${prefixo} autorizada</span>`;
+  }
+  if (notaFiscalRejeitada(venda, tipo)) {
+    return `<span class="badge badge-red" title="${titulo}">${prefixo} rejeitada</span>`;
+  }
+  if (venda?.[tipo + '_id']) {
+    return `<span class="badge badge-amber" title="${titulo}">${prefixo} pendente</span>`;
+  }
+  return '';
 }
 
 function renderStatusNFeVenda(venda) {
-  const situacao = obterSituacaoNFeVenda(venda);
-  if (!venda?.nfe_id && !situacao) {
-    return venda?.canal === 'online'
-      ? `<span class="badge badge-amber" title="Emita a NF-e para liberar o DANFE simplificado">Aguardando NF-e</span>`
-      : '';
+  if (venda?.nfe_id || venda?.nfe_situacao) {
+    return renderBadgeStatusNota(venda, 'nfe');
   }
-  const titulo = textoSeguro(situacao || 'Status da NF-e no Bling');
-  if (notaFiscalAutorizada(venda, 'nfe')) {
-    return `<span class="badge badge-green" title="${titulo}">NF-e autorizada</span>`;
+  if (venda?.nfce_id || venda?.nfce_situacao) {
+    return renderBadgeStatusNota(venda, 'nfce');
   }
-  if (notaFiscalRejeitada(venda, 'nfe')) {
-    return `<span class="badge badge-red" title="${titulo}">NF-e rejeitada</span>`;
-  }
-  if (venda?.nfe_id) {
-    return `<span class="badge badge-amber" title="${titulo}">NF-e pendente</span>`;
+  if (venda?.canal === 'online') {
+    return `<span class="badge badge-amber" title="A venda online ainda está sem documento fiscal vinculado">Aguardando documento fiscal</span>`;
   }
   return '';
 }
