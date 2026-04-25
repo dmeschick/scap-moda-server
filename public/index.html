@@ -575,6 +575,11 @@ tr:hover td{background:var(--bg)}
         <div class="pdv-atalhos">
           <span class="pdv-atalhos-label">Atalhos:</span>
           <span><kbd>F2</kbd> pagamento</span>
+          <span><kbd>1</kbd> dinheiro</span>
+          <span><kbd>2</kbd> pix</span>
+          <span><kbd>3</kbd> débito</span>
+          <span><kbd>4</kbd> crédito</span>
+          <span><kbd>5</kbd> cheque</span>
           <span><kbd>F4</kbd> orçamento</span>
           <span><kbd>F6</kbd> finalizar</span>
           <span><kbd>F7</kbd> cliente</span>
@@ -6602,6 +6607,30 @@ function mostrarCampoPgto() {
   campo.innerHTML = html;
 }
 
+function selecionarFormaPagamentoAtalho(atalho) {
+  const mapa = {
+    '1': 'dinheiro',
+    '2': 'pix',
+    '3': 'debito',
+    '4': 'credito',
+    '5': 'cheque',
+    d: 'dinheiro',
+    p: 'pix',
+    b: 'debito',
+    c: 'credito',
+    q: 'cheque'
+  };
+  const tipo = mapa[String(atalho || '').toLowerCase()];
+  const campoTipo = document.getElementById('pgto-tipo');
+  if (!tipo || !campoTipo) return false;
+  campoTipo.value = tipo;
+  mostrarCampoPgto();
+  const campoValor = document.getElementById('pgto-val');
+  campoValor?.focus();
+  campoValor?.select?.();
+  return true;
+}
+
 function adicionarPgto() {
   const tipo = document.getElementById('pgto-tipo').value;
   const val = parseFloat(document.getElementById('pgto-val')?.value)||0;
@@ -7126,14 +7155,18 @@ document.addEventListener('keydown', e => {
   const modalOrc = document.getElementById('modal-orcamento');
   const pdvAtivo = document.getElementById('page-pdv')?.classList.contains('active');
   const modaisAbertos = [...document.querySelectorAll('.modal-backdrop.open')];
+  const campoTipoPagamentoFocado = document.activeElement?.id === 'pgto-tipo';
+
+  if (pdvAtivo && !modaisAbertos.length && campoTipoPagamentoFocado && selecionarFormaPagamentoAtalho(e.key)) {
+    e.preventDefault();
+    return;
+  }
 
   if (e.key === 'F2') {
     if (pdvAtivo && !modaisAbertos.length) {
       e.preventDefault();
-      const campoValor = document.getElementById('pgto-val');
       const campoTipo = document.getElementById('pgto-tipo');
-      (campoValor || campoTipo)?.focus();
-      if ((campoValor || campoTipo)?.select) (campoValor || campoTipo).select();
+      campoTipo?.focus();
       return;
     }
   }
