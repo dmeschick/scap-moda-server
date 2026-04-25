@@ -575,8 +575,9 @@ tr:hover td{background:var(--bg)}
         </div>
         <div class="pdv-atalhos">
           <span class="pdv-atalhos-label">Atalhos:</span>
-          <span><kbd>F2</kbd> pagamento</span>
-          <span><kbd>Enter</kbd> confirma pgto</span>
+          <span><kbd>F2</kbd> vendedor</span>
+          <span><kbd>F3</kbd> pagamento</span>
+          <span><kbd>Enter</kbd> avança/confirma</span>
           <span><kbd>1</kbd> dinheiro</span>
           <span><kbd>2</kbd> pix</span>
           <span><kbd>3</kbd> débito</span>
@@ -6633,6 +6634,25 @@ function selecionarFormaPagamentoAtalho(atalho) {
   return true;
 }
 
+function selecionarVendedorAtalho(atalho) {
+  const campoVendedor = document.getElementById('pdv-vendedor');
+  const idx = Number.parseInt(atalho, 10);
+  if (!campoVendedor || Number.isNaN(idx) || idx < 1) return false;
+  const opcoes = [...campoVendedor.options];
+  if (idx > opcoes.length) return false;
+  campoVendedor.selectedIndex = idx - 1;
+  salvarTelaAtualEPersistirPDV();
+  return true;
+}
+
+function confirmarVendedorComEnter() {
+  const campoVendedor = document.getElementById('pdv-vendedor');
+  if (document.activeElement !== campoVendedor || !campoVendedor?.value) return false;
+  const campoTipo = document.getElementById('pgto-tipo');
+  campoTipo?.focus();
+  return true;
+}
+
 function confirmarPagamentoComEnter() {
   const campoTipo = document.getElementById('pgto-tipo');
   const campoPgto = document.getElementById('pgto-campo');
@@ -7186,9 +7206,18 @@ document.addEventListener('keydown', e => {
   const modalOrc = document.getElementById('modal-orcamento');
   const pdvAtivo = document.getElementById('page-pdv')?.classList.contains('active');
   const modaisAbertos = [...document.querySelectorAll('.modal-backdrop.open')];
+  const campoVendedorFocado = document.activeElement?.id === 'pdv-vendedor';
   const campoTipoPagamentoFocado = document.activeElement?.id === 'pgto-tipo';
 
+  if (pdvAtivo && !modaisAbertos.length && campoVendedorFocado && selecionarVendedorAtalho(e.key)) {
+    e.preventDefault();
+    return;
+  }
   if (pdvAtivo && !modaisAbertos.length && campoTipoPagamentoFocado && selecionarFormaPagamentoAtalho(e.key)) {
+    e.preventDefault();
+    return;
+  }
+  if (pdvAtivo && !modaisAbertos.length && e.key === 'Enter' && confirmarVendedorComEnter()) {
     e.preventDefault();
     return;
   }
@@ -7198,6 +7227,14 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.key === 'F2') {
+    if (pdvAtivo && !modaisAbertos.length) {
+      e.preventDefault();
+      const campoVendedor = document.getElementById('pdv-vendedor');
+      campoVendedor?.focus();
+      return;
+    }
+  }
+  if (e.key === 'F3') {
     if (pdvAtivo && !modaisAbertos.length) {
       e.preventDefault();
       const campoTipo = document.getElementById('pgto-tipo');
