@@ -517,7 +517,6 @@ tr:hover td{background:var(--bg)}
                 <button class="btn btn-sm" onclick="trocarEnderecoPDV()" title="Trocar endereço" style="padding:2px 6px;font-size:11px;flex-shrink:0">✏️</button>
                 <select id="pdv-endereco-select" style="display:none;width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-family:var(--font)" onchange="confirmarEnderecoPDV()"></select>
               </div>
-              <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:10px"></select>
             </div>
             <div class="pdv-cart-scroll" id="pdv-cart-scroll">
               <div id="cart-items"><div class="empty-state" style="padding:24px"><div class="icon">🛒</div><p>Carrinho vazio</p></div></div>
@@ -549,6 +548,8 @@ tr:hover td{background:var(--bg)}
             </div>
             <!-- Pagamento -->
             <div id="pgto-section">
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">VENDEDOR</div>
+              <select id="pdv-vendedor" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font);margin-bottom:12px"></select>
               <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">FORMA DE PAGAMENTO</div>
               <select id="pgto-tipo" onchange="mostrarCampoPgto()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:var(--font)">
                 <option value="">Selecionar forma...</option>
