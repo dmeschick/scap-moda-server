@@ -1600,7 +1600,7 @@ app.get('/api/vendas', auth, async (req, res) => {
             const consulta = await consultarBlingPorId(`nfe/${encodeURIComponent(venda.nfe_id)}`, token);
             if (consulta.status < 200 || consulta.status >= 300 || !consulta.data?.data) continue;
             const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
-            const situacaoDetalhada = resumirErroBling(consulta.data, situacaoAtual || '');
+            const situacaoDetalhada = extrairMotivoBling(consulta.data, situacaoAtual || '');
             const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
               ? (situacaoDetalhada || situacaoAtual)
               : (situacaoAtual || situacaoDetalhada || '');
@@ -3406,6 +3406,29 @@ function resumirErroBling(data, fallback) {
   return mensagens.join(' | ');
 }
 
+function coletarMotivosBling(obj, acc = []) {
+  if (!obj) return acc;
+  if (Array.isArray(obj)) {
+    obj.forEach(item => coletarMotivosBling(item, acc));
+    return acc;
+  }
+  if (typeof obj !== 'object') return acc;
+
+  ['message', 'mensagem', 'description', 'descricao', 'detail', 'detalhe', 'error', 'erro', 'reason', 'motivo'].forEach(chave => {
+    if (typeof obj[chave] === 'string' && obj[chave].trim()) acc.push(obj[chave].trim());
+  });
+
+  Object.values(obj).forEach(valor => {
+    if (valor && typeof valor === 'object') coletarMotivosBling(valor, acc);
+  });
+  return acc;
+}
+
+function extrairMotivoBling(data, fallback = '') {
+  const mensagens = [...new Set(coletarMotivosBling(data).filter(Boolean))];
+  return mensagens[0] || fallback;
+}
+
 function esperar(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -3996,11 +4019,11 @@ app.post('/api/bling/nfe', auth, async (req, res) => {
     try {
       const consulta = await consultarBlingPorId(`nfe/${nfeId}`, token);
       if (consulta.status >= 200 && consulta.status < 300 && consulta.data?.data) {
-        const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
-        const situacaoDetalhada = resumirErroBling(consulta.data, situacaoAtual || '');
-        const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
-          ? (situacaoDetalhada || situacaoAtual)
-          : (situacaoAtual || situacaoDetalhada || '');
+            const situacaoAtual = extrairSituacaoNotaFiscal(consulta.data.data);
+            const situacaoDetalhada = extrairMotivoBling(consulta.data, situacaoAtual || '');
+            const situacaoSalvar = /^\d+$/.test(String(situacaoAtual || '').trim())
+              ? (situacaoDetalhada || situacaoAtual)
+              : (situacaoAtual || situacaoDetalhada || '');
         await pool.query(
           `UPDATE vendas
            SET nfe_numero=COALESCE(NULLIF($1,''), nfe_numero),

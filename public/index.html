@@ -4322,13 +4322,13 @@ function renderStatusNFeVenda(venda) {
   }
   const titulo = textoSeguro(situacao || 'Status da NF-e no Bling');
   if (notaFiscalAutorizada(venda, 'nfe')) {
-    return `<span class="badge badge-green" title="${titulo}">NF-e ${textoSeguro(situacao || venda?.nfe_numero || 'autorizada')}</span>`;
+    return `<span class="badge badge-green" title="${titulo}">NF-e autorizada</span>`;
   }
   if (notaFiscalRejeitada(venda, 'nfe')) {
-    return `<span class="badge badge-red" title="${titulo}">NF-e ${textoSeguro(situacao || 'rejeitada')}</span>`;
+    return `<span class="badge badge-red" title="${titulo}">NF-e rejeitada</span>`;
   }
   if (venda?.nfe_id) {
-    return `<span class="badge badge-amber" title="${titulo}">NF-e ${textoSeguro(situacao || 'pendente')}</span>`;
+    return `<span class="badge badge-amber" title="${titulo}">NF-e pendente</span>`;
   }
   return '';
 }
