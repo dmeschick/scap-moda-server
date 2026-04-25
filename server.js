@@ -3692,6 +3692,72 @@ function normalizarSituacaoNotaFiscalBling(valor = '') {
   return BLING_STATUS_NFE_MAP[texto] || texto;
 }
 
+function converterValorBlingNumero(valor) {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+  const texto = String(valor || '').trim();
+  if (!texto) return 0;
+  const normalizado = texto.includes(',')
+    ? texto.replace(/\./g, '').replace(',', '.')
+    : texto;
+  const numero = parseFloat(normalizado);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function extrairNomeNotaFiscalBling(nota = {}) {
+  const candidatos = [
+    nota.nome,
+    nota.contato?.nome,
+    nota.cliente?.nome,
+    nota.destinatario?.nome
+  ];
+  for (const candidato of candidatos) {
+    if (candidato !== undefined && candidato !== null && String(candidato).trim()) return String(candidato).trim();
+  }
+  return '';
+}
+
+function extrairValorNotaFiscalBling(nota = {}) {
+  const candidatos = [
+    nota.valor,
+    nota.valorNota,
+    nota.total,
+    nota.valorTotal
+  ];
+  for (const candidato of candidatos) {
+    const numero = converterValorBlingNumero(candidato);
+    if (numero > 0) return numero;
+  }
+  return 0;
+}
+
+function extrairDataNotaFiscalBling(nota = {}) {
+  const candidatos = [
+    nota.dataEmissao,
+    nota.data,
+    nota.dataOperacao
+  ];
+  for (const candidato of candidatos) {
+    if (!candidato) continue;
+    const data = new Date(candidato);
+    if (!Number.isNaN(data.getTime())) return data.toISOString().slice(0, 10);
+    const texto = String(candidato).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(texto)) return texto.slice(0, 10);
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+      const [dia, mes, ano] = texto.split('/');
+      return `${ano}-${mes}-${dia}`;
+    }
+  }
+  return '';
+}
+
+function chaveCorrespondenciaNotaFiscal({ nome = '', valor = 0, data = '' } = {}) {
+  const nomeNormalizado = normalizarTextoBling(nome).replace(/\s+/g, ' ').trim();
+  const totalCentavos = Math.round(converterValorBlingNumero(valor) * 100);
+  const dataNormalizada = String(data || '').trim().slice(0, 10);
+  if (!nomeNormalizado || !totalCentavos || !dataNormalizada) return '';
+  return `${nomeNormalizado}__${totalCentavos}__${dataNormalizada}`;
+}
+
 function extrairSituacaoNotaFiscal(nota = {}) {
   const candidatos = [
     nota.status,
@@ -3767,6 +3833,41 @@ async function enriquecerSituacaoNotaFiscalBling(nota = {}, token, cache = null)
   };
 }
 
+function ordenarVendaParaCorrespondencia(a, b) {
+  const dataA = new Date(a?.data || 0).getTime();
+  const dataB = new Date(b?.data || 0).getTime();
+  if (dataB !== dataA) return dataB - dataA;
+  return String(b?.num || '').localeCompare(String(a?.num || ''), 'pt-BR', { numeric: true });
+}
+
+function ordenarNotaBlingParaCorrespondencia(a, b) {
+  const numeroA = parseInt(String(a?.numero || '').replace(/\D/g, ''), 10) || 0;
+  const numeroB = parseInt(String(b?.numero || '').replace(/\D/g, ''), 10) || 0;
+  if (numeroB !== numeroA) return numeroB - numeroA;
+  const dataA = new Date(a?.dataEmissao || a?.data || 0).getTime();
+  const dataB = new Date(b?.dataEmissao || b?.data || 0).getTime();
+  return dataB - dataA;
+}
+
+async function aplicarSituacaoNotaBlingNaVenda(venda, notaDaLista) {
+  if (!venda || !notaDaLista) return;
+  const situacaoLista = extrairSituacaoNotaFiscal(notaDaLista);
+  if (!situacaoLista) return;
+  const numeroLista = notaDaLista.numero ? String(notaDaLista.numero) : '';
+  if (situacaoLista === venda.nfe_situacao && (!!numeroLista ? numeroLista === String(venda.nfe_numero || '') : true)) return;
+  venda.nfe_situacao = situacaoLista;
+  if (numeroLista) venda.nfe_numero = numeroLista;
+  if (notaDaLista.id) venda.nfe_id = String(notaDaLista.id);
+  await pool.query(
+    `UPDATE vendas
+     SET nfe_situacao=$1,
+         nfe_numero=COALESCE(NULLIF($2,''), nfe_numero),
+         nfe_id=COALESCE(NULLIF($3,''), nfe_id)
+     WHERE id=$4`,
+    [situacaoLista, numeroLista, notaDaLista.id ? String(notaDaLista.id) : '', venda.id]
+  );
+}
+
 async function sincronizarSituacaoNFeDasVendas(vendas = []) {
   const candidatas = vendas.filter(venda => {
     if (!venda?.nfe_id) return false;
@@ -3784,24 +3885,60 @@ async function sincronizarSituacaoNFeDasVendas(vendas = []) {
     const token = await getBlingToken();
     const notasRecentes = await listarNotasFiscaisRecentesBling(token);
     if (!notasRecentes.length) return vendas;
+    const notasUsadas = new Set();
+    const vendasSemMatchDireto = [];
 
     for (const venda of candidatas) {
       const notaDaLista = encontrarNotaNaListagemBling(notasRecentes, {
         id: venda.nfe_id,
         numero: venda.nfe_numero
       });
-      if (!notaDaLista) continue;
-      const situacaoLista = extrairSituacaoNotaFiscal(notaDaLista);
-      if (!situacaoLista || situacaoLista === venda.nfe_situacao) continue;
-      venda.nfe_situacao = situacaoLista;
-      if (!venda.nfe_numero && notaDaLista.numero) venda.nfe_numero = String(notaDaLista.numero);
-      await pool.query(
-        `UPDATE vendas
-         SET nfe_situacao=$1,
-             nfe_numero=COALESCE(NULLIF($2,''), nfe_numero)
-         WHERE id=$3`,
-        [situacaoLista, notaDaLista.numero || '', venda.id]
-      );
+      if (notaDaLista) {
+        notasUsadas.add(String(notaDaLista.id || notaDaLista.numero || ''));
+        await aplicarSituacaoNotaBlingNaVenda(venda, notaDaLista);
+        continue;
+      }
+      vendasSemMatchDireto.push(venda);
+    }
+
+    const notasDisponiveis = notasRecentes.filter(nota => {
+      const chave = String(nota?.id || nota?.numero || '');
+      return chave && !notasUsadas.has(chave);
+    });
+
+    const vendasPorChave = new Map();
+    for (const venda of vendasSemMatchDireto) {
+      const chave = chaveCorrespondenciaNotaFiscal({
+        nome: venda.cliente_nome,
+        valor: venda.tot,
+        data: venda.data ? new Date(venda.data).toISOString().slice(0, 10) : ''
+      });
+      if (!chave) continue;
+      if (!vendasPorChave.has(chave)) vendasPorChave.set(chave, []);
+      vendasPorChave.get(chave).push(venda);
+    }
+
+    const notasPorChave = new Map();
+    for (const nota of notasDisponiveis) {
+      const chave = chaveCorrespondenciaNotaFiscal({
+        nome: extrairNomeNotaFiscalBling(nota),
+        valor: extrairValorNotaFiscalBling(nota),
+        data: extrairDataNotaFiscalBling(nota)
+      });
+      if (!chave) continue;
+      if (!notasPorChave.has(chave)) notasPorChave.set(chave, []);
+      notasPorChave.get(chave).push(nota);
+    }
+
+    for (const [chave, vendasGrupo] of vendasPorChave.entries()) {
+      const notasGrupo = notasPorChave.get(chave);
+      if (!notasGrupo?.length) continue;
+      const vendasOrdenadas = [...vendasGrupo].sort(ordenarVendaParaCorrespondencia);
+      const notasOrdenadas = [...notasGrupo].sort(ordenarNotaBlingParaCorrespondencia);
+      const limite = Math.min(vendasOrdenadas.length, notasOrdenadas.length);
+      for (let i = 0; i < limite; i++) {
+        await aplicarSituacaoNotaBlingNaVenda(vendasOrdenadas[i], notasOrdenadas[i]);
+      }
     }
   } catch (err) {
     console.error('Falha ao sincronizar situações de NF-e no histórico:', err);
