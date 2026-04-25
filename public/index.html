@@ -492,7 +492,7 @@ tr:hover td{background:var(--bg)}
           <div class="pdv-panel pdv-cart-panel">
             <div class="pdv-cart-head">
               <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between">
-                🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:400"></span>
+                🛒 Carrinho <span id="cart-count" style="font-size:12px;color:var(--text3);font-weight:700"></span>
               </div>
               <div style="position:relative;margin-bottom:6px;display:flex;gap:6px;align-items:center">
                 <div style="position:relative;flex:1">
@@ -6354,7 +6354,8 @@ function mostrarInfoProduto(p, modoDevolvido) {
 }
 
 function renderCarrinho() {
-  const count = carrinho.reduce((a,i) => a+i.qty, 0);
+  const count = carrinho.reduce((a, i) => a + i.qty, 0) +
+    carrinhoTroca.reduce((a, i) => a + i.qty, 0);
   document.getElementById('cart-count').textContent = count ? `(${count} item${count>1?'s':''})` : '';
   const totaisPDV = calcularTotaisPDV();
   const sub = totaisPDV.sub;
