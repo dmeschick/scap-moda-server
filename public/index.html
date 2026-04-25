@@ -4264,6 +4264,23 @@ function notaFiscalRejeitada(venda, tipo = 'nfe') {
   return situacaoNotaFiscalTem(venda?.[tipo + '_situacao'], 'rejeit');
 }
 
+function notaObjetoAutorizada(nota = {}) {
+  const situacao = normalizarTextoBase(extrairSituacaoNotaFiscalLocal(nota));
+  if (!situacao) return false;
+  if (
+    situacao.includes('rejeit') ||
+    situacao.includes('deneg') ||
+    situacao.includes('cancel') ||
+    situacao.includes('nao autoriz') ||
+    situacao.includes('não autoriz') ||
+    situacao.includes('pendente') ||
+    situacao.includes('aguard')
+  ) {
+    return false;
+  }
+  return situacao.includes('autorizada') || situacao.includes('autorizado');
+}
+
 async function carregarVendas() {
   popularVendedoresFiltro('venda-vendedor');
   const de = document.getElementById('venda-de')?.value || '';
@@ -5057,7 +5074,7 @@ function abrirNotaBlingNoSistema(tipo, nota) {
   const link = obterLinkNotaBling(notaVisualizacao, tipo);
   if (!link) return false;
   const situacao = extrairSituacaoNotaFiscalLocal(notaVisualizacao);
-  const autorizada = situacaoNotaFiscalTem(situacao, 'autoriz');
+  const autorizada = tipo === 'nfe' ? notaObjetoAutorizada(notaVisualizacao) : true;
 
   window._notaBlingAtualVisualizacao = notaVisualizacao;
 
@@ -5210,7 +5227,7 @@ async function emitirNFe(vendaId) {
       });
       const notaAtual = notaConsultada || notaExistente;
       const situacaoAtual = extrairSituacaoNotaFiscalLocal(notaAtual);
-      const autorizada = situacaoNotaFiscalTem(situacaoAtual, 'autoriz');
+      const autorizada = notaObjetoAutorizada(notaAtual);
       if (_vendaAtual && _vendaAtual.id === vendaId) {
         _vendaAtual.nfe_numero = notaAtual?.numero || _vendaAtual.nfe_numero;
         _vendaAtual.nfe_situacao = situacaoAtual || _vendaAtual.nfe_situacao;
@@ -5220,6 +5237,8 @@ async function emitirNFe(vendaId) {
       if (situacaoNotaFiscalTem(situacaoAtual, 'rejeit')) {
         abrirPopupBlingNota('nfe', notaAtual);
         toast('NF-e rejeitada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Confira o motivo no Bling.', 'warn', 7000);
+      } else if (!autorizada) {
+        toast('A NF-e existe, mas ainda não está autorizada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Não vou abrir impressão automática.', 'warn', 7000);
       } else {
         const abriuNoSistema = abrirNotaBlingNoSistema('nfe', notaAtual);
         if (abriuNoSistema) {
@@ -5237,14 +5256,18 @@ async function emitirNFe(vendaId) {
       _vendaAtual.nfe_numero = r.nfe?.numero || _vendaAtual.nfe_numero;
       _vendaAtual.nfe_situacao = extrairSituacaoNotaFiscalLocal(r.nfe) || _vendaAtual.nfe_situacao;
     }
-    const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
-    const autorizada = situacaoNotaFiscalTem(extrairSituacaoNotaFiscalLocal(r.nfe), 'autoriz');
+    const autorizada = notaObjetoAutorizada(r.nfe);
     const numero = r.nfe?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
-    if (abriuNoSistema) {
-      toast((autorizada ? 'NF-e emitida com sucesso! Nota aberta para impressão' : 'NF-e criada. Nota aberta para consulta') + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+    if (autorizada) {
+      const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
+      if (abriuNoSistema) {
+        toast('NF-e emitida com sucesso! Nota aberta para impressão' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
+      } else {
+        toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não encontrei o link de impressão no retorno do Bling.', 'warn');
+      }
     } else {
-      toast('NF-e emitida com sucesso!' + (numero ? ` Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não encontrei o link de impressão no retorno do Bling.', 'warn');
+      toast('NF-e criada, mas ainda não autorizada no Bling' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : '') + '. Não vou abrir impressão automática.', 'warn', 7000);
     }
   } catch(e) {
     if (_vendaAtual && _vendaAtual.id === vendaId && e.nfe) {
