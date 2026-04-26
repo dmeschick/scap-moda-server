@@ -669,7 +669,7 @@ tr:hover td{background:var(--bg)}
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th class="col-hide-mobile">Comissão</th><th>Status</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Nome</th><th>Cargo</th><th>Telefone</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody id="tabela-funcionarios"></tbody>
             </table>
           </div>
@@ -3857,7 +3857,7 @@ async function carregarFuncionarios() {
     const funcs = await api('GET', '/api/funcionarios');
     const filtrado = q ? funcs.filter(f => f.nome.toLowerCase().includes(q.toLowerCase())) : funcs;
     const tb = document.getElementById('tabela-funcionarios');
-    if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">👩</div><p>Nenhum funcionário</p></div></td></tr>'; return; }
+    if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="5"><div class="empty-state" style="padding:24px"><div class="icon">👩</div><p>Nenhum funcionário</p></div></td></tr>'; return; }
     renderMobileCardsFuncionarios(filtrado);
     tb.innerHTML = filtrado.map(f => `<tr style="${f.status==='inativo'?'opacity:.5':''}">
       <td><div style="display:flex;align-items:center;gap:8px">
@@ -3866,7 +3866,6 @@ async function carregarFuncionarios() {
       </div></td>
       <td><span class="badge badge-blue">${f.cargo}</span></td>
       <td>${f.tel||'—'}</td>
-      <td>${f.comissao||0}%</td>
       <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="confirmarAcao('editar funcionário','Editar funcionário ${f.nome.replace(/'/g,"\\'")}',()=>abrirModalFuncionario('${f.id}'))">Editar</button>
@@ -7576,7 +7575,6 @@ function renderMobileCardsFuncionarios(funcs) {
         '<div class="m-card-sub"><span class="badge badge-blue">' + (f.cargo||'') + '</span></div></div>' +
       '</div><span class="badge ' + stBadge + '">' + f.status + '</span></div>' +
       (f.tel ? '<div class="m-card-row"><span class="m-card-label">Telefone</span><span class="m-card-value"><a href="tel:' + f.tel + '" style="color:var(--blue)">' + f.tel + '</a></span></div>' : '') +
-      '<div class="m-card-row"><span class="m-card-label">Comissão</span><span class="m-card-value">' + (f.comissao||0) + '%</span></div>' +
       '<div class="m-card-actions">' +
         '<button class="btn btn-sm" onclick="abrirModalFuncionario(\'' + f.id + '\')">✏️ Editar</button>' +
         '<button class="btn btn-sm ' + (f.status==='ativo'?'':'btn-primary') + '" onclick="toggleFuncionario(\'' + f.id + '\',\'' + f.status + '\')">' + (f.status==='ativo'?'Desativar':'Ativar') + '</button>' +
