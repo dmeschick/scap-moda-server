@@ -192,6 +192,16 @@ async function auth(req, res, next) {
   }
 }
 
+async function listarTabelasPublicasBackup() {
+  const r = await pool.query(`
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+    ORDER BY tablename
+  `);
+  return r.rows.map(row => row.tablename);
+}
+
 function requireAdmin(req, res, next) {
   if (req.user?.cargo !== 'Administrador') {
     return res.status(403).json({ erro: 'Acesso restrito a administradores.' });
@@ -2878,42 +2888,26 @@ app.delete('/api/financeiro/contas-pagar/:id', auth, async (req, res) => {
 });
 
 async function gerarBackup() {
-  const [
-    funcionarios, produtos, clientes, fornecedores,
-    vendas, categorias, contasPagar, cheques, caixa,
-    caixaMovimentos, metasComissao, orcamentos, orcamentoItens
-  ] = await Promise.all([
-    pool.query('SELECT * FROM funcionarios'),
-    pool.query('SELECT * FROM produtos'),
-    pool.query('SELECT * FROM clientes'),
-    pool.query('SELECT * FROM fornecedores'),
-    pool.query('SELECT * FROM vendas'),
-    pool.query('SELECT * FROM categorias'),
-    pool.query('SELECT * FROM contas_pagar'),
-    pool.query('SELECT * FROM cheques'),
-    pool.query('SELECT * FROM caixa'),
-    pool.query('SELECT * FROM caixa_movimentos'),
-    pool.query('SELECT * FROM metas_comissao'),
-    pool.query('SELECT * FROM orcamentos'),
-    pool.query('SELECT * FROM orcamento_itens')
-  ]);
-  return {
+  const tabelas = await listarTabelasPublicasBackup();
+  const backup = {
     geradoEm: new Date().toISOString(),
-    versao: '1.0',
-    funcionarios: funcionarios.rows,
-    produtos: produtos.rows,
-    clientes: clientes.rows,
-    fornecedores: fornecedores.rows,
-    vendas: vendas.rows,
-    categorias: categorias.rows,
-    contasPagar: contasPagar.rows,
-    cheques: cheques.rows,
-    caixa: caixa.rows,
-    caixaMovimentos: caixaMovimentos.rows,
-    metasComissao: metasComissao.rows,
-    orcamentos: orcamentos.rows,
-    orcamentoItens: orcamentoItens.rows
+    versao: '2.0',
+    tabelas,
+    totalTabelas: tabelas.length
   };
+
+  for (const tabela of tabelas) {
+    const r = await pool.query(`SELECT * FROM "${tabela}"`);
+    backup[tabela] = r.rows;
+  }
+
+  // Mantém aliases antigos para compatibilidade com telas/resumos já existentes.
+  backup.contasPagar = backup.contas_pagar || [];
+  backup.caixaMovimentos = backup.caixa_movimentos || [];
+  backup.metasComissao = backup.metas_comissao || [];
+  backup.orcamentoItens = backup.orcamento_itens || [];
+
+  return backup;
 }
 
 // BACKUP — Exportação manual
