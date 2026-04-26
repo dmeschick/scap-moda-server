@@ -11,11 +11,21 @@ require('dotenv').config();
 const crypto = require('crypto');
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
+const corsOrigins = String(process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
 
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+app.use(cors(corsOrigins.length ? {
+  origin(origin, cb) {
+    if (!origin || corsOrigins.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  }
+} : {}));
 app.use(express.json({ limit: '50mb' }));
 
 // Rate limiting
@@ -61,6 +71,15 @@ const pool = new Pool({
 const JWT_SECRET = process.env.JWT_SECRET || 'scap-moda-secret-2024';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const isBcryptHash = hash => /^\$2[aby]\$/.test(String(hash || ''));
+const limitarInteiroPositivo = (valor, fallback, maximo) => {
+  const numero = Number.parseInt(valor, 10);
+  if (!Number.isFinite(numero) || numero <= 0) return fallback;
+  return Math.min(numero, maximo);
+};
+const normalizarOffset = valor => {
+  const numero = Number.parseInt(valor, 10);
+  return Number.isFinite(numero) && numero > 0 ? numero : 0;
+};
 const dataLocalISO = (data = new Date()) => {
   const partes = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -143,13 +162,47 @@ function calcularMesDesconto(tipo, dataRef) {
   return `${ano}-${String(mes + 1).padStart(2, '0')}`;
 }
 const tokenBlacklist = new Set();
+const CARGOS_GESTAO = new Set(['Administrador', 'Gerente', 'Proprietária', 'Proprietaria']);
 
-async function registrarMovimento(client, { produtoId, produtoNome, produtoCod, tipo, quantidade, estoqueAnterior, estoquePosteriror, motivo, vendaId, usuarioId, usuarioNome }) {
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET não definido; usando fallback inseguro apenas para compatibilidade.');
+}
+if (process.env.NODE_ENV === 'production' && !process.env.BACKUP_SECRET) {
+  console.warn('BACKUP_SECRET não definido; exportações de backup ficarão com chave padrão.');
+}
+if (process.env.NODE_ENV === 'production' && !corsOrigins.length) {
+  console.warn('CORS_ORIGINS não definido; CORS permanece aberto para todas as origens.');
+}
+
+function cargoEhGestao(cargo = '') {
+  return CARGOS_GESTAO.has(String(cargo || '').trim());
+}
+
+function senhaPadraoFuncionario(func = {}) {
+  const cpfDigitos = String(func.cpf || '').replace(/\D/g, '');
+  return cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
+}
+
+async function validarSenhaFuncionario(func, senha, client = pool) {
+  if (!func || !senha) return false;
+  if (isBcryptHash(func.senha_hash)) {
+    return bcrypt.compare(senha, func.senha_hash);
+  }
+
+  const senhaCorreta = senha === senhaPadraoFuncionario(func);
+  if (senhaCorreta) {
+    const hash = await bcrypt.hash(senha, SALT_ROUNDS);
+    await client.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
+  }
+  return senhaCorreta;
+}
+
+async function registrarMovimento(client, { produtoId, produtoNome, produtoCod, tipo, quantidade, estoqueAnterior, estoquePosterior, motivo, vendaId, usuarioId, usuarioNome }) {
   await client.query(
     `INSERT INTO estoque_movimentos
      (id, produto_id, produto_nome, produto_cod, tipo, quantidade, estoque_anterior, estoque_posterior, motivo, venda_id, usuario_id, usuario_nome)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-    [uid(), produtoId, produtoNome||'', produtoCod||'', tipo, quantidade, estoqueAnterior||0, estoquePosteriror||0, motivo||'', vendaId||null, usuarioId||null, usuarioNome||'']
+    [uid(), produtoId, produtoNome||'', produtoCod||'', tipo, quantidade, estoqueAnterior||0, estoquePosterior||0, motivo||'', vendaId||null, usuarioId||null, usuarioNome||'']
   );
 }
 
@@ -164,7 +217,7 @@ function criptografarBackup(jsonStr) {
 }
 
 async function auth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ erro: 'Não autorizado' });
   const tokenHash = hashToken(token);
   if (tokenBlacklist.has(tokenHash)) return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
@@ -184,7 +237,7 @@ async function auth(req, res, next) {
       tokenBlacklist.add(tokenHash);
       return res.status(401).json({ erro: 'Sessão encerrada. Faça login novamente.' });
     }
-    next();
+    return await next();
   }
   catch (err) {
     if (err.name === 'TokenExpiredError') return res.status(401).json({ erro: 'Sessão expirada. Faça login novamente.' });
@@ -205,6 +258,13 @@ async function listarTabelasPublicasBackup() {
 function requireAdmin(req, res, next) {
   if (req.user?.cargo !== 'Administrador') {
     return res.status(403).json({ erro: 'Acesso restrito a administradores.' });
+  }
+  next();
+}
+
+function requireGestao(req, res, next) {
+  if (!cargoEhGestao(req.user?.cargo)) {
+    return res.status(403).json({ erro: 'Acesso restrito à gestão.' });
   }
   next();
 }
@@ -679,21 +739,11 @@ async function initDB() {
 app.post('/api/login', async (req, res) => {
   try {
     const { funcId, senha } = req.body;
+    if (!funcId || !senha) return res.status(400).json({ erro: 'Informe usuário e senha.' });
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1 AND status=$2', [funcId, 'ativo']);
     if (!r.rows.length) return res.status(401).json({ erro: 'Funcionário não encontrado' });
     const func = r.rows[0];
-    let senhaValida = false;
-    if (isBcryptHash(func.senha_hash)) {
-      senhaValida = await bcrypt.compare(senha, func.senha_hash);
-    } else {
-      const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
-      const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
-      senhaValida = senha === senhaPadrao;
-      if (senhaValida) {
-        const hash = await bcrypt.hash(senha, SALT_ROUNDS);
-        await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
-      }
-    }
+    const senhaValida = await validarSenhaFuncionario(func, senha);
     if (!senhaValida) return res.status(401).json({ erro: 'Senha incorreta' });
     const token = jwt.sign({ id: func.id, nome: func.nome, cargo: func.cargo }, JWT_SECRET, { expiresIn: '10h' });
     res.json({ token, funcionario: { id: func.id, nome: func.nome, cargo: func.cargo } });
@@ -721,22 +771,12 @@ app.post('/api/logout', auth, (req, res) => {
 app.post('/api/auth/validar-senha', auth, async (req, res) => {
   try {
     const { senha } = req.body;
+    if (!senha) return res.status(400).json({ ok: false, erro: 'Digite sua senha.' });
     const usuario = req.user;
     const r = await pool.query('SELECT * FROM funcionarios WHERE id=$1', [usuario.id]);
     if (!r.rows.length) return res.status(401).json({ ok: false, erro: 'Usuário não encontrado' });
     const func = r.rows[0];
-    let senhaCorreta = false;
-    if (isBcryptHash(func.senha_hash)) {
-      senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
-    } else {
-      const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
-      const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
-      senhaCorreta = senha === senhaPadrao;
-      if (senhaCorreta) {
-        const hash = await bcrypt.hash(senha, SALT_ROUNDS);
-        await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
-      }
-    }
+    const senhaCorreta = await validarSenhaFuncionario(func, senha);
     if (!senhaCorreta) return res.json({ ok: false, erro: 'Senha incorreta' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
@@ -756,18 +796,7 @@ app.post('/api/auth/validar-admin', auth, async (req, res) => {
     );
 
     for (const func of r.rows) {
-      let senhaCorreta = false;
-      if (isBcryptHash(func.senha_hash)) {
-        senhaCorreta = await bcrypt.compare(senha, func.senha_hash);
-      } else {
-        const cpfDigitos = (func.cpf || '').replace(/\D/g, '');
-        const senhaPadrao = cpfDigitos.length >= 4 ? cpfDigitos.slice(0, 4) : '1234';
-        senhaCorreta = senha === senhaPadrao;
-        if (senhaCorreta) {
-          const hash = await bcrypt.hash(senha, SALT_ROUNDS);
-          await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, func.id]);
-        }
-      }
+      const senhaCorreta = await validarSenhaFuncionario(func, senha);
       if (senhaCorreta) {
         return res.json({ ok: true, admin: { id: func.id, nome: func.nome, cargo: func.cargo } });
       }
@@ -792,7 +821,7 @@ app.post('/api/auditoria', auth, async (req, res) => {
 });
 
 // AUDITORIA — Buscar log
-app.get('/api/auditoria', auth, async (req, res) => {
+app.get('/api/auditoria', auth, requireGestao, async (req, res) => {
   try {
     const r = await pool.query(`SELECT * FROM auditoria ORDER BY criado_em DESC LIMIT 200`);
     res.json(r.rows);
@@ -803,29 +832,38 @@ app.get('/api/auditoria', auth, async (req, res) => {
 app.get('/api/funcionarios', async (req, res) => {
   try {
     const { todos, login } = req.query;
-    let sql;
     if (login) {
-      sql = `SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto
-             FROM funcionarios
-             WHERE status='ativo'
-               AND cargo IN ('Administrador', 'Gerente', 'Proprietária', 'Proprietaria')
-             ORDER BY nome`;
-    } else if (todos) {
-      sql = 'SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios ORDER BY nome';
-    } else {
-      sql = "SELECT id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto FROM funcionarios WHERE status='ativo' ORDER BY nome";
+      const r = await pool.query(
+        `SELECT id, nome
+         FROM funcionarios
+         WHERE status='ativo'
+           AND cargo IN ('Administrador', 'Gerente', 'Proprietária', 'Proprietaria')
+         ORDER BY nome`
+      );
+      return res.json(r.rows);
     }
-    const r = await pool.query(sql);
-    res.json(r.rows);
+
+    await auth(req, res, async () => {
+      const colunas = cargoEhGestao(req.user?.cargo)
+        ? 'id,nome,cpf,cargo,tel,salario,comissao,admissao,turno,obs,status,foto'
+        : 'id,nome,cargo,status,foto';
+
+      const sql = todos && cargoEhGestao(req.user?.cargo)
+        ? `SELECT ${colunas} FROM funcionarios ORDER BY nome`
+        : `SELECT ${colunas} FROM funcionarios WHERE status='ativo' ORDER BY nome`;
+      const r = await pool.query(sql);
+      res.json(r.rows);
+    });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-app.delete('/api/funcionarios/:id', auth, async (req, res) => {
+
+app.delete('/api/funcionarios/:id', auth, requireGestao, async (req, res) => {
   try {
     await pool.query('DELETE FROM funcionarios WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-app.post('/api/funcionarios', auth, async (req, res) => {
+app.post('/api/funcionarios', auth, requireGestao, async (req, res) => {
   try {
     const f = req.body;
     // foto='' significa remover, foto=null significa manter a atual
@@ -840,8 +878,26 @@ app.post('/api/funcionarios', auth, async (req, res) => {
 });
 app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
   try {
-    const hash = await bcrypt.hash(req.body.senha, SALT_ROUNDS);
+    const senha = String(req.body?.senha || '').trim();
+    if (!senha || senha.length < 4) {
+      return res.status(400).json({ erro: 'A senha deve ter pelo menos 4 caracteres.' });
+    }
+    const podeEditar = cargoEhGestao(req.user?.cargo) || req.user?.id === req.params.id;
+    if (!podeEditar) {
+      return res.status(403).json({ erro: 'Você não pode alterar a senha deste funcionário.' });
+    }
+    const hash = await bcrypt.hash(senha, SALT_ROUNDS);
     await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ erro: err.message }); }
+});
+app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
+  try {
+    const podeEditar = cargoEhGestao(req.user?.cargo) || req.user?.id === req.params.id;
+    if (!podeEditar) {
+      return res.status(403).json({ erro: 'Você não pode alterar a foto deste funcionário.' });
+    }
+    await pool.query('UPDATE funcionarios SET foto=$1 WHERE id=$2', [req.body.foto || '', req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
@@ -899,6 +955,8 @@ app.delete('/api/fornecedores/:id', auth, async (req, res) => {
 app.get('/api/produtos', auth, async (req, res) => {
   try {
     const { q, cat, status, limit, offset, dataEntradaIni, dataEntradaFim } = req.query;
+    const limitSeguro = limitarInteiroPositivo(limit, 500, 1000);
+    const offsetSeguro = normalizarOffset(offset);
     let where = [];
     let params = [];
     let i = 1;
@@ -911,7 +969,8 @@ app.get('/api/produtos', auth, async (req, res) => {
     const orderBy = cat
       ? "ORDER BY NULLIF(regexp_replace(cod, '\\D', '', 'g'), '')::bigint DESC NULLS LAST, cod DESC"
       : 'ORDER BY criado_em DESC';
-    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ${orderBy} LIMIT ${parseInt(limit)||500} OFFSET ${parseInt(offset)||0}`;
+    params.push(limitSeguro, offsetSeguro);
+    const sql = `SELECT * FROM produtos WHERE ${where.join(' AND ')} ${orderBy} LIMIT $${i++} OFFSET $${i++}`;
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
@@ -1465,15 +1524,15 @@ app.patch('/api/produtos/:id/estoque', auth, async (req, res) => {
     const produtoCod = antes.rows[0]?.cod || '';
     await pool.query('UPDATE produtos SET est=GREATEST(0,est+$1),atualizado_em=NOW() WHERE id=$2', [delta, prodId]);
     const r = await pool.query('SELECT est FROM produtos WHERE id=$1', [prodId]);
-    const estoquePosteriror = r.rows[0]?.est || 0;
+    const estoquePosterior = r.rows[0]?.est || 0;
     await registrarMovimento(pool, {
       produtoId: prodId, produtoNome, produtoCod,
       tipo: 'ajuste', quantidade: delta,
-      estoqueAnterior, estoquePosteriror,
+      estoqueAnterior, estoquePosterior,
       motivo: motivo || 'Ajuste manual',
       usuarioId: req.user?.id, usuarioNome: req.user?.nome
     });
-    res.json({ est: estoquePosteriror });
+    res.json({ est: estoquePosterior });
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
 
@@ -1576,6 +1635,8 @@ app.patch('/api/creditos/:id/usar', auth, async (req, res) => {
 app.get('/api/vendas', auth, async (req, res) => {
   try {
     const { de, ate, status, limit, offset, vendedor_id } = req.query;
+    const limitSeguro = limitarInteiroPositivo(limit, 200, 500);
+    const offsetSeguro = normalizarOffset(offset);
     let where = ['1=1'];
     let params = [];
     let i = 1;
@@ -1598,7 +1659,8 @@ app.get('/api/vendas', auth, async (req, res) => {
       LEFT JOIN venda_pagamentos vp ON vp.venda_id=v.id
       WHERE ${where.join(' AND ')}
       GROUP BY v.id ORDER BY v.data DESC
-      LIMIT ${parseInt(limit)||200} OFFSET ${parseInt(offset)||0}`;
+      LIMIT $${i++} OFFSET $${i++}`;
+    params.push(limitSeguro, offsetSeguro);
     const r = await pool.query(sql, params);
     const vendas = await sincronizarSituacaoNFeDasVendas(r.rows);
     res.json(vendas);
@@ -1627,7 +1689,7 @@ app.post('/api/vendas', auth, async (req, res) => {
         await registrarMovimento(client, {
           produtoId: item.id, produtoNome: item.nome, produtoCod: item.cod,
           tipo: 'devolucao', quantidade: item.qty,
-          estoqueAnterior, estoquePosteriror: estoqueAnterior + item.qty,
+          estoqueAnterior, estoquePosterior: estoqueAnterior + item.qty,
           motivo: 'Devolução venda ' + v.num, vendaId: v.id,
           usuarioId: v.vendedorId, usuarioNome: v.vendedorNome
         });
@@ -1637,7 +1699,7 @@ app.post('/api/vendas', auth, async (req, res) => {
         await registrarMovimento(client, {
           produtoId: item.id, produtoNome: item.nome, produtoCod: item.cod,
           tipo: 'venda', quantidade: item.qty,
-          estoqueAnterior, estoquePosteriror: estoquePos,
+          estoqueAnterior, estoquePosterior: estoquePos,
           motivo: 'Venda ' + v.num, vendaId: v.id,
           usuarioId: v.vendedorId, usuarioNome: v.vendedorNome
         });
@@ -2139,26 +2201,6 @@ app.get('/api/ponto/hoje', auth, async (req, res) => {
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }
 });
-
-// SENHA FUNCIONÁRIO
-app.put('/api/funcionarios/:id/senha', auth, async (req, res) => {
-  try {
-    const hash = await bcrypt.hash(req.body.senha, SALT_ROUNDS);
-    await pool.query('UPDATE funcionarios SET senha_hash=$1 WHERE id=$2', [hash, req.params.id]);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: err.message }); }
-});
-
-// FOTO FUNCIONÁRIO
-app.put('/api/funcionarios/:id/foto', auth, async (req, res) => {
-  try {
-    await pool.query('UPDATE funcionarios SET foto=$1 WHERE id=$2', [req.body.foto, req.params.id]);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ erro: err.message }); }
-});
-
-
-
 
 
 
@@ -3236,6 +3278,8 @@ app.delete('/api/pdv/atendimentos/:id', auth, async (req, res) => {
 app.get('/api/orcamentos', auth, async (req, res) => {
   try {
     const { status, q, limit, offset } = req.query;
+    const limitSeguro = limitarInteiroPositivo(limit, 200, 500);
+    const offsetSeguro = normalizarOffset(offset);
     let where = ['1=1'];
     let params = [];
     let i = 1;
@@ -3253,7 +3297,8 @@ app.get('/api/orcamentos', auth, async (req, res) => {
       WHERE ${where.join(' AND ')}
       GROUP BY o.id
       ORDER BY o.data DESC
-      LIMIT ${parseInt(limit) || 200} OFFSET ${parseInt(offset) || 0}`;
+      LIMIT $${i++} OFFSET $${i++}`;
+    params.push(limitSeguro, offsetSeguro);
     const r = await pool.query(sql, params);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ erro: err.message }); }

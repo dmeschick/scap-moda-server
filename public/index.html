@@ -1893,7 +1893,7 @@ function limparSessaoLocal(mensagem) {
 async function api(method, path, body) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) }
+    headers: authHeaders({ 'Content-Type': 'application/json' })
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const r = await fetch(API + path, opts);
@@ -1913,6 +1913,60 @@ async function api(method, path, body) {
     throw erro;
   }
   return r.json();
+}
+
+function authHeaders(extra = {}) {
+  return { ...extra, ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) };
+}
+
+function apiUrl(path) {
+  return /^https?:\/\//i.test(path) ? path : API + path;
+}
+
+function extrairNomeArquivoCabecalho(contentDisposition = '') {
+  const matchUtf8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (matchUtf8) return decodeURIComponent(matchUtf8[1]);
+  const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return match ? match[1] : '';
+}
+
+async function buscarBlobAutenticado(path) {
+  const r = await fetch(apiUrl(path), { headers: authHeaders() });
+  if (!r.ok) {
+    let mensagem = r.statusText || 'Erro ao baixar arquivo';
+    try {
+      const err = await r.json();
+      mensagem = err.erro || mensagem;
+    } catch (_) {
+      const texto = await r.text().catch(() => '');
+      if (texto) mensagem = texto.slice(0, 200);
+    }
+    if (r.status === 401 && TOKEN) {
+      if (!_sessaoExpiradaEmAndamento) {
+        _sessaoExpiradaEmAndamento = true;
+        limparSessaoLocal(mensagem || 'Sessão expirada. Faça login novamente.');
+      }
+    }
+    const erro = new Error(mensagem);
+    erro.status = r.status;
+    throw erro;
+  }
+  return {
+    blob: await r.blob(),
+    filename: extrairNomeArquivoCabecalho(r.headers.get('content-disposition') || '')
+  };
+}
+
+async function baixarArquivoAutenticado(path, nomePadrao) {
+  const { blob, filename } = await buscarBlobAutenticado(path);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || nomePadrao || 'download';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // ===== TOAST =====
@@ -2033,7 +2087,7 @@ async function iniciarLogin() {
     const funcs = await api('GET', '/api/funcionarios?login=1');
     const sel = document.getElementById('login-usuario');
     sel.innerHTML = '<option value="">— Selecione seu nome —</option>' +
-      funcs.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+      funcs.map(f => `<option value="${escaparHtml(f.id)}">${escaparHtml(f.nome)}</option>`).join('');
   } catch (e) {
     document.getElementById('login-erro').textContent = 'Sem conexão com o servidor.';
     document.getElementById('login-erro').style.display = 'block';
@@ -3544,16 +3598,16 @@ async function carregarClientes() {
       return `<tr style="cursor:pointer${isAniv?';background:#FFFDE7':''}" onclick="verCliente('${c.id}')">
         <td><div style="display:flex;align-items:center;gap:8px">
           <div class="avatar" style="background:var(--pink-light);color:var(--pink-dark)">${iniciais(c.nome)}</div>
-          <div><strong>${c.nome}</strong>${isAniv?' 🎂':''}${c.ig?`<div style="font-size:11px;color:var(--text2)">${c.ig}</div>`:''}</div>
+          <div><strong>${escaparHtml(c.nome)}</strong>${isAniv?' 🎂':''}${c.ig?`<div style="font-size:11px;color:var(--text2)">${escaparHtml(c.ig)}</div>`:''}</div>
         </div></td>
-        <td>${c.tel||'—'}</td>
-        <td style="font-size:12px">${c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—')}</td>
-        <td style="font-size:12px;color:var(--text2)">${endStr}</td>
+        <td>${escaparHtml(c.tel || '—')}</td>
+        <td style="font-size:12px">${escaparHtml(c.tipo==='PJ'?(c.cnpj||'—'):(c.cpf||'—'))}</td>
+        <td style="font-size:12px;color:var(--text2)">${escaparHtml(endStr)}</td>
         <td><strong>${fmtMoeda(c.total_compras)}</strong></td>
         <td class="col-hide-mobile">${c.saldo_credito > 0 ? `<span class="badge badge-green">💳 ${fmtMoeda(c.saldo_credito)}</span>` : '—'}</td>
         <td><div class="action-btns" onclick="event.stopPropagation()">
-          <button class="btn btn-sm" onclick="confirmarAcao('editar cliente','Editar cliente ${c.nome.replace(/'/g,"\\'")}',()=>abrirModalCliente('${c.id}'))">Editar</button>
-          <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Excluir</button>
+          <button class="btn btn-sm" onclick="confirmarAcao('editar cliente','Editar cliente ${escaparHtml(c.nome).replace(/'/g,"\\'")}',()=>abrirModalCliente('${c.id}'))">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}','${escaparHtml(c.nome).replace(/'/g,"\\'")}')">Excluir</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -3569,12 +3623,12 @@ function verCliente(id) {
   const endHtml = enderecos.length
     ? enderecos.map(e => `
         <div style="background:var(--bg);border-radius:var(--radius);padding:12px;margin-bottom:8px">
-          <div style="font-size:11px;font-weight:700;color:var(--pink-dark);margin-bottom:6px">${e.tipo||'Endereço'}${e.principal?' ★':''}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--pink-dark);margin-bottom:6px">${escaparHtml(e.tipo||'Endereço')}${e.principal?' ★':''}</div>
           <div style="font-size:13px;line-height:1.7">
-            ${e.logradouro?`${e.logradouro}${e.numero?', '+e.numero:''}${e.complemento?' - '+e.complemento:''}<br>`:''}
-            ${e.bairro?`${e.bairro}<br>`:''}
-            ${e.cidade?`${e.cidade}${e.estado?' - '+e.estado:''}<br>`:''}
-            ${e.cep?`CEP: ${e.cep}`:''}
+            ${e.logradouro?`${escaparHtml(e.logradouro)}${e.numero?', '+escaparHtml(e.numero):''}${e.complemento?' - '+escaparHtml(e.complemento):''}<br>`:''}
+            ${e.bairro?`${escaparHtml(e.bairro)}<br>`:''}
+            ${e.cidade?`${escaparHtml(e.cidade)}${e.estado?' - '+escaparHtml(e.estado):''}<br>`:''}
+            ${e.cep?`CEP: ${escaparHtml(e.cep)}`:''}
           </div>
         </div>`).join('')
     : '<div style="color:var(--text2);font-size:13px">Nenhum endereço cadastrado</div>';
@@ -3582,8 +3636,8 @@ function verCliente(id) {
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
       <div class="avatar" style="width:52px;height:52px;font-size:18px;background:var(--pink-light);color:var(--pink-dark);flex-shrink:0">${iniciais(c.nome)}</div>
       <div>
-        <div style="font-size:20px;font-weight:700">${c.nome}${isAniv?' 🎂':''}</div>
-        <div style="font-size:13px;color:var(--text2)">${c.tel||''}${c.ig?' · '+c.ig:''}</div>
+        <div style="font-size:20px;font-weight:700">${escaparHtml(c.nome)}${isAniv?' 🎂':''}</div>
+        <div style="font-size:13px;color:var(--text2)">${escaparHtml(c.tel||'')}${c.ig?' · '+escaparHtml(c.ig):''}</div>
         ${c.nasc?`<div style="font-size:12px;color:var(--text2)">📅 ${fmtData(c.nasc)}</div>`:''}
         <div style="font-size:13px;font-weight:600;color:var(--pink-dark);margin-top:4px">Total: ${fmtMoeda(c.total_compras)}</div>
       </div>
@@ -3745,14 +3799,14 @@ async function carregarFornecedores() {
     if (!filtrado.length) { tb.innerHTML = '<tr><td colspan="6"><div class="empty-state" style="padding:24px"><div class="icon">🚚</div><p>Nenhum fornecedor</p></div></td></tr>'; return; }
     renderMobileCardsFornecedores(filtrado);
     tb.innerHTML = filtrado.map(f => `<tr>
-      <td><strong>${f.nome}</strong></td>
-      <td style="font-size:12px">${f.cnpj||'—'}</td>
-      <td>${f.contato||'—'}</td>
-      <td>${f.tel||'—'}</td>
-      <td style="font-size:12px">${f.cats||'—'}</td>
+      <td><strong>${escaparHtml(f.nome)}</strong></td>
+      <td style="font-size:12px">${escaparHtml(f.cnpj||'—')}</td>
+      <td>${escaparHtml(f.contato||'—')}</td>
+      <td>${escaparHtml(f.tel||'—')}</td>
+      <td style="font-size:12px">${escaparHtml(f.cats||'—')}</td>
       <td><div class="action-btns">
-        <button class="btn btn-sm" onclick="confirmarAcao('editar fornecedor','Editar fornecedor ${f.nome.replace(/'/g,"\\'")}',()=>abrirModalFornecedor('${f.id}'))">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
+        <button class="btn btn-sm" onclick="confirmarAcao('editar fornecedor','Editar fornecedor ${escaparHtml(f.nome).replace(/'/g,"\\'")}',()=>abrirModalFornecedor('${f.id}'))">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}','${escaparHtml(f.nome).replace(/'/g,"\\'")}')">Excluir</button>
       </div></td>
     </tr>`).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
@@ -3861,15 +3915,15 @@ async function carregarFuncionarios() {
     renderMobileCardsFuncionarios(filtrado);
     tb.innerHTML = filtrado.map(f => `<tr style="${f.status==='inativo'?'opacity:.5':''}">
       <td><div style="display:flex;align-items:center;gap:8px">
-        ${f.foto ? `<img src="${f.foto}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div class="avatar" style="background:#E6F1FB;color:var(--blue)">${iniciais(f.nome)}</div>`}
-        <strong>${f.nome}</strong>
+        ${f.foto ? `<img src="${escaparHtml(f.foto)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<div class="avatar" style="background:#E6F1FB;color:var(--blue)">${iniciais(f.nome)}</div>`}
+        <strong>${escaparHtml(f.nome)}</strong>
       </div></td>
-      <td><span class="badge badge-blue">${f.cargo}</span></td>
-      <td>${f.tel||'—'}</td>
-      <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${f.status}</span></td>
+      <td><span class="badge badge-blue">${escaparHtml(f.cargo || '')}</span></td>
+      <td>${escaparHtml(f.tel||'—')}</td>
+      <td><span class="badge ${f.status==='ativo'?'badge-green':'badge-gray'}">${escaparHtml(f.status || '')}</span></td>
       <td><div class="action-btns">
-        <button class="btn btn-sm" onclick="confirmarAcao('editar funcionário','Editar funcionário ${f.nome.replace(/'/g,"\\'")}',()=>abrirModalFuncionario('${f.id}'))">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="excluirFuncionario('${f.id}','${f.nome.replace(/'/g,"\\'")}')">Excluir</button>
+        <button class="btn btn-sm" onclick="confirmarAcao('editar funcionário','Editar funcionário ${escaparHtml(f.nome).replace(/'/g,"\\'")}',()=>abrirModalFuncionario('${f.id}'))">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="excluirFuncionario('${f.id}','${escaparHtml(f.nome).replace(/'/g,"\\'")}')">Excluir</button>
       </div></td>
     </tr>`).join('');
   } catch(e) { toast('Erro: ' + e.message, 'error'); }
@@ -4026,7 +4080,7 @@ async function iniciarPonto() {
     const funcs = await api('GET', '/api/funcionarios');
     const sel = document.getElementById('ponto-func-sel');
     sel.innerHTML = '<option value="">— Selecionar funcionário —</option>' +
-      funcs.map(f => `<option value="${f.id}" data-nome="${f.nome}">${f.nome}</option>`).join('');
+      funcs.map(f => `<option value="${escaparHtml(f.id)}" data-nome="${escaparHtml(f.nome)}">${escaparHtml(f.nome)}</option>`).join('');
     // Se logado, pré-seleciona
     if (usuarioLogado) {
       sel.value = usuarioLogado.id;
@@ -4082,7 +4136,7 @@ function registrarPonto(tipo, label) {
     // Preenche modal
     const fotoEl = document.getElementById('ponto-confirm-foto');
     fotoEl.innerHTML = foto
-      ? `<img src="${foto}" style="width:100%;height:100%;object-fit:cover">`
+      ? `<img src="${escaparHtml(foto)}" style="width:100%;height:100%;object-fit:cover">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--pink-light);border-radius:50%;color:var(--pink-dark);font-weight:700">${iniciais(nome)}</div>`;
 
     document.getElementById('ponto-confirm-nome').textContent = nome;
@@ -4166,10 +4220,10 @@ async function carregarPonto() {
     }
     tb.innerHTML = registros.map(r => `<tr>
       <td>${fmtData(r.data)}</td>
-      <td>${r.funcionario_nome}</td>
-      <td>${TIPOS_PONTO.find(t=>t.tipo===r.tipo)?.label||r.tipo}</td>
+      <td>${textoSeguro(r.funcionario_nome)}</td>
+      <td>${textoSeguro(TIPOS_PONTO.find(t=>t.tipo===r.tipo)?.label||r.tipo)}</td>
       <td><strong>${new Date(r.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</strong></td>
-      <td style="font-size:12px;color:var(--text2)">${r.obs||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${textoSeguro(r.obs||'—')}</td>
     </tr>`).join('');
     // Calcula horas trabalhadas por dia
     calcularHorasPonto(registros);
@@ -4209,7 +4263,7 @@ function calcularHorasPonto(registros) {
     }
     const horas = totalMinutos > 0 ? `${Math.floor(totalMinutos/60)}h${String(Math.round(totalMinutos%60)).padStart(2,'0')}min` : '—';
     html += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-      <div><strong>${g.nome}</strong> — ${fmtData(g.data)}</div>
+      <div><strong>${textoSeguro(g.nome)}</strong> — ${fmtData(g.data)}</div>
       <div>
         ${entrada?`Entrada: ${new Date(entrada.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} `:''}
         ${saida?`Saída: ${new Date(saida.horario).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} `:''}
@@ -4388,14 +4442,14 @@ async function carregarVendas() {
             : '')
         : '';
       return `<tr>
-      <td><strong>${v.num}</strong></td>
+      <td><strong>${escaparHtml(v.num || '')}</strong></td>
       <td style="font-size:12px">${new Date(v.data).toLocaleString('pt-BR')}</td>
-      <td>${v.cliente_nome||'Consumidor final'}</td>
-      <td style="font-size:12px">${v.vendedor_nome||'—'}</td>
+      <td>${escaparHtml(v.cliente_nome || 'Consumidor final')}</td>
+      <td style="font-size:12px">${escaparHtml(v.vendedor_nome || '—')}</td>
       <td><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">${v.canal==='online'?'<span class="badge badge-blue">🌐 Online</span>':'<span class="badge badge-green">🏪 Presencial</span>'}${nfOnlineStatus}</div></td>
       <td>${totalCell}</td>
-      <td style="font-size:12px">${v.pag}</td>
-      <td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${v.status}</span></td>
+      <td style="font-size:12px">${escaparHtml(v.pag || '')}</td>
+      <td><span class="badge ${v.status==='pago'?'badge-green':'badge-red'}">${escaparHtml(v.status || '')}</span></td>
       <td><div class="action-btns">
         <button class="btn btn-sm" onclick="verVenda('${v.id}')">Ver</button>
         ${botaoDanfe}
@@ -4435,7 +4489,7 @@ async function cancelarVenda(id) {
 }
 
 // ===== ORÇAMENTOS =====
-const textoSeguro = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const textoSeguro = escaparHtml;
 
 function totaisOrcamentoAtual() {
   const sub = carrinho.reduce((a, i) => a + (Number(i.preco) || 0) * (Number(i.qty) || 0), 0);
@@ -5105,17 +5159,36 @@ function abrirPopupBlingNota(tipo, nota) {
   return popup;
 }
 
+let _notaBlingObjectUrl = null;
+
+function liberarNotaBlingObjectUrl() {
+  if (_notaBlingObjectUrl) {
+    URL.revokeObjectURL(_notaBlingObjectUrl);
+    _notaBlingObjectUrl = null;
+  }
+}
+
 function obterLinkNotaBling(nota, tipo = nota?._tipoNotaBling) {
-  if (tipo === 'nfe' && nota?.id && TOKEN) {
-    return `${API}/api/bling/nfe/${encodeURIComponent(nota.id)}/pdf?token=${encodeURIComponent(TOKEN)}`;
+  if (tipo === 'nfe' && nota?.id) {
+    return `/api/bling/nfe/${encodeURIComponent(nota.id)}/pdf`;
   }
   return nota?.linkPDF || nota?.linkDanfe || nota?.xml || '';
+}
+
+async function resolverLinkNotaBling(link) {
+  if (!link) return '';
+  if (!/^\/api\//.test(link)) return link;
+  liberarNotaBlingObjectUrl();
+  const { blob } = await buscarBlobAutenticado(link);
+  _notaBlingObjectUrl = URL.createObjectURL(blob);
+  return _notaBlingObjectUrl;
 }
 
 function fecharVisualizacaoNotaBling() {
   const frame = document.getElementById('modal-nota-bling-frame');
   const aviso = document.getElementById('modal-nota-bling-aviso');
   if (frame) frame.src = 'about:blank';
+  liberarNotaBlingObjectUrl();
   if (aviso) {
     aviso.style.display = 'none';
     aviso.textContent = '';
@@ -5124,11 +5197,16 @@ function fecharVisualizacaoNotaBling() {
   fecharModal('modal-nota-bling');
 }
 
-function abrirLinkNotaBlingAtual() {
-  const nota = window._notaBlingAtualVisualizacao;
-  const link = obterLinkNotaBling(nota);
-  if (!link) return;
-  window.open(link, '_blank', 'noopener,noreferrer');
+async function abrirLinkNotaBlingAtual() {
+  try {
+    const nota = window._notaBlingAtualVisualizacao;
+    const link = obterLinkNotaBling(nota);
+    if (!link) return;
+    const linkResolvido = await resolverLinkNotaBling(link);
+    window.open(linkResolvido, '_blank', 'noopener,noreferrer');
+  } catch (e) {
+    toast('Erro ao abrir documento: ' + e.message, 'error');
+  }
 }
 
 function abrirModuloNotaBlingAtual() {
@@ -5138,9 +5216,10 @@ function abrirModuloNotaBlingAtual() {
   abrirPopupBlingNota(tipo, nota);
 }
 
-function abrirNotaBlingNoSistema(tipo, nota) {
+async function abrirNotaBlingNoSistema(tipo, nota) {
   const notaVisualizacao = { ...nota, _tipoNotaBling: tipo };
-  const link = obterLinkNotaBling(notaVisualizacao, tipo);
+  const linkOriginal = obterLinkNotaBling(notaVisualizacao, tipo);
+  const link = await resolverLinkNotaBling(linkOriginal);
   if (!link) return false;
   const situacao = extrairSituacaoNotaFiscalLocal(notaVisualizacao);
   const autorizada = notaObjetoAutorizada(notaVisualizacao);
@@ -5309,7 +5388,7 @@ async function emitirNFe(vendaId) {
       } else if (!autorizada) {
         toast('A NF-e existe, mas ainda não está autorizada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Não vou abrir impressão automática.', 'warn', 7000);
       } else {
-        const abriuNoSistema = abrirNotaBlingNoSistema('nfe', notaAtual);
+        const abriuNoSistema = await abrirNotaBlingNoSistema('nfe', notaAtual);
         if (abriuNoSistema) {
           toast((autorizada ? 'NF-e já emitida. Abrindo para impressão — ' : 'NF-e localizada. Abrindo para consulta — ') + numeroLabel + (numeroCopiado ? ' copiado' : ''));
         } else {
@@ -5330,7 +5409,7 @@ async function emitirNFe(vendaId) {
     const numero = r.nfe?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (autorizada) {
-      const abriuNoSistema = abrirNotaBlingNoSistema('nfe', r.nfe);
+      const abriuNoSistema = await abrirNotaBlingNoSistema('nfe', r.nfe);
       if (abriuNoSistema) {
         toast('NF-e emitida com sucesso! Nota aberta para impressão' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
       } else {
@@ -5380,7 +5459,7 @@ async function emitirNFCe(vendaId) {
       } else if (!autorizada) {
         toast('A NFC-e existe, mas ainda não está autorizada no Bling' + (situacaoAtual ? `: ${situacaoAtual}` : '.') + ' Não vou abrir impressão automática.', 'warn', 7000);
       } else {
-        const abriuNoSistema = abrirNotaBlingNoSistema('nfce', notaAtual);
+        const abriuNoSistema = await abrirNotaBlingNoSistema('nfce', notaAtual);
         if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', notaAtual);
         if (abriuNoSistema) {
           toast('NFC-e já emitida. Abrindo para impressão — ' + numeroLabel + (numeroCopiado ? ' copiado' : ''));
@@ -5404,7 +5483,7 @@ async function emitirNFCe(vendaId) {
     const numero = r.nfce?.numero || '';
     const numeroCopiado = numero ? await copiarTexto(numero) : false;
     if (autorizada) {
-      const abriuNoSistema = abrirNotaBlingNoSistema('nfce', r.nfce);
+      const abriuNoSistema = await abrirNotaBlingNoSistema('nfce', r.nfce);
       if (!abriuNoSistema) popup = abrirPopupBlingNota('nfce', r.nfce);
       if (abriuNoSistema) {
         toast('NFC-e emitida com sucesso! Nota aberta no sistema' + (numero ? ` — Nº ${numero}${numeroCopiado ? ' copiado' : ''}` : ''));
@@ -5471,10 +5550,10 @@ async function carregarAuditoria() {
     el.innerHTML = logs.map(l =>
       '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">' +
         '<div style="display:flex;justify-content:space-between">' +
-          '<strong>' + l.usuario_nome + '</strong>' +
+          '<strong>' + textoSeguro(l.usuario_nome) + '</strong>' +
           '<span style="color:var(--text2)">' + new Date(l.criado_em).toLocaleString('pt-BR') + '</span>' +
         '</div>' +
-        '<div style="color:var(--text2)">' + l.acao + (l.detalhes ? ' — ' + l.detalhes : '') + '</div>' +
+        '<div style="color:var(--text2)">' + textoSeguro(l.acao) + (l.detalhes ? ' — ' + textoSeguro(l.detalhes) : '') + '</div>' +
       '</div>'
     ).join('');
   } catch(e) {}
@@ -5497,7 +5576,9 @@ async function salvarEmailBackup() {
 }
 
 function exportarBackup() {
-  window.open(API + '/api/backup/exportar?token=' + TOKEN, '_blank');
+  baixarArquivoAutenticado('/api/backup/exportar', 'scap-backup.enc')
+    .then(() => toast('Backup baixado!'))
+    .catch(e => toast('Erro ao baixar backup: ' + e.message, 'error'));
 }
 
 async function enviarBackupAgora() {
@@ -5731,7 +5812,7 @@ async function configurarSegurancaQZ() {
 
   qz.security.setCertificatePromise((resolve, reject) => {
     fetch(API + '/api/qz/certificate', {
-      headers: TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}
+      headers: authHeaders()
     })
       .then(r => r.ok ? r.text() : Promise.reject(new Error('Certificado QZ indisponível')))
       .then(resolve)
@@ -5743,7 +5824,7 @@ async function configurarSegurancaQZ() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {})
+        ...authHeaders()
       },
       body: JSON.stringify({ request: toSign })
     })
